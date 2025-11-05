@@ -3,19 +3,11 @@ package transform
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/tidwall/gjson"
-)
-
-// Sentinel errors for JSONPath operations
-var (
-	ErrInvalidJSONPath = errors.New("invalid JSONPath syntax")
-	ErrTypeMismatch    = errors.New("type mismatch in JSONPath query")
-	ErrNilData         = errors.New("cannot query nil data")
 )
 
 // JSONPathQuerier defines the interface for querying JSON data using JSONPath expressions
@@ -71,6 +63,12 @@ func (q *gjsonQuerier) Query(ctx context.Context, path string, data interface{})
 		return handleNegativeIndex(jsonStr, path)
 	}
 
+	// Check if this is a wildcard query that needs special handling
+	// e.g., $.items[*].name or $.prices[*]
+	if strings.Contains(path, "[*]") {
+		return handleWildcardQuery(ctx, jsonStr, path, data)
+	}
+
 	// Check if this is a recursive descent query (before conversion)
 	if strings.Contains(path, "..") {
 		// Extract the field name after ..
@@ -94,6 +92,13 @@ func (q *gjsonQuerier) Query(ctx context.Context, path string, data interface{})
 			return nil, fmt.Errorf("failed to unmarshal data: %w", err)
 		}
 		return result, nil
+	}
+
+	// Check if we have a filter followed by wildcard operations
+	// e.g., $.orders[?(@.status == 'pending')].items[*].sku
+	// This requires special multi-stage handling
+	if hasFilterFollowedByWildcard(path) {
+		return handleFilteredWildcardPath(jsonStr, path)
 	}
 
 	// Check if we need to handle OR conditions in filters
@@ -143,10 +148,8 @@ func convertGJSONResult(result gjson.Result) interface{} {
 	case gjson.True:
 		return true
 	case gjson.Number:
-		// Return as float64 or int based on whether it has decimal points
-		if result.Num == float64(int64(result.Num)) {
-			return int(result.Num)
-		}
+		// Always return numbers as float64 for consistency with JSON spec
+		// JSON doesn't distinguish between int and float at parse time
 		return result.Num
 	case gjson.String:
 		return result.Str
@@ -174,20 +177,26 @@ func convertJSONPathToGJSON(path string) (string, error) {
 	// gjson uses #(...)# for deep search with filters, but for simple field search
 	// we can use the @this syntax with a pattern
 
-	// Handle .length() function - convert to .#
-	result = strings.ReplaceAll(result, ".length()", ".#")
+	// Handle .length() function ONLY when not followed by array/field operations
+	// Only convert standalone .length() to .#
+	// e.g., "$.items.length()" -> "items.#" (count items)
+	// but NOT "$.items[*]" which should return all items, not count
+	if strings.Contains(result, ".length()") {
+		result = strings.ReplaceAll(result, ".length()", ".#")
+	}
 
 	// Handle filter expressions BEFORE replacing [*]
 	result = convertFilters(result)
 
-	// Replace [*] with .# for array wildcard (but not after filters)
-	// Be careful not to replace the # in filters
-	if !strings.Contains(result, "#(") {
-		result = strings.ReplaceAll(result, "[*]", ".#")
-	} else {
-		// Only replace [*] that are not part of filters
-		result = replaceWildcardCarefully(result)
-	}
+	// NOTE: In gjson, accessing an array directly (e.g., "prices") returns the array
+	// Using .# returns the COUNT of items, not the items themselves.
+	// So for $.items[*].name, we convert to items.#.name which would fail.
+	// Instead, we need to handle [*] specially:
+	// - $.items[*] -> just use "items" (returns the array)
+	// - $.items[*].name -> use items.#.name (doesn't work)
+	// So we need special handling in the conversion function.
+	// For now, we'll use replaceWildcardCarefully to handle this correctly
+	result = replaceWildcardCarefully(result)
 
 	// Replace [@.field] patterns (remove @.)
 	result = strings.ReplaceAll(result, "[@.", "[")
@@ -200,7 +209,67 @@ func convertJSONPathToGJSON(path string) (string, error) {
 	return result, nil
 }
 
-// replaceWildcardCarefully replaces [*] but avoids filter expressions
+// convertQuotesForGJSON converts single quotes to double quotes in filter expressions
+// gjson only supports double quotes for string literals
+// This function is careful to only convert quotes that are string delimiters
+func convertQuotesForGJSON(expr string) string {
+	result := ""
+	inString := false
+	stringChar := rune(0)
+	escaped := false
+
+	for _, ch := range expr {
+		if escaped {
+			result += string(ch)
+			escaped = false
+			continue
+		}
+
+		if ch == '\\' {
+			result += string(ch)
+			escaped = true
+			continue
+		}
+
+		// Check for string delimiters
+		if !inString {
+			if ch == '\'' || ch == '"' {
+				inString = true
+				stringChar = ch
+				// Convert single quote to double quote for gjson
+				if ch == '\'' {
+					result += "\""
+				} else {
+					result += string(ch)
+				}
+				continue
+			}
+		} else {
+			// We're in a string, check for closing quote
+			if ch == stringChar {
+				inString = false
+				// Convert single quote to double quote for gjson
+				if ch == '\'' {
+					result += "\""
+				} else {
+					result += string(ch)
+				}
+				continue
+			}
+		}
+
+		result += string(ch)
+	}
+
+	return result
+}
+
+// replaceWildcardCarefully replaces [*] properly in gjson syntax
+// In gjson: accessing array directly returns items, .# returns count
+// $.items[*].name -> items.#.name doesn't work because .# means count
+// We need to use a different approach: gjson doesn't have a native wildcard
+// for "get all items from array then get field from each", so we handle it
+// separately in the Query function as a special case
 func replaceWildcardCarefully(path string) string {
 	result := ""
 	inFilter := false
@@ -218,8 +287,26 @@ func replaceWildcardCarefully(path string) string {
 			i += 2
 			continue
 		}
+		// For wildcards, we need to be careful:
+		// If it's followed by a field access like [*].name, we keep [*]
+		// and handle it specially in Query()
+		// If it's standalone like [*], we remove it (returns array)
 		if !inFilter && i < len(path)-2 && path[i:i+3] == "[*]" {
-			result += ".#"
+			// Check what comes after
+			afterWildcard := ""
+			if i+3 < len(path) {
+				afterWildcard = path[i+3:]
+			}
+
+			// If nothing or just end marker, keep as is - we'll handle in Query
+			// If followed by . (field access), keep [*] pattern for special handling
+			if afterWildcard == "" || afterWildcard[0] == ']' {
+				// Standalone wildcard - don't convert, gjson will access array directly
+				result += "[*]"
+			} else {
+				// Followed by more path - mark for special handling
+				result += "[*]"
+			}
 			i += 3
 			continue
 		}
@@ -259,6 +346,10 @@ func convertFilters(path string) string {
 
 				// Remove @. prefix from fields in filter
 				filterExpr = strings.ReplaceAll(filterExpr, "@.", "")
+
+				// Convert single quotes to double quotes for gjson compatibility
+				// gjson only supports double quotes, not single quotes
+				filterExpr = convertQuotesForGJSON(filterExpr)
 
 				// Convert && to gjson pipe syntax for AND conditions
 				// $.products[?(@.price < 100 && @.inStock == true)]
@@ -543,6 +634,85 @@ func findRecursive(data interface{}, fieldName string, results *[]interface{}) {
 	}
 }
 
+// handleWildcardQuery handles queries with [*] wildcard notation
+// e.g., $.items[*].name or $.prices[*]
+func handleWildcardQuery(ctx context.Context, jsonStr, path string, data interface{}) (interface{}, error) {
+	// Find the [*] position
+	wildcardIdx := strings.Index(path, "[*]")
+	if wildcardIdx == -1 {
+		return nil, ErrInvalidJSONPath
+	}
+
+	// Split path at wildcard
+	beforeWildcard := path[:wildcardIdx]
+	afterWildcard := path[wildcardIdx+3:] // Skip [*]
+
+	// Get the base path (before [*])
+	basePath := strings.TrimPrefix(beforeWildcard, "$")
+	basePath = strings.TrimPrefix(basePath, ".")
+
+	// Get the array at base path
+	baseResult := gjson.Get(jsonStr, basePath)
+	if !baseResult.IsArray() {
+		return nil, ErrTypeMismatch
+	}
+
+	arrayItems := baseResult.Array()
+
+	// If no after-wildcard path, return the array items
+	if afterWildcard == "" {
+		var result []interface{}
+		for _, item := range arrayItems {
+			result = append(result, convertGJSONResult(item))
+		}
+		return result, nil
+	}
+
+	// Remove leading . from afterWildcard
+	afterWildcard = strings.TrimPrefix(afterWildcard, ".")
+
+	// Check if afterWildcard itself contains [*] (nested wildcard)
+	if strings.Contains(afterWildcard, "[*]") {
+		// Recursive wildcard handling needed
+		var flatResults []interface{}
+		for _, item := range arrayItems {
+			// Reconstruct the path with the remaining part
+			remainingPath := "." + afterWildcard
+
+			// Parse item back to JSON
+			itemJSON := item.Raw
+			var itemData interface{}
+			if err := json.Unmarshal([]byte(itemJSON), &itemData); err != nil {
+				continue
+			}
+
+			// Recursively query the remaining path
+			subResults, err := handleWildcardQuery(ctx, itemJSON, "$"+remainingPath, itemData)
+			if err == nil && subResults != nil {
+				// Flatten the results
+				switch v := subResults.(type) {
+				case []interface{}:
+					flatResults = append(flatResults, v...)
+				default:
+					flatResults = append(flatResults, subResults)
+				}
+			}
+		}
+		return flatResults, nil
+	}
+
+	// Simple field extraction from array items
+	var result []interface{}
+	for _, item := range arrayItems {
+		subResult := item.Get(afterWildcard)
+		if subResult.Exists() {
+			result = append(result, convertGJSONResult(subResult))
+		}
+	}
+
+	return result, nil
+}
+
 // validateBrackets checks if all brackets are properly matched
 func validateBrackets(path string) error {
 	stack := 0
@@ -673,6 +843,146 @@ func hasORFilter(path string) bool {
 		}
 	}
 	return false
+}
+
+// hasFilterFollowedByWildcard checks if path has filter followed by wildcard operations
+// e.g., $.orders[?(@.status == 'pending')].items[*].sku
+func hasFilterFollowedByWildcard(path string) bool {
+	filterStart := strings.Index(path, "[?(")
+	if filterStart == -1 {
+		return false
+	}
+
+	// Find the closing )]
+	depth := 1
+	j := filterStart + 3
+	for j < len(path) && depth > 0 {
+		if path[j] == '(' {
+			depth++
+		} else if path[j] == ')' {
+			depth--
+		}
+		j++
+	}
+
+	if depth != 0 || j >= len(path) || path[j] != ']' {
+		return false
+	}
+
+	// Check if there's a [*] after the filter
+	afterFilter := path[j+1:]
+	return strings.Contains(afterFilter, "[*]")
+}
+
+// handleFilteredWildcardPath handles paths like $.orders[?(@.status == 'pending')].items[*].sku
+// by first filtering, then extracting from filtered results
+func handleFilteredWildcardPath(jsonStr, path string) (interface{}, error) {
+	// Find the filter
+	filterStart := strings.Index(path, "[?(")
+	if filterStart == -1 {
+		return nil, ErrInvalidJSONPath
+	}
+
+	// Find the closing )]
+	depth := 1
+	j := filterStart + 3
+	for j < len(path) && depth > 0 {
+		if path[j] == '(' {
+			depth++
+		} else if path[j] == ')' {
+			depth--
+		}
+		j++
+	}
+
+	if depth != 0 || j >= len(path) || path[j] != ']' {
+		return nil, ErrInvalidJSONPath
+	}
+
+	// Extract parts
+	basePath := path[:filterStart]
+	filterExpr := path[filterStart+3 : j-1]
+	afterFilter := path[j+1:]
+
+	// Remove @. prefix from filter expression
+	filterExpr = strings.ReplaceAll(filterExpr, "@.", "")
+
+	// Convert single quotes to double quotes for gjson compatibility
+	filterExpr = convertQuotesForGJSON(filterExpr)
+
+	// Convert base path to gjson
+	baseGPath := strings.TrimPrefix(basePath, "$")
+	baseGPath = strings.TrimPrefix(baseGPath, ".")
+
+	// Get the filtered array
+	gjsonFilterPath := baseGPath + ".#(" + filterExpr + ")#"
+	filterResult := gjson.Get(jsonStr, gjsonFilterPath)
+
+	if !filterResult.IsArray() {
+		return nil, nil
+	}
+
+	// Now apply the after-filter path to each filtered item
+	filteredItems := filterResult.Array()
+
+	// Handle the remaining path
+	if afterFilter == "" {
+		// Just return filtered items
+		var result []interface{}
+		for _, item := range filteredItems {
+			result = append(result, convertGJSONResult(item))
+		}
+		return result, nil
+	}
+
+	// Remove leading . from afterFilter if present
+	afterFilter = strings.TrimPrefix(afterFilter, ".")
+
+	// Check if afterFilter contains [*] (wildcard)
+	if strings.Contains(afterFilter, "[*]") {
+		// Extract the path before [*] and after
+		wildcardIdx := strings.Index(afterFilter, "[*]")
+		beforeWildcard := afterFilter[:wildcardIdx]
+		afterWildcard := afterFilter[wildcardIdx+3:] // Skip [*]
+		afterWildcard = strings.TrimPrefix(afterWildcard, ".")
+
+		var finalResults []interface{}
+
+		for _, item := range filteredItems {
+			var intermediate gjson.Result
+			if beforeWildcard == "" {
+				intermediate = item
+			} else {
+				intermediate = item.Get(beforeWildcard)
+			}
+
+			if intermediate.IsArray() {
+				for _, arrayItem := range intermediate.Array() {
+					if afterWildcard == "" {
+						finalResults = append(finalResults, convertGJSONResult(arrayItem))
+					} else {
+						result := arrayItem.Get(afterWildcard)
+						if result.Exists() {
+							finalResults = append(finalResults, convertGJSONResult(result))
+						}
+					}
+				}
+			}
+		}
+
+		return finalResults, nil
+	}
+
+	// Non-wildcard remaining path
+	var result []interface{}
+	for _, item := range filteredItems {
+		subResult := item.Get(afterFilter)
+		if subResult.Exists() {
+			result = append(result, convertGJSONResult(subResult))
+		}
+	}
+
+	return result, nil
 }
 
 // handleORFilter handles queries with OR conditions by running separate queries and merging results

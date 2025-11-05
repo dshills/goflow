@@ -2,7 +2,6 @@ package transform
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -11,17 +10,21 @@ import (
 	"github.com/expr-lang/expr/vm"
 )
 
-// Sentinel errors for expression evaluation
-var (
-	ErrUnsafeOperation   = errors.New("unsafe operation attempted")
-	ErrEvaluationTimeout = errors.New("expression evaluation timed out")
-	ErrInvalidExpression = errors.New("invalid expression syntax")
-	ErrUndefinedVariable = errors.New("undefined variable in expression")
-)
-
-// ExpressionEvaluator defines the interface for evaluating expressions
+// ExpressionEvaluator defines the interface for evaluating expressions.
+// Supports:
+//   - Comparison operators: >, <, >=, <=, ==, !=
+//   - Logical operators: && (AND), || (OR), ! (NOT)
+//   - Boolean literals: true, false
+//   - Arithmetic operators: +, -, *, /, %
+//   - Parentheses for precedence control
+//   - Variable references from context map
+//
+// Sandboxed for security - no arbitrary code execution.
 type ExpressionEvaluator interface {
 	Evaluate(ctx context.Context, expression string, context map[string]interface{}) (interface{}, error)
+	// EvaluateBool evaluates an expression and returns its boolean result.
+	// Returns error if expression doesn't evaluate to a boolean type.
+	EvaluateBool(ctx context.Context, expression string, context map[string]interface{}) (bool, error)
 }
 
 // exprEvaluator implements ExpressionEvaluator using github.com/expr-lang/expr
@@ -93,6 +96,24 @@ func (e *exprEvaluator) Evaluate(ctx context.Context, expression string, context
 	}
 }
 
+// EvaluateBool evaluates a boolean expression and returns its boolean result.
+// This is a convenience method for condition nodes that require boolean results.
+// Returns error if the expression doesn't evaluate to a boolean type.
+func (e *exprEvaluator) EvaluateBool(ctx context.Context, expression string, context map[string]interface{}) (bool, error) {
+	result, err := e.Evaluate(ctx, expression, context)
+	if err != nil {
+		return false, err
+	}
+
+	// Type assert to boolean
+	boolResult, ok := result.(bool)
+	if !ok {
+		return false, fmt.Errorf("%w: expression returned %T, expected bool", ErrTypeMismatch, result)
+	}
+
+	return boolResult, nil
+}
+
 // validateExpression checks for unsafe operations
 func (e *exprEvaluator) validateExpression(expression string) error {
 	// List of unsafe patterns to block
@@ -149,6 +170,19 @@ func (e *exprEvaluator) getOrCompileProgram(expression string, context map[strin
 			}
 			return strings.Contains(str, substr), nil
 		}),
+		// Boolean helper function - not() - logical NOT (alternative to !)
+		// Note: 'and' and 'or' are reserved operators in expr-lang, so they can't be function names
+		expr.Function("not", func(params ...interface{}) (interface{}, error) {
+			if len(params) != 1 {
+				return nil, fmt.Errorf("not() requires 1 argument")
+			}
+			val, ok := params[0].(bool)
+			if !ok {
+				// Try to coerce to bool for truthiness check
+				return !isTruthy(params[0]), nil
+			}
+			return !val, nil
+		}),
 	}
 
 	program, err := expr.Compile(expression, options...)
@@ -172,4 +206,34 @@ func (e *exprEvaluator) getOrCompileProgram(expression string, context map[strin
 	e.programCache[expression] = program
 
 	return program, nil
+}
+
+// isTruthy checks if a value is truthy in a boolean context.
+// Used by boolean helper functions to support flexible type coercion.
+// Falsy values: nil, false, 0, 0.0, empty string, empty collections
+// Truthy values: everything else
+func isTruthy(val interface{}) bool {
+	if val == nil {
+		return false
+	}
+
+	switch v := val.(type) {
+	case bool:
+		return v
+	case int:
+		return v != 0
+	case int64:
+		return v != 0
+	case float64:
+		return v != 0
+	case string:
+		return v != ""
+	case []interface{}:
+		return len(v) > 0
+	case map[string]interface{}:
+		return len(v) > 0
+	default:
+		// All other types are truthy
+		return true
+	}
 }

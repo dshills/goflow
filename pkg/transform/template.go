@@ -2,20 +2,11 @@ package transform
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
-)
-
-// Sentinel errors for template operations
-var (
-	ErrInvalidTemplate = errors.New("invalid template syntax")
-	ErrUnknownFunction = errors.New("unknown template function")
-	ErrNilContext      = errors.New("nil template context")
-	ErrInvalidEscape   = errors.New("invalid escape sequence")
 )
 
 // TemplateRenderer defines the interface for rendering templates

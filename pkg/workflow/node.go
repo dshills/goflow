@@ -192,6 +192,41 @@ func (n *TransformNode) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// PassthroughNode represents a simple no-op node that passes execution through without doing anything.
+// Useful for workflow routing and testing.
+type PassthroughNode struct {
+	ID string `json:"id" yaml:"id"`
+}
+
+// GetID returns the node ID
+func (n *PassthroughNode) GetID() string {
+	return n.ID
+}
+
+// Type returns the node type
+func (n *PassthroughNode) Type() string {
+	return "passthrough"
+}
+
+// Validate checks if the passthrough node is valid
+func (n *PassthroughNode) Validate() error {
+	if n.ID == "" {
+		return errors.New("passthrough node: empty node ID")
+	}
+	return nil
+}
+
+// MarshalJSON implements custom JSON marshaling
+func (n *PassthroughNode) MarshalJSON() ([]byte, error) {
+	return json.Marshal(&struct {
+		ID   string `json:"id"`
+		Type string `json:"type"`
+	}{
+		ID:   n.ID,
+		Type: "passthrough",
+	})
+}
+
 // ConditionNode represents a branching node based on a condition
 type ConditionNode struct {
 	ID        string `json:"id" yaml:"id"`
@@ -374,6 +409,12 @@ func UnmarshalNode(data []byte) (Node, error) {
 		return &node, nil
 	case "condition":
 		var node ConditionNode
+		if err := json.Unmarshal(data, &node); err != nil {
+			return nil, err
+		}
+		return &node, nil
+	case "passthrough":
+		var node PassthroughNode
 		if err := json.Unmarshal(data, &node); err != nil {
 			return nil, err
 		}

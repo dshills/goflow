@@ -142,35 +142,167 @@ func (e *Engine) Execute(ctx context.Context, wf *workflow.Workflow, inputs map[
 	return exec, nil
 }
 
-// executeWorkflow orchestrates the execution of all nodes in topological order.
+// executeWorkflow orchestrates the execution of nodes following the workflow graph.
 func (e *Engine) executeWorkflow(ctx context.Context, wf *workflow.Workflow, exec *execution.Execution) error {
-	// Topologically sort nodes
-	sortedNodes, err := e.topologicalSort(wf)
-	if err != nil {
+	// Find the start node
+	var startNode workflow.Node
+	for _, node := range wf.Nodes {
+		if node.Type() == "start" {
+			startNode = node
+			break
+		}
+	}
+
+	if startNode == nil {
 		return &execution.ExecutionError{
 			Type:        execution.ErrorTypeValidation,
-			Message:     fmt.Sprintf("failed to sort nodes: %v", err),
+			Message:     "no start node found in workflow",
 			Timestamp:   time.Now(),
 			Recoverable: false,
 		}
 	}
 
-	// Execute nodes in order
-	for _, node := range sortedNodes {
-		// Check for context cancellation
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
+	// Create a map for quick node lookup
+	nodeMap := make(map[string]workflow.Node)
+	for _, node := range wf.Nodes {
+		nodeMap[node.GetID()] = node
+	}
+
+	// Execute workflow starting from start node
+	visited := make(map[string]bool)
+	return e.executeNodePath(ctx, startNode, wf, exec, nodeMap, visited)
+}
+
+// executeNodePath executes a node and follows the appropriate edges based on execution results.
+func (e *Engine) executeNodePath(ctx context.Context, node workflow.Node, wf *workflow.Workflow, exec *execution.Execution, nodeMap map[string]workflow.Node, visited map[string]bool) error {
+	nodeID := node.GetID()
+
+	// Prevent infinite loops
+	if visited[nodeID] {
+		return nil
+	}
+	visited[nodeID] = true
+
+	// Check for context cancellation
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
+	// Execute the current node
+	nodeExec, err := e.executeNodeAndGetExecution(ctx, node, wf, exec)
+	if err != nil {
+		return err
+	}
+
+	// If this is an end node, stop here
+	if node.Type() == "end" {
+		return nil
+	}
+
+	// Get next nodes to execute based on edges
+	nextNodes, err := e.getNextNodes(nodeID, wf, nodeExec)
+	if err != nil {
+		return &execution.ExecutionError{
+			Type:        execution.ErrorTypeExecution,
+			Message:     fmt.Sprintf("failed to determine next nodes from %s: %v", nodeID, err),
+			NodeID:      types.NodeID(nodeID),
+			Timestamp:   time.Now(),
+			Recoverable: false,
+		}
+	}
+
+	// Execute next nodes
+	for _, nextNodeID := range nextNodes {
+		nextNode, exists := nodeMap[nextNodeID]
+		if !exists {
+			return &execution.ExecutionError{
+				Type:        execution.ErrorTypeValidation,
+				Message:     fmt.Sprintf("next node %s not found", nextNodeID),
+				Timestamp:   time.Now(),
+				Recoverable: false,
+			}
 		}
 
-		// Execute the node
-		if err := e.executeNode(ctx, node, wf, exec); err != nil {
+		if err := e.executeNodePath(ctx, nextNode, wf, exec, nodeMap, visited); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+// executeNodeAndGetExecution executes a node and returns its execution record.
+func (e *Engine) executeNodeAndGetExecution(ctx context.Context, node workflow.Node, wf *workflow.Workflow, exec *execution.Execution) (*execution.NodeExecution, error) {
+	if err := e.executeNode(ctx, node, wf, exec); err != nil {
+		return nil, err
+	}
+
+	// Find the most recent execution for this node
+	nodeID := types.NodeID(node.GetID())
+	for i := len(exec.NodeExecutions) - 1; i >= 0; i-- {
+		if exec.NodeExecutions[i].NodeID == nodeID {
+			return exec.NodeExecutions[i], nil
+		}
+	}
+
+	return nil, fmt.Errorf("node execution not found for node %s", nodeID)
+}
+
+// getNextNodes determines which nodes to execute next based on edges and condition results.
+func (e *Engine) getNextNodes(currentNodeID string, wf *workflow.Workflow, nodeExec *execution.NodeExecution) ([]string, error) {
+	// Get all edges from current node
+	var edges []*workflow.Edge
+	for _, edge := range wf.Edges {
+		if edge.FromNodeID == currentNodeID {
+			edges = append(edges, edge)
+		}
+	}
+
+	if len(edges) == 0 {
+		return nil, nil
+	}
+
+	// If this is a condition node, select edge based on boolean result
+	if nodeExec != nil && nodeExec.NodeType == "condition" {
+		// Get the condition result from outputs
+		result, ok := nodeExec.Outputs["result"]
+		if !ok {
+			return nil, fmt.Errorf("condition node %s did not produce a result", currentNodeID)
+		}
+
+		boolResult, ok := result.(bool)
+		if !ok {
+			return nil, fmt.Errorf("condition node %s result is not boolean: %T", currentNodeID, result)
+		}
+
+		// Find the edge matching the condition result
+		var matchedEdge *workflow.Edge
+		for _, edge := range edges {
+			if edge.Condition == "" {
+				continue
+			}
+			if (edge.Condition == "true" && boolResult) || (edge.Condition == "false" && !boolResult) {
+				matchedEdge = edge
+				break
+			}
+		}
+
+		if matchedEdge == nil {
+			return nil, fmt.Errorf("no edge found for condition result: %v from node %s", boolResult, currentNodeID)
+		}
+
+		return []string{matchedEdge.ToNodeID}, nil
+	}
+
+	// For non-condition nodes, follow all outgoing edges
+	var nextNodes []string
+	for _, edge := range edges {
+		nextNodes = append(nextNodes, edge.ToNodeID)
+	}
+
+	return nextNodes, nil
 }
 
 // executeNode executes a single node based on its type.
@@ -197,7 +329,9 @@ func (e *Engine) executeNode(ctx context.Context, node workflow.Node, wf *workfl
 	case *workflow.TransformNode:
 		err = e.executeTransformNode(ctx, n, exec, nodeExec)
 	case *workflow.ConditionNode:
-		// Condition nodes don't execute - they're handled by edge conditions
+		err = e.executeConditionNode(ctx, n, exec, nodeExec)
+	case *workflow.PassthroughNode:
+		// Passthrough nodes do nothing, just complete successfully
 		nodeExec.Complete(nil)
 	default:
 		err = fmt.Errorf("unsupported node type: %s", node.Type())

@@ -226,6 +226,82 @@ func (e *MCPToolError) Error() string {
 	return fmt.Sprintf("MCP tool error [%s/%s]: %s", e.ServerID, e.ToolName, e.Message)
 }
 
+// executeConditionNode executes a Condition node by evaluating its expression.
+func (e *Engine) executeConditionNode(ctx context.Context, node *workflow.ConditionNode, exec *execution.Execution, nodeExec *execution.NodeExecution) error {
+	// Prepare evaluation context with current variables
+	evalContext := exec.Context.CreateSnapshot()
+
+	// Process the condition expression to handle JSONPath-like syntax
+	processedExpr, err := e.processConditionExpression(ctx, node.Condition, evalContext)
+	if err != nil {
+		return &ConditionError{
+			Expression: node.Condition,
+			Message:    fmt.Sprintf("failed to process condition expression: %v", err),
+			Context: map[string]interface{}{
+				"variables": evalContext,
+			},
+		}
+	}
+
+	// Create expression evaluator
+	evaluator := transform.NewExpressionEvaluator()
+
+	// Evaluate the condition expression
+	result, err := evaluator.Evaluate(ctx, processedExpr, evalContext)
+	if err != nil {
+		return &ConditionError{
+			Expression: node.Condition,
+			Message:    fmt.Sprintf("condition evaluation failed: %v", err),
+			Context: map[string]interface{}{
+				"variables": evalContext,
+			},
+		}
+	}
+
+	// Ensure result is boolean
+	boolResult, ok := result.(bool)
+	if !ok {
+		return &ConditionError{
+			Expression: node.Condition,
+			Message:    fmt.Sprintf("condition expression did not evaluate to boolean, got %T", result),
+			Context: map[string]interface{}{
+				"result": result,
+			},
+		}
+	}
+
+	// Record the condition result in outputs
+	nodeExec.Outputs = map[string]interface{}{
+		"result":    boolResult,
+		"condition": node.Condition,
+	}
+
+	return nil
+}
+
+// processConditionExpression converts JSONPath-style expressions ($.variable) into
+// direct variable references for evaluation. For example:
+// "$.fileSize > 1048576" becomes "fileSize > 1048576"
+func (e *Engine) processConditionExpression(ctx context.Context, expression string, variables map[string]interface{}) (string, error) {
+	// Use regex to find all $.variable patterns
+	pattern := regexp.MustCompile(`\$\.([a-zA-Z_][a-zA-Z0-9_]*)`)
+
+	result := pattern.ReplaceAllStringFunc(expression, func(match string) string {
+		// Extract variable name (remove "$." prefix)
+		varName := match[2:]
+
+		// Check if variable exists
+		if _, exists := variables[varName]; exists {
+			// Return the variable name without the "$." prefix
+			return varName
+		}
+		// If variable doesn't exist, return as-is and let evaluator handle the error
+		return match
+	})
+
+	return result, nil
+}
+
 // TransformError represents an error during data transformation.
 type TransformError struct {
 	InputVariable string
@@ -237,4 +313,16 @@ type TransformError struct {
 // Error implements the error interface.
 func (e *TransformError) Error() string {
 	return fmt.Sprintf("transform error [%s]: %s", e.InputVariable, e.Message)
+}
+
+// ConditionError represents an error during condition evaluation.
+type ConditionError struct {
+	Expression string
+	Message    string
+	Context    map[string]interface{}
+}
+
+// Error implements the error interface.
+func (e *ConditionError) Error() string {
+	return fmt.Sprintf("condition error [%s]: %s", e.Expression, e.Message)
 }

@@ -239,16 +239,16 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T110 [P] [US3] Integration test for condition node evaluation in tests/integration/condition_test.go
-- [ ] T111 [P] [US3] Integration test for transform node with JSONPath in tests/integration/transform_jsonpath_test.go
-- [ ] T112 [P] [US3] Integration test for transform node with templates in tests/integration/transform_template_test.go
-- [ ] T113 [P] [US3] Unit test for expression parser and validator in tests/unit/transform/parser_test.go
+- [X] T110 [P] [US3] Integration test for condition node evaluation in tests/integration/condition_test.go
+- [X] T111 [P] [US3] Integration test for transform node with JSONPath in tests/integration/transform_jsonpath_test.go
+- [X] T112 [P] [US3] Integration test for transform node with templates in tests/integration/transform_template_test.go
+- [X] T113 [P] [US3] Unit test for expression parser and validator in tests/unit/transform/parser_test.go
 
 ### Conditional Execution Implementation
 
-- [ ] T114 [US3] Implement ConditionNode executor with branching logic in pkg/execution/node_executor.go
-- [ ] T115 [US3] Implement conditional edge evaluation in pkg/execution/runtime.go
-- [ ] T116 [US3] Add support for boolean expressions in transform engine in pkg/transform/expression.go
+- [X] T114 [US3] Implement ConditionNode executor with branching logic in pkg/execution/node_executor.go
+- [X] T115 [US3] Implement conditional edge evaluation in pkg/execution/runtime.go
+- [X] T116 [US3] Add support for boolean expressions in transform engine in pkg/transform/expression.go
 
 ### Enhanced Transformation Support
 

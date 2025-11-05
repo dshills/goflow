@@ -246,6 +246,11 @@ func parseNode(yn yamlNode) (Node, error) {
 			Condition: yn.Condition,
 		}, nil
 
+	case "passthrough":
+		return &PassthroughNode{
+			ID: yn.ID,
+		}, nil
+
 	case "parallel":
 		if len(yn.Branches) == 0 {
 			return nil, fmt.Errorf("parallel node '%s': branches field is required", yn.ID)
