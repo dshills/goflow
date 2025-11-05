@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/dshills/goflow/pkg/workflow"
@@ -659,9 +660,18 @@ func TestNode_UniqueIDs(t *testing.T) {
 		t.Fatalf("AddNode() first node unexpected error: %v", err)
 	}
 
-	// Try to add second node with same ID
+	// Add second node with same ID (should be allowed during construction)
 	err = wf.AddNode(&workflow.EndNode{ID: "node-1"})
+	if err != nil {
+		t.Fatalf("AddNode() second node unexpected error: %v", err)
+	}
+
+	// Validate should catch the duplicate
+	err = wf.Validate()
 	if err == nil {
-		t.Error("AddNode() should fail for duplicate node ID")
+		t.Error("Validate() should fail for duplicate node IDs")
+	}
+	if err != nil && !strings.Contains(err.Error(), "duplicate node ID") {
+		t.Errorf("Validate() error should mention duplicate node ID, got: %v", err)
 	}
 }

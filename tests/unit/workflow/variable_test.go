@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/dshills/goflow/pkg/workflow"
@@ -169,6 +170,10 @@ func TestVariable_Validation(t *testing.T) {
 func TestVariable_UniqueNames(t *testing.T) {
 	wf, _ := workflow.NewWorkflow("test-workflow", "")
 
+	// Add required nodes for validation
+	_ = wf.AddNode(&workflow.StartNode{ID: "start"})
+	_ = wf.AddNode(&workflow.EndNode{ID: "end"})
+
 	// Add first variable
 	err := wf.AddVariable(&workflow.Variable{
 		Name: "data",
@@ -178,13 +183,22 @@ func TestVariable_UniqueNames(t *testing.T) {
 		t.Fatalf("AddVariable() first variable unexpected error: %v", err)
 	}
 
-	// Try to add second variable with same name
+	// Add second variable with same name (should be allowed during construction)
 	err = wf.AddVariable(&workflow.Variable{
 		Name: "data",
 		Type: "number",
 	})
+	if err != nil {
+		t.Fatalf("AddVariable() second variable unexpected error: %v", err)
+	}
+
+	// Validate should catch the duplicate
+	err = wf.Validate()
 	if err == nil {
-		t.Error("AddVariable() should fail for duplicate variable name")
+		t.Error("Validate() should fail for duplicate variable names")
+	}
+	if err != nil && !strings.Contains(err.Error(), "duplicate variable name") {
+		t.Errorf("Validate() error should mention duplicate variable name, got: %v", err)
 	}
 
 	// Add variable with different name should succeed

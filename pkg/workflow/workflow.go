@@ -52,17 +52,11 @@ func NewWorkflow(name, description string) (*Workflow, error) {
 }
 
 // AddNode adds a node to the workflow
+// Note: Nodes are not validated during addition to allow workflow construction.
+// Call Validate() to check all invariants including node uniqueness.
 func (w *Workflow) AddNode(node Node) error {
 	if node == nil {
 		return errors.New("cannot add nil node")
-	}
-
-	// Check for duplicate node IDs
-	nodeID := node.GetID()
-	for _, existing := range w.Nodes {
-		if existing.GetID() == nodeID {
-			return fmt.Errorf("duplicate node ID: %s", nodeID)
-		}
 	}
 
 	w.Nodes = append(w.Nodes, node)
@@ -149,16 +143,11 @@ func (w *Workflow) RemoveEdge(edgeID string) error {
 }
 
 // AddVariable adds a variable to the workflow
+// Note: Variables are not validated during addition to allow workflow construction.
+// Call Validate() to check all invariants including variable name uniqueness.
 func (w *Workflow) AddVariable(variable *Variable) error {
 	if variable == nil {
 		return errors.New("cannot add nil variable")
-	}
-
-	// Check for duplicate variable names
-	for _, existing := range w.Variables {
-		if existing.Name == variable.Name {
-			return fmt.Errorf("duplicate variable name: %s", variable.Name)
-		}
 	}
 
 	w.Variables = append(w.Variables, variable)

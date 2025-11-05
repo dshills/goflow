@@ -1,9 +1,32 @@
 package mcpserver
 
 import (
+	"context"
 	"fmt"
 	"time"
 )
+
+// MCPClient is an interface for MCP protocol communication
+// This allows the MCPServer to be tested without a real MCP connection
+type MCPClient interface {
+	// Connect establishes a connection to the MCP server
+	Connect(ctx context.Context) error
+
+	// Close terminates the connection to the MCP server
+	Close() error
+
+	// IsConnected returns true if the client is connected
+	IsConnected() bool
+
+	// ListTools retrieves all available tools from the server
+	ListTools(ctx context.Context) ([]Tool, error)
+
+	// CallTool invokes a tool on the server with the given parameters
+	CallTool(ctx context.Context, toolName string, params map[string]interface{}) (map[string]interface{}, error)
+
+	// Ping sends a ping request to verify server health
+	Ping(ctx context.Context) error
+}
 
 // MCPServer represents a registered MCP server with connection state and available tools
 type MCPServer struct {
@@ -17,6 +40,7 @@ type MCPServer struct {
 	HealthStatus    HealthStatus
 	LastHealthCheck time.Time
 	Metadata        ServerMetadata
+	client          MCPClient // Optional MCP client for protocol communication
 }
 
 // ServerMetadata contains server capabilities and version information
@@ -25,6 +49,17 @@ type ServerMetadata struct {
 	ServerVersion   string
 	Capabilities    []string
 	Vendor          string
+}
+
+// SetClient sets the MCP client for protocol communication
+// This is typically called after creating the server to inject the client dependency
+func (s *MCPServer) SetClient(client MCPClient) {
+	s.client = client
+}
+
+// GetClient returns the MCP client if set, nil otherwise
+func (s *MCPServer) GetClient() MCPClient {
+	return s.client
 }
 
 // NewMCPServer creates a new MCP server registration
@@ -184,20 +219,48 @@ func (s *MCPServer) Reconnect() error {
 	return nil
 }
 
-// DiscoverTools queries the server for available tools
+// DiscoverTools queries the server for available tools via MCP protocol
+// This method calls the MCP server's tools/list endpoint and populates
+// the MCPServer's Tools slice with the discovered tool schemas.
+//
+// The discovery process:
+// 1. Validates the connection state (must be connected)
+// 2. If an MCP client is configured, calls the tools/list JSON-RPC method
+// 3. Parses the response and stores tools with their input/output schemas
+// 4. Updates the last activity timestamp
+//
+// Returns an error if:
+// - The server is not connected
+// - The MCP client call fails
+// - The response cannot be parsed
 func (s *MCPServer) DiscoverTools() error {
 	// Can only discover tools when connected
 	if s.Connection.State != StateConnected {
 		return NewConnectionError("cannot discover tools: not connected")
 	}
 
-	// In a real implementation, this would query the MCP server
-	// For testing, populate with mock tools if none exist
-	if s.Tools == nil || len(s.Tools) == 0 {
-		s.Tools = []Tool{
-			{Name: "mock_tool_1", Description: "Mock tool for testing"},
-			{Name: "mock_tool_2", Description: "Another mock tool"},
+	// If a client is configured, use it to discover tools via MCP protocol
+	if s.client != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		tools, err := s.client.ListTools(ctx)
+		if err != nil {
+			errorMsg := fmt.Sprintf("tool discovery failed: %v", err)
+			s.RecordUnhealthy(errorMsg)
+			return NewConnectionError(fmt.Sprintf("failed to discover tools: %v", err))
 		}
+
+		// Store the discovered tools
+		s.Tools = tools
+		s.Connection.LastActivity = time.Now()
+
+		return nil
+	}
+
+	// For mock/testing scenarios without a client, initialize empty tools slice
+	if s.Tools == nil {
+		s.Tools = []Tool{}
 	}
 
 	s.Connection.LastActivity = time.Now()
@@ -205,14 +268,27 @@ func (s *MCPServer) DiscoverTools() error {
 	return nil
 }
 
-// InvokeTool executes a tool on the MCP server
+// InvokeTool executes a tool on the MCP server via MCP protocol
+// This method calls the MCP server's tools/call endpoint with the specified
+// tool name and parameters.
+//
+// The invocation process:
+// 1. Validates the connection state (must be connected)
+// 2. Verifies the tool exists in the discovered tools list
+// 3. If an MCP client is configured, calls the tools/call JSON-RPC method
+// 4. Returns the tool execution result
+//
+// Returns an error if:
+// - The server is not connected
+// - The tool is not found in the tools list
+// - The MCP client call fails
 func (s *MCPServer) InvokeTool(toolName string, params map[string]interface{}) (interface{}, error) {
 	// Can only invoke tools when connected
 	if s.Connection.State != StateConnected {
 		return nil, NewConnectionError("cannot invoke tool: not connected")
 	}
 
-	// Find the tool
+	// Find the tool in the discovered tools list
 	toolFound := false
 	for _, tool := range s.Tools {
 		if tool.Name == toolName {
@@ -225,8 +301,23 @@ func (s *MCPServer) InvokeTool(toolName string, params map[string]interface{}) (
 		return nil, NewExecutionError(fmt.Sprintf("tool not found: %s", toolName))
 	}
 
-	// In a real implementation, this would call the MCP server
-	// For now, return a mock result
+	// If a client is configured, use it to invoke the tool via MCP protocol
+	if s.client != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		result, err := s.client.CallTool(ctx, toolName, params)
+		if err != nil {
+			errorMsg := fmt.Sprintf("tool invocation failed: %v", err)
+			s.RecordUnhealthy(errorMsg)
+			return nil, NewExecutionError(fmt.Sprintf("failed to invoke tool %s: %v", toolName, err))
+		}
+
+		s.Connection.LastActivity = time.Now()
+		return result, nil
+	}
+
+	// For mock/testing scenarios without a client, return a mock result
 	s.Connection.LastActivity = time.Now()
 
 	return map[string]interface{}{
@@ -235,8 +326,17 @@ func (s *MCPServer) InvokeTool(toolName string, params map[string]interface{}) (
 	}, nil
 }
 
-// HealthCheck performs a health check on the server
-// In this mock implementation, health check reflects connection state
+// HealthCheck performs a health check on the server via MCP protocol
+// If a client is configured, this sends a ping request to verify the server
+// is responsive. Otherwise, it checks the connection state.
+//
+// The health check process:
+// 1. Updates the LastHealthCheck timestamp
+// 2. If disconnected, marks status as HealthDisconnected
+// 3. If client is configured, sends a ping request
+// 4. Updates health status based on ping result or connection state
+//
+// Returns an error if the ping fails
 func (s *MCPServer) HealthCheck() error {
 	s.LastHealthCheck = time.Now()
 
@@ -246,7 +346,25 @@ func (s *MCPServer) HealthCheck() error {
 		return nil
 	}
 
-	// Otherwise, mark as healthy
+	// If a client is configured, use it to ping the server
+	if s.client != nil && s.Connection.State == StateConnected {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		err := s.client.Ping(ctx)
+		if err != nil {
+			s.HealthStatus = HealthUnhealthy
+			s.Connection.LastError = fmt.Sprintf("ping failed: %v", err)
+			s.Connection.ErrorCount++
+			return fmt.Errorf("health check failed: %w", err)
+		}
+
+		s.HealthStatus = HealthHealthy
+		s.Connection.LastActivity = time.Now()
+		return nil
+	}
+
+	// For mock/testing scenarios without a client, mark as healthy if connected
 	s.HealthStatus = HealthHealthy
 	s.Connection.LastActivity = time.Now()
 
