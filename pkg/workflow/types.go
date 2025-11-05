@@ -1,6 +1,16 @@
 package workflow
 
-import "github.com/google/uuid"
+import (
+	"errors"
+
+	"github.com/google/uuid"
+)
+
+// Common workflow errors
+var (
+	// ErrWorkflowNotFound is returned when a workflow cannot be found
+	ErrWorkflowNotFound = errors.New("workflow not found")
+)
 
 // WorkflowID is a unique identifier for a workflow
 type WorkflowID string
