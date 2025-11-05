@@ -1,0 +1,27 @@
+version: "1.0"
+name: "invalid-missing-edge-workflow"
+description: "A workflow referencing non-existent nodes in edges (should fail validation)"
+
+nodes:
+  - id: "start"
+    type: "start"
+
+  - id: "node_a"
+    type: "mcp_tool"
+    server: "test-server"
+    tool: "echo"
+    parameters:
+      message: "A"
+
+  - id: "end"
+    type: "end"
+
+edges:
+  - from: "start"
+    to: "node_a"
+
+  - from: "node_a"
+    to: "nonexistent_node"  # References node that doesn't exist
+
+  - from: "node_a"
+    to: "end"

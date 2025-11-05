@@ -1,0 +1,97 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.out
+coverage.html
+*.coverprofile
+
+# Dependency directories
+vendor/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Rapid property test artifacts (transient)
+**/testdata/rapid/
+*.fail
+
+# Test output and coverage files
+test-output.log
+coverage.out
+coverage.html
+*.coverprofile
+
+# Backup and temporary files
+*.bak
+*.bak[0-9]
+*.tmp
+
+# Build artifacts
+bin/
+build/
+dist/
+*.a
+goflow
+
+# Generated example outputs
+examples/*/output/
+
+# IDE and editor files
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.settings/
+*.sublime-project
+*.sublime-workspace
+.fleet/
+.vimrc.local
+
+# Environment files
+.env
+.env.local
+.env.*.local
+*.env
+.envrc
+
+# Temporary files
+*.tmp
+*.log
+*.bak
+*.orig
+
+# OS files
+Thumbs.db
+.fuse_hidden*
+.directory
+.Trash-*
+
+# Specify framework artifacts
+.specify/memory/local/
+settings.local.json
+
+# Database files (for local development)
+*.db
+*.sqlite
+*.sqlite3
+
+# API keys and credentials (extra safety)
+*_credentials.json
+*_secret*.json
+secrets/
+credentials/

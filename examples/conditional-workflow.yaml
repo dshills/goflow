@@ -1,0 +1,175 @@
+# GoFlow Conditional Workflow Example
+# This workflow demonstrates conditional branching based on data conditions
+# It checks file size and compresses large files before upload, or uploads small files directly
+#
+# Demonstrates:
+#   - Condition node for branching logic
+#   - Multiple execution paths based on data
+#   - Conditional edges with labels
+#
+# Prerequisites:
+#   1. Register filesystem MCP server:
+#      goflow server add filesystem npx -y @modelcontextprotocol/server-filesystem /tmp
+#
+#   2. Register compression MCP server (hypothetical example):
+#      goflow server add compression npx -y @example/compression-server
+#
+#   3. Register upload MCP server (hypothetical example):
+#      goflow server add upload npx -y @example/upload-server
+
+version: "1.0"
+name: "conditional-upload"
+description: "Check file size, compress if large, then upload"
+
+metadata:
+  author: "goflow-examples"
+  created: "2025-11-05T12:00:00Z"
+  tags: ["conditional", "file-processing", "compression"]
+
+variables:
+  - name: "input_file"
+    type: "string"
+    default: "/tmp/data.json"
+    description: "Path to file to upload"
+
+  - name: "size_threshold"
+    type: "number"
+    default: 1000000
+    description: "File size threshold in bytes (1MB default)"
+
+  - name: "upload_endpoint"
+    type: "string"
+    default: "https://api.example.com/upload"
+    description: "Upload API endpoint"
+
+servers:
+  - id: "filesystem"
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+
+  - id: "compression"
+    command: "npx"
+    args: ["-y", "@example/compression-server"]
+
+  - id: "upload"
+    command: "npx"
+    args: ["-y", "@example/upload-server"]
+
+nodes:
+  - id: "start"
+    type: "start"
+
+  # Get file information including size
+  - id: "get_file_info"
+    type: "mcp_tool"
+    server: "filesystem"
+    tool: "get_file_info"
+    parameters:
+      path: "${input_file}"
+    output: "file_info"
+    description: "Get file metadata including size"
+
+  # Extract file size for condition evaluation
+  - id: "extract_size"
+    type: "transform"
+    input: "${file_info}"
+    expression: "$.size"
+    output: "file_size"
+    description: "Extract file size from metadata"
+
+  # Condition node: Check if file is larger than threshold
+  - id: "check_size"
+    type: "condition"
+    condition: "${file_size} > ${size_threshold}"
+    description: "Determine if file needs compression"
+
+  # Branch 1: Large file - compress before upload
+  - id: "read_file"
+    type: "mcp_tool"
+    server: "filesystem"
+    tool: "read_file"
+    parameters:
+      path: "${input_file}"
+    output: "file_contents"
+    description: "Read file contents for compression"
+
+  - id: "compress"
+    type: "mcp_tool"
+    server: "compression"
+    tool: "gzip_compress"
+    parameters:
+      data: "${file_contents}"
+      level: 9
+    output: "compressed_data"
+    description: "Compress file with gzip (level 9)"
+
+  - id: "upload_compressed"
+    type: "mcp_tool"
+    server: "upload"
+    tool: "upload"
+    parameters:
+      endpoint: "${upload_endpoint}"
+      data: "${compressed_data}"
+      content_encoding: "gzip"
+    output: "upload_result_compressed"
+    description: "Upload compressed data"
+
+  # Branch 2: Small file - upload directly
+  - id: "upload_direct"
+    type: "mcp_tool"
+    server: "upload"
+    tool: "upload"
+    parameters:
+      endpoint: "${upload_endpoint}"
+      file_path: "${input_file}"
+    output: "upload_result_direct"
+    description: "Upload file directly without compression"
+
+  # Merge branches: Format result message
+  - id: "format_result"
+    type: "transform"
+    input: "${upload_result_compressed || upload_result_direct}"
+    expression: "Large file (compressed): ${upload_result_compressed != null ? upload_result_compressed.url : 'N/A'}\nSmall file (direct): ${upload_result_direct != null ? upload_result_direct.url : 'N/A'}"
+    output: "result_message"
+    description: "Format upload result message"
+
+  - id: "end"
+    type: "end"
+    return: "${result_message}"
+
+edges:
+  - from: "start"
+    to: "get_file_info"
+
+  - from: "get_file_info"
+    to: "extract_size"
+
+  - from: "extract_size"
+    to: "check_size"
+
+  # Conditional edge: true path (large file)
+  - from: "check_size"
+    to: "read_file"
+    condition: "true"
+    label: "Large file (>1MB)"
+
+  - from: "read_file"
+    to: "compress"
+
+  - from: "compress"
+    to: "upload_compressed"
+
+  - from: "upload_compressed"
+    to: "format_result"
+
+  # Conditional edge: false path (small file)
+  - from: "check_size"
+    to: "upload_direct"
+    condition: "false"
+    label: "Small file (<=1MB)"
+
+  - from: "upload_direct"
+    to: "format_result"
+
+  - from: "format_result"
+    to: "end"

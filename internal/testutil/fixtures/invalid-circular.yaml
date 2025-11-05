@@ -1,0 +1,47 @@
+version: "1.0"
+name: "invalid-circular-workflow"
+description: "A workflow with circular dependencies (should fail validation)"
+
+nodes:
+  - id: "start"
+    type: "start"
+
+  - id: "node_a"
+    type: "mcp_tool"
+    server: "test-server"
+    tool: "echo"
+    parameters:
+      message: "A"
+
+  - id: "node_b"
+    type: "mcp_tool"
+    server: "test-server"
+    tool: "echo"
+    parameters:
+      message: "B"
+
+  - id: "node_c"
+    type: "mcp_tool"
+    server: "test-server"
+    tool: "echo"
+    parameters:
+      message: "C"
+
+  - id: "end"
+    type: "end"
+
+edges:
+  - from: "start"
+    to: "node_a"
+
+  - from: "node_a"
+    to: "node_b"
+
+  - from: "node_b"
+    to: "node_c"
+
+  - from: "node_c"
+    to: "node_a"  # Creates a cycle
+
+  - from: "node_c"
+    to: "end"

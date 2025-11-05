@@ -1,0 +1,39 @@
+# GoFlow golangci-lint configuration
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  enable:
+    - gofmt
+    - govet
+    - staticcheck
+    - errcheck
+    - gosimple
+    - ineffassign
+    - unused
+    - typecheck
+    - gocyclo
+    - misspell
+    - goconst
+
+linters-settings:
+  gocyclo:
+    min-complexity: 15
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+
+issues:
+  exclude-use-default: false
+  max-same-issues: 0
+  exclude-rules:
+    # Test files may skip error checking for brevity
+    - path: _test\.go
+      linters:
+        - errcheck
+    # Test files can have higher complexity for comprehensive test cases
+    - path: _test\.go
+      text: "cyclomatic complexity"
+      linters:
+        - gocyclo

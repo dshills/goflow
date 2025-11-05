@@ -1,0 +1,70 @@
+version: "1.0"
+name: "simple-read-transform-write"
+description: "A simple workflow that reads a file, transforms the content, and writes it to another file"
+
+metadata:
+  author: "test-user"
+  created: "2025-11-05T00:00:00Z"
+  tags: ["test", "simple", "file-operations"]
+
+variables:
+  - name: "input_path"
+    type: "string"
+    default: "/tmp/input.txt"
+  - name: "output_path"
+    type: "string"
+    default: "/tmp/output.txt"
+  - name: "file_contents"
+    type: "string"
+  - name: "transformed_content"
+    type: "string"
+
+servers:
+  - id: "test-server"
+    name: "test-filesystem"
+    command: "go"
+    args: ["run", "internal/testutil/mocks/mock_mcp_server.go", "--mode=server"]
+
+nodes:
+  - id: "start"
+    type: "start"
+
+  - id: "read_file"
+    type: "mcp_tool"
+    server: "test-server"
+    tool: "read_file"
+    parameters:
+      path: "${input_path}"
+    output: "file_contents"
+
+  - id: "transform"
+    type: "transform"
+    input: "${file_contents}"
+    expression: "${input} | upper"
+    output: "transformed_content"
+
+  - id: "write_file"
+    type: "mcp_tool"
+    server: "test-server"
+    tool: "write_file"
+    parameters:
+      path: "${output_path}"
+      content: "${transformed_content}"
+    output: "write_result"
+
+  - id: "end"
+    type: "end"
+    return: "${write_result}"
+
+edges:
+  - from: "start"
+    to: "read_file"
+
+  - from: "read_file"
+    to: "transform"
+
+  - from: "transform"
+    to: "write_file"
+
+  - from: "write_file"
+    to: "end"

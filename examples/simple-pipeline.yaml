@@ -1,0 +1,112 @@
+# GoFlow Simple Pipeline Example
+# This workflow demonstrates a basic read-transform-write pattern using the filesystem MCP server
+# It reads a JSON file, calculates the sum of prices, and writes the result to a text file
+#
+# Prerequisites:
+#   1. Register the filesystem MCP server:
+#      goflow server add filesystem npx -y @modelcontextprotocol/server-filesystem /tmp
+#
+#   2. Create input data:
+#      echo '{"data": [{"price": 10.5}, {"price": 20.3}, {"price": 5.2}]}' > /tmp/input.json
+#
+#   3. Run the workflow:
+#      goflow run data-pipeline
+#
+#   4. Check output:
+#      cat /tmp/output.txt
+#      # Expected output: Total: 36.0
+
+version: "1.0"
+name: "data-pipeline"
+description: "Read file, transform data, write output"
+
+# Workflow metadata for documentation and discovery
+metadata:
+  author: "your-name"
+  created: "2025-11-05T12:00:00Z"
+  tags: ["etl", "data"]
+
+# Variables define workflow-scoped data with types and defaults
+# These can be overridden at runtime with --var flag or --input file
+variables:
+  - name: "input_file"
+    type: "string"
+    default: "/tmp/input.json"
+    description: "Path to input JSON file"
+
+  - name: "output_file"
+    type: "string"
+    default: "/tmp/output.txt"
+    description: "Path to output text file"
+
+# Server configurations specify MCP servers used in this workflow
+# Servers must be registered before running the workflow
+servers:
+  - id: "filesystem"
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+
+# Nodes define the workflow steps
+# Each node has an ID, type, and type-specific configuration
+nodes:
+  # Start node: Entry point for workflow execution (system-generated)
+  - id: "start"
+    type: "start"
+
+  # MCP Tool node: Calls the read_file tool from the filesystem server
+  - id: "read"
+    type: "mcp_tool"
+    server: "filesystem"
+    tool: "read_file"
+    parameters:
+      path: "${input_file}"
+    output: "file_contents"
+    description: "Read input JSON file"
+
+  # Transform node: Applies jq-style transformation to extract and sum prices
+  # Expression syntax: jq(.data | map(.price) | add)
+  - id: "transform"
+    type: "transform"
+    input: "${file_contents}"
+    expression: "jq(.data | map(.price) | add)"
+    output: "total_price"
+    description: "Calculate sum of all prices from data array"
+
+  # MCP Tool node: Writes the result to a text file
+  - id: "write"
+    type: "mcp_tool"
+    server: "filesystem"
+    tool: "write_file"
+    parameters:
+      path: "${output_file}"
+      content: "Total: ${total_price}"
+    output: "write_result"
+    description: "Write result to output file"
+
+  # End node: Exit point with optional return value
+  - id: "end"
+    type: "end"
+    return: "${write_result}"
+
+# Edges define the execution flow between nodes
+# Execution follows these connections in topological order
+edges:
+  # Start → Read
+  - from: "start"
+    to: "read"
+    description: "Begin workflow by reading input file"
+
+  # Read → Transform
+  - from: "read"
+    to: "transform"
+    description: "Transform file contents after successful read"
+
+  # Transform → Write
+  - from: "transform"
+    to: "write"
+    description: "Write transformed result to output"
+
+  # Write → End
+  - from: "write"
+    to: "end"
+    description: "Complete workflow after write succeeds"

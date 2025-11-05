@@ -1,0 +1,219 @@
+# GoFlow Parallel Batch Processing Example
+# This workflow demonstrates parallel execution for processing multiple files concurrently
+# It processes a batch of files in parallel, transforming and validating each one
+#
+# Demonstrates:
+#   - Parallel node for concurrent execution
+#   - Processing multiple items simultaneously
+#   - Merge strategies (wait_all)
+#   - Efficient batch processing
+#
+# Note: Parallel execution is part of Phase 8 (Advanced Features)
+# This example serves as a placeholder and design reference for future implementation
+#
+# Prerequisites:
+#   1. Register filesystem MCP server:
+#      goflow server add filesystem npx -y @modelcontextprotocol/server-filesystem /tmp
+#
+#   2. Register validation MCP server (hypothetical example):
+#      goflow server add validator npx -y @example/validator-server
+
+version: "1.0"
+name: "parallel-batch-processing"
+description: "Process multiple files concurrently with validation"
+
+metadata:
+  author: "goflow-examples"
+  created: "2025-11-05T12:00:00Z"
+  tags: ["parallel", "batch", "performance", "concurrent"]
+  phase: "8"
+  status: "future-implementation"
+
+variables:
+  - name: "input_directory"
+    type: "string"
+    default: "/tmp/batch"
+    description: "Directory containing files to process"
+
+  - name: "output_directory"
+    type: "string"
+    default: "/tmp/batch-output"
+    description: "Directory for processed files"
+
+  - name: "max_parallel"
+    type: "number"
+    default: 10
+    description: "Maximum concurrent file processing operations"
+
+servers:
+  - id: "filesystem"
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+
+  - id: "validator"
+    command: "npx"
+    args: ["-y", "@example/validator-server"]
+
+nodes:
+  - id: "start"
+    type: "start"
+
+  # List all files in input directory
+  - id: "list_files"
+    type: "mcp_tool"
+    server: "filesystem"
+    tool: "list_directory"
+    parameters:
+      path: "${input_directory}"
+      recursive: false
+    output: "file_list"
+    description: "Get list of files to process"
+
+  # Extract just the file paths from directory listing
+  - id: "extract_paths"
+    type: "transform"
+    input: "${file_list}"
+    expression: "jq(.files | map(.path))"
+    output: "file_paths"
+    description: "Extract file paths from directory listing"
+
+  # Parallel processing node - Process multiple files concurrently
+  # Each branch processes one file through the complete pipeline
+  - id: "parallel_processing"
+    type: "parallel"
+    branches:
+      # Branch 1: Read files in parallel
+      - ["read_file_1", "read_file_2", "read_file_3"]
+      # Branch 2: Transform files in parallel (dependent on reads)
+      - ["transform_file_1", "transform_file_2", "transform_file_3"]
+      # Branch 3: Validate files in parallel (dependent on transforms)
+      - ["validate_file_1", "validate_file_2", "validate_file_3"]
+      # Branch 4: Write files in parallel (dependent on validations)
+      - ["write_file_1", "write_file_2", "write_file_3"]
+    merge: "wait_all"
+    max_parallel: "${max_parallel}"
+    description: "Process files concurrently with pipeline stages"
+
+  # Alternative design using loop node with parallel execution:
+  # This is a more flexible approach for unknown number of files
+  - id: "parallel_loop"
+    type: "loop"
+    collection: "${file_paths}"
+    item: "current_file_path"
+    parallel: true
+    max_parallel: "${max_parallel}"
+    body:
+      - "read_current_file"
+      - "transform_current_file"
+      - "validate_current_file"
+      - "write_current_file"
+    output: "processing_results"
+    description: "Process each file in parallel with max concurrency limit"
+
+  # Read file node (used in loop)
+  - id: "read_current_file"
+    type: "mcp_tool"
+    server: "filesystem"
+    tool: "read_file"
+    parameters:
+      path: "${current_file_path}"
+    output: "file_content"
+    description: "Read file contents"
+
+  # Transform file content
+  - id: "transform_current_file"
+    type: "transform"
+    input: "${file_content}"
+    expression: "jq(. | fromjson | {id: .id, data: .data | map(select(.active == true)), processed_at: \"${now()}\"})"
+    output: "transformed_content"
+    description: "Filter active records and add timestamp"
+
+  # Validate transformed content
+  - id: "validate_current_file"
+    type: "mcp_tool"
+    server: "validator"
+    tool: "validate_json"
+    parameters:
+      data: "${transformed_content}"
+      schema: "data-record"
+    output: "validation_result"
+    description: "Validate transformed data against schema"
+
+  # Write processed file if validation passed
+  - id: "write_current_file"
+    type: "mcp_tool"
+    server: "filesystem"
+    tool: "write_file"
+    parameters:
+      path: "${output_directory}/${path.basename(current_file_path)}"
+      content: "${transformed_content | tojson}"
+    output: "write_result"
+    description: "Write processed file to output directory"
+    # Only write if validation passed
+    condition: "${validation_result.valid} == true"
+
+  # Aggregate results from all parallel operations
+  - id: "aggregate_results"
+    type: "transform"
+    input: "${processing_results}"
+    expression: |
+      jq({
+        total_files: (. | length),
+        successful: (. | map(select(.write_result.success == true)) | length),
+        failed: (. | map(select(.write_result.success != true)) | length),
+        validation_errors: (. | map(select(.validation_result.valid != true)) | length)
+      })
+    output: "summary"
+    description: "Calculate processing summary statistics"
+
+  - id: "end"
+    type: "end"
+    return: "${summary}"
+
+edges:
+  - from: "start"
+    to: "list_files"
+
+  - from: "list_files"
+    to: "extract_paths"
+
+  - from: "extract_paths"
+    to: "parallel_loop"
+
+  - from: "parallel_loop"
+    to: "aggregate_results"
+
+  - from: "aggregate_results"
+    to: "end"
+
+# Implementation Notes for Parallel Execution (Phase 8):
+#
+# 1. Parallel Node Executor:
+#    - Use golang.org/x/sync/errgroup for goroutine management
+#    - Implement max_parallel limit with semaphore pattern
+#    - Collect all results before merging
+#    - Handle errors with configurable strategy (fail-fast vs collect-all)
+#
+# 2. Loop Node with Parallel Flag:
+#    - More flexible than explicit parallel node
+#    - Works with dynamic collections
+#    - Easier to understand and debug
+#    - Recommended approach for most use cases
+#
+# 3. Merge Strategies:
+#    - wait_all: Block until all branches complete (default)
+#    - wait_any: Continue after first branch completes
+#    - wait_n: Continue after N branches complete
+#    - timeout: Continue after timeout, collect partial results
+#
+# 4. Performance Considerations:
+#    - Default max_parallel should be 50 based on specs
+#    - Monitor memory usage per concurrent operation
+#    - Consider rate limiting for external API calls
+#    - Use context cancellation for cleanup
+#
+# 5. Error Handling:
+#    - Individual branch failures don't fail entire workflow (unless fail-fast)
+#    - Collect errors in results array
+#    - Aggregate errors in summary
+#    - Support partial success scenarios

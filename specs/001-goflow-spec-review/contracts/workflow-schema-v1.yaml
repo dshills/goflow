@@ -1,0 +1,161 @@
+# GoFlow Workflow Definition Schema v1.0
+# This is the contract for workflow YAML files that GoFlow can execute.
+# Generated: 2025-11-05
+
+version: "1.0"
+name: string              # Workflow unique name
+description: string       # Human-readable description (optional)
+
+metadata:
+  author: string          # Workflow creator (optional)
+  created: timestamp      # ISO 8601 format (optional)
+  tags: [string]          # Categorization tags (optional)
+  icon: string            # Emoji or icon for display (optional)
+
+variables:               # Workflow-scoped variables (optional)
+  - name: string         # Variable identifier (required, must be unique)
+    type: string         # "string" | "number" | "boolean" | "object" | "array" | "any"
+    default: any         # Default value (optional, must match type)
+    description: string  # Human-readable description (optional)
+
+servers:                 # MCP server configurations (required, at least one)
+  - id: string           # Unique server identifier within workflow (required)
+    name: string         # Human-readable server name (optional)
+    command: string      # Executable command (required)
+    args: [string]       # Command arguments (optional)
+    transport: string    # "stdio" | "sse" | "http" (default: "stdio")
+    env:                 # Environment variables (optional)
+      KEY: VALUE
+    credential_ref: string  # Reference to keyring entry (optional, never contains actual credentials)
+
+nodes:                   # Workflow steps (required, at least 2: start + end)
+  # Start Node (exactly one required)
+  - id: string           # Unique node identifier (required)
+    type: "start"        # Node type (required)
+
+  # End Node (at least one required)
+  - id: string
+    type: "end"
+    return: expression   # Optional return value (can reference variables)
+
+  # MCP Tool Node
+  - id: string
+    type: "mcp_tool"
+    server: string       # Server ID from servers list (required)
+    tool: string         # MCP tool name (required)
+    parameters:          # Tool parameters (optional, can reference variables)
+      param_name: expression
+    output: string       # Variable to store result (required)
+    retry:               # Retry policy (optional)
+      max_attempts: int  # Default: 1 (no retries)
+      backoff: string    # "exponential" | "constant" | "linear" (default: "exponential")
+      initial_delay: duration  # e.g., "1s", "500ms" (default: "1s")
+      max_delay: duration      # e.g., "30s" (default: "30s")
+      on: [string]       # Error types to retry: ["connection_error", "timeout"] (optional)
+
+  # Transform Node
+  - id: string
+    type: "transform"
+    input: string        # Source variable (required)
+    expression: string   # Transformation expression (required)
+                         # Formats:
+                         #   JSONPath: $.users[0].email
+                         #   Template: "Hello ${user.name}"
+                         #   jq-style: jq(.items | map(.price) | add)
+                         #   Conditional: ${count > 10 ? "many" : "few"}
+    output: string       # Target variable (required)
+
+  # Condition Node
+  - id: string
+    type: "condition"
+    condition: string    # Boolean expression (required)
+                         # Example: status == "active" && role == "admin"
+
+  # Parallel Node
+  - id: string
+    type: "parallel"
+    branches:            # Subgraphs to execute concurrently (required, at least 2)
+      - [node_ids]       # Array of node IDs for branch 1
+      - [node_ids]       # Array of node IDs for branch 2
+    merge: string        # "wait_all" | "wait_any" | "wait_first" (default: "wait_all")
+
+  # Loop Node
+  - id: string
+    type: "loop"
+    collection: string   # Variable containing array/collection (required)
+    item: string         # Variable name for current item (required)
+    body: [node_ids]     # Subgraph to execute per item (required)
+    break_condition: string  # Optional early termination expression
+
+edges:                   # Connections between nodes (required)
+  - from: string         # Source node ID (required)
+    to: string           # Target node ID (required)
+    condition: string    # Optional condition (required for ConditionNode branches)
+                         # Use "true" or "false" for ConditionNode branches
+    label: string        # Human-readable label (optional, e.g., "success", "error")
+
+# Example Workflow:
+#
+# version: "1.0"
+# name: "data-pipeline"
+# description: "Read file, transform data, write output"
+#
+# metadata:
+#   author: "Alice"
+#   created: "2025-11-05T12:00:00Z"
+#   tags: ["etl", "data"]
+#
+# variables:
+#   - name: "input_file"
+#     type: "string"
+#     default: "/tmp/input.json"
+#
+# servers:
+#   - id: "filesystem"
+#     name: "Local Filesystem"
+#     command: "npx"
+#     args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+#
+# nodes:
+#   - id: "start"
+#     type: "start"
+#
+#   - id: "read"
+#     type: "mcp_tool"
+#     server: "filesystem"
+#     tool: "read_file"
+#     parameters:
+#       path: "${input_file}"
+#     output: "file_contents"
+#
+#   - id: "transform"
+#     type: "transform"
+#     input: "${file_contents}"
+#     expression: "jq(.data | map(.price) | add)"
+#     output: "total_price"
+#
+#   - id: "write"
+#     type: "mcp_tool"
+#     server: "filesystem"
+#     tool: "write_file"
+#     parameters:
+#       path: "/tmp/output.txt"
+#       content: "${total_price}"
+#     output: "write_result"
+#
+#   - id: "end"
+#     type: "end"
+#     return: "${write_result}"
+#
+# edges:
+#   - from: "start"
+#     to: "read"
+#
+#   - from: "read"
+#     to: "transform"
+#
+#   - from: "transform"
+#     to: "write"
+#
+#   - from: "write"
+#     to: "end"

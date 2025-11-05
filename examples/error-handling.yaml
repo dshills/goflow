@@ -1,0 +1,194 @@
+# GoFlow Error Handling Example
+# This workflow demonstrates retry policies and error handling patterns
+# It fetches data from an API with automatic retry on connection errors
+#
+# Demonstrates:
+#   - Retry policy configuration
+#   - Exponential backoff
+#   - Error-specific retry conditions
+#   - Graceful degradation with fallback data
+#
+# Prerequisites:
+#   1. Register HTTP client MCP server (hypothetical example):
+#      goflow server add http npx -y @example/http-client
+
+version: "1.0"
+name: "resilient-api-fetch"
+description: "Fetch data from API with retry logic and error handling"
+
+metadata:
+  author: "goflow-examples"
+  created: "2025-11-05T12:00:00Z"
+  tags: ["error-handling", "retry", "api", "resilience"]
+
+variables:
+  - name: "api_endpoint"
+    type: "string"
+    default: "https://api.example.com/data"
+    description: "Primary API endpoint"
+
+  - name: "fallback_endpoint"
+    type: "string"
+    default: "https://backup-api.example.com/data"
+    description: "Fallback API endpoint"
+
+  - name: "timeout_seconds"
+    type: "number"
+    default: 30
+    description: "Request timeout in seconds"
+
+servers:
+  - id: "http_client"
+    command: "npx"
+    args: ["-y", "@example/http-client"]
+
+nodes:
+  - id: "start"
+    type: "start"
+
+  # Primary API call with retry policy
+  - id: "fetch_primary"
+    type: "mcp_tool"
+    server: "http_client"
+    tool: "get"
+    parameters:
+      url: "${api_endpoint}"
+      timeout: "${timeout_seconds}"
+      headers:
+        "Accept": "application/json"
+        "User-Agent": "GoFlow/1.0"
+    output: "api_response"
+    description: "Fetch data from primary API"
+    # Retry policy configuration
+    retry:
+      max_attempts: 3
+      backoff: "exponential"
+      initial_delay: "1s"
+      max_delay: "30s"
+      multiplier: 2.0
+      # Only retry on specific errors
+      on:
+        - "connection_error"
+        - "timeout"
+        - "service_unavailable"  # HTTP 503
+      # Don't retry on client errors
+      skip_on:
+        - "bad_request"          # HTTP 400
+        - "unauthorized"         # HTTP 401
+        - "not_found"            # HTTP 404
+
+  # Check if primary fetch succeeded
+  - id: "check_primary_success"
+    type: "condition"
+    condition: "${api_response.status} == 200"
+    description: "Check if primary API returned success"
+
+  # If primary failed, try fallback endpoint
+  - id: "fetch_fallback"
+    type: "mcp_tool"
+    server: "http_client"
+    tool: "get"
+    parameters:
+      url: "${fallback_endpoint}"
+      timeout: "${timeout_seconds}"
+      headers:
+        "Accept": "application/json"
+        "User-Agent": "GoFlow/1.0"
+    output: "fallback_response"
+    description: "Fetch data from fallback API"
+    retry:
+      max_attempts: 2
+      backoff: "exponential"
+      initial_delay: "1s"
+      max_delay: "15s"
+      on:
+        - "connection_error"
+        - "timeout"
+
+  # Check if fallback succeeded
+  - id: "check_fallback_success"
+    type: "condition"
+    condition: "${fallback_response.status} == 200"
+    description: "Check if fallback API returned success"
+
+  # Use primary response if successful
+  - id: "process_primary_data"
+    type: "transform"
+    input: "${api_response}"
+    expression: "jq(.body | .data)"
+    output: "processed_data"
+    description: "Extract data from primary response"
+
+  # Use fallback response if primary failed
+  - id: "process_fallback_data"
+    type: "transform"
+    input: "${fallback_response}"
+    expression: "jq(.body | .data)"
+    output: "processed_data"
+    description: "Extract data from fallback response"
+
+  # Both APIs failed - use static fallback data
+  - id: "use_default_data"
+    type: "transform"
+    input: "{}"
+    expression: '{"data": [], "source": "default", "error": "All API endpoints unavailable"}'
+    output: "processed_data"
+    description: "Use static fallback data when all APIs fail"
+
+  # Add metadata about data source
+  - id: "add_metadata"
+    type: "transform"
+    input: "${processed_data}"
+    expression: 'jq(. + {"fetched_at": "${now()}", "source": (${api_response.status} == 200 ? "primary" : ${fallback_response.status} == 200 ? "fallback" : "default")})'
+    output: "final_data"
+    description: "Add metadata about data source and timestamp"
+
+  - id: "end"
+    type: "end"
+    return: "${final_data}"
+
+edges:
+  - from: "start"
+    to: "fetch_primary"
+
+  - from: "fetch_primary"
+    to: "check_primary_success"
+
+  # Primary success path
+  - from: "check_primary_success"
+    to: "process_primary_data"
+    condition: "true"
+    label: "Primary API succeeded"
+
+  - from: "process_primary_data"
+    to: "add_metadata"
+
+  # Primary failure path - try fallback
+  - from: "check_primary_success"
+    to: "fetch_fallback"
+    condition: "false"
+    label: "Primary API failed"
+
+  - from: "fetch_fallback"
+    to: "check_fallback_success"
+
+  # Fallback success path
+  - from: "check_fallback_success"
+    to: "process_fallback_data"
+    condition: "true"
+    label: "Fallback API succeeded"
+
+  - from: "process_fallback_data"
+    to: "add_metadata"
+
+  # Fallback failure path - use default data
+  - from: "check_fallback_success"
+    to: "use_default_data"
+    condition: "false"
+    label: "Fallback API failed"
+
+  - from: "use_default_data"
+    to: "add_metadata"
+
+  - from: "add_metadata"
+    to: "end"
