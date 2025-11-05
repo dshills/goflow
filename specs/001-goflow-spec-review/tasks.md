@@ -134,44 +134,44 @@
 
 ### Workflow Parsing Implementation
 
-- [ ] T062 [US1] Implement YAML workflow parser in pkg/workflow/parser.go
-- [ ] T063 [US1] Implement YAML workflow serializer (ToYAML) in pkg/workflow/parser.go
-- [ ] T064 [US1] Add schema validation against workflow-schema-v1.json in pkg/workflow/validator.go
-- [ ] T065 [US1] Implement topological sort for workflow validation in pkg/workflow/validator.go
+- [X] T062 [US1] Implement YAML workflow parser in pkg/workflow/parser.go
+- [X] T063 [US1] Implement YAML workflow serializer (ToYAML) in pkg/workflow/parser.go
+- [X] T064 [US1] Add schema validation against workflow-schema-v1.json in pkg/workflow/validator.go
+- [X] T065 [US1] Implement topological sort for workflow validation in pkg/workflow/validator.go
 
 ### MCP Protocol Client Implementation
 
-- [ ] T066 [P] [US1] Implement MCP stdio transport in pkg/mcpserver/client.go
-- [ ] T067 [P] [US1] Implement MCP tool discovery via introspection in pkg/mcpserver/client.go
-- [ ] T068 [P] [US1] Implement MCP tool invocation in pkg/mcpserver/client.go
-- [ ] T069 [US1] Implement connection pooling in pkg/mcpserver/connection_pool.go (depends on T066-T068)
-- [ ] T070 [US1] Implement health check pings in pkg/mcpserver/health.go
+- [X] T066 [P] [US1] Implement MCP stdio transport in pkg/mcpserver/client.go
+- [X] T067 [P] [US1] Implement MCP tool discovery via introspection in pkg/mcpserver/client.go
+- [X] T068 [P] [US1] Implement MCP tool invocation in pkg/mcpserver/client.go
+- [X] T069 [US1] Implement connection pooling in pkg/mcpserver/connection_pool.go (depends on T066-T068)
+- [X] T070 [US1] Implement health check pings in pkg/mcpserver/health.go
 
 ### Workflow Execution Runtime
 
-- [ ] T071 [US1] Implement workflow runtime engine in pkg/execution/runtime.go
-- [ ] T072 [US1] Implement MCPToolNode executor in pkg/execution/node_executor.go
-- [ ] T073 [US1] Implement TransformNode executor in pkg/execution/node_executor.go
-- [ ] T074 [US1] Implement StartNode and EndNode executors in pkg/execution/node_executor.go
-- [ ] T075 [US1] Implement error context collection in pkg/execution/error.go
-- [ ] T076 [US1] Implement execution logging to SQLite in pkg/execution/logger.go
+- [X] T071 [US1] Implement workflow runtime engine in pkg/execution/runtime.go
+- [X] T072 [US1] Implement MCPToolNode executor in pkg/execution/node_executor.go
+- [X] T073 [US1] Implement TransformNode executor in pkg/execution/node_executor.go
+- [X] T074 [US1] Implement StartNode and EndNode executors in pkg/execution/node_executor.go
+- [X] T075 [US1] Implement error context collection in pkg/execution/error.go
+- [X] T076 [US1] Implement execution logging to SQLite in pkg/execution/logger.go
 
 ### CLI Commands Implementation
 
-- [ ] T077 [P] [US1] Implement root CLI command structure in pkg/cli/root.go
-- [ ] T078 [P] [US1] Implement `goflow server add` command in pkg/cli/server.go
-- [ ] T079 [P] [US1] Implement `goflow server list` command in pkg/cli/server.go
-- [ ] T080 [P] [US1] Implement `goflow server test` command in pkg/cli/server.go
-- [ ] T081 [P] [US1] Implement `goflow validate` command in pkg/cli/validate.go
-- [ ] T082 [US1] Implement `goflow run` command in pkg/cli/run.go (depends on T071-T076)
-- [ ] T083 [US1] Create CLI entry point main.go in cmd/goflow/main.go (depends on T077-T082)
+- [X] T077 [P] [US1] Implement root CLI command structure in pkg/cli/root.go
+- [X] T078 [P] [US1] Implement `goflow server add` command in pkg/cli/server.go
+- [X] T079 [P] [US1] Implement `goflow server list` command in pkg/cli/server.go
+- [X] T080 [P] [US1] Implement `goflow server test` command in pkg/cli/server.go
+- [X] T081 [P] [US1] Implement `goflow validate` command in pkg/cli/validate.go
+- [X] T082 [US1] Implement `goflow run` command in pkg/cli/run.go (depends on T071-T076)
+- [X] T083 [US1] Create CLI entry point main.go in cmd/goflow/main.go (depends on T077-T082)
 
 ### Documentation and Examples
 
-- [ ] T084 [P] [US1] Create example workflow YAML for read-transform-write in examples/simple-pipeline.yaml
-- [ ] T085 [P] [US1] Verify quickstart.md tutorial works end-to-end
+- [X] T084 [P] [US1] Create example workflow YAML for read-transform-write in examples/simple-pipeline.yaml
+- [X] T085 [P] [US1] Verify quickstart.md tutorial works end-to-end
 
-**Checkpoint**: At this point, User Story 1 should be fully functional - users can create and execute workflows via CLI
+**Checkpoint**: ✅ User Story 1 COMPLETE - users can create and execute workflows via CLI
 
 ---
 
