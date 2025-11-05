@@ -53,7 +53,9 @@ func NewWorkflow(name, description string) (*Workflow, error) {
 
 // AddNode adds a node to the workflow
 // Note: Nodes are not validated during addition to allow workflow construction.
-// Call Validate() to check all invariants including node uniqueness.
+// Validation is automatically performed before execution, or call Validate() explicitly.
+// IMPORTANT: Duplicate node IDs are allowed during construction but will cause
+// validation errors. This enables flexible workflow building without premature failures.
 func (w *Workflow) AddNode(node Node) error {
 	if node == nil {
 		return errors.New("cannot add nil node")
@@ -144,7 +146,9 @@ func (w *Workflow) RemoveEdge(edgeID string) error {
 
 // AddVariable adds a variable to the workflow
 // Note: Variables are not validated during addition to allow workflow construction.
-// Call Validate() to check all invariants including variable name uniqueness.
+// Validation is automatically performed before execution, or call Validate() explicitly.
+// IMPORTANT: Duplicate variable names are allowed during construction but will cause
+// validation errors. This enables flexible workflow building without premature failures.
 func (w *Workflow) AddVariable(variable *Variable) error {
 	if variable == nil {
 		return errors.New("cannot add nil variable")

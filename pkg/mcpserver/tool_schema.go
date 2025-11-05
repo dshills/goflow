@@ -4,9 +4,10 @@ import "encoding/json"
 
 // ToolSchema represents a JSON Schema for tool input/output validation
 type ToolSchema struct {
-	Type       string                 `json:"type,omitempty"`
-	Properties map[string]interface{} `json:"properties,omitempty"`
-	Required   []string               `json:"required,omitempty"`
+	Type                 string                 `json:"type,omitempty"`
+	Properties           map[string]interface{} `json:"properties,omitempty"`
+	Required             []string               `json:"required,omitempty"`
+	AdditionalProperties *bool                  `json:"additionalProperties,omitempty"` // nil = true (default), false = reject extra properties
 }
 
 // NewToolSchema creates a new ToolSchema

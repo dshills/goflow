@@ -36,6 +36,11 @@ import (
 //	    "limit": 10,
 //	})
 func (s *MCPServer) CallTool(toolName string, arguments map[string]interface{}) (interface{}, error) {
+	// Initialize arguments if nil to prevent panic
+	if arguments == nil {
+		arguments = make(map[string]interface{})
+	}
+
 	// Step 1: Validate connection state
 	if s.Connection.State != StateConnected {
 		return nil, NewConnectionError(fmt.Sprintf(
@@ -89,8 +94,9 @@ func (s *MCPServer) CallTool(toolName string, arguments map[string]interface{}) 
 			return s.handleToolError(toolName, arguments, err)
 		}
 
-		// Success - reset error count and update activity
+		// Success - reset error count, clear last error, and update activity
 		s.Connection.ErrorCount = 0
+		s.Connection.LastError = "" // Clear error on success
 		s.Connection.LastActivity = time.Now()
 
 		return result, nil
@@ -128,8 +134,11 @@ func (s *MCPServer) validateArguments(tool *Tool, arguments map[string]interface
 	}
 
 	// Check for unexpected arguments (helps catch typos in argument names)
-	// Only perform this check if schema has defined properties
-	if schema.Properties != nil && len(schema.Properties) > 0 {
+	// Only perform this check if:
+	// 1. Schema has defined properties
+	// 2. AdditionalProperties is explicitly set to false (nil means true/allowed by default)
+	allowsAdditional := schema.AdditionalProperties == nil || *schema.AdditionalProperties
+	if !allowsAdditional && schema.Properties != nil && len(schema.Properties) > 0 {
 		for argName := range arguments {
 			if _, exists := schema.Properties[argName]; !exists {
 				// Collect valid argument names for helpful error message
