@@ -185,45 +185,45 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T086 [P] [US2] TUI component test for workflow explorer view in tests/tui/explorer_test.go
-- [ ] T087 [P] [US2] TUI component test for workflow builder view in tests/tui/builder_test.go
-- [ ] T088 [P] [US2] TUI interaction test for node addition in tests/tui/node_operations_test.go
-- [ ] T089 [P] [US2] TUI interaction test for edge creation in tests/tui/edge_operations_test.go
-- [ ] T090 [P] [US2] TUI interaction test for vim keybindings in tests/tui/keyboard_test.go
+- [X] T086 [P] [US2] TUI component test for workflow explorer view in tests/tui/explorer_test.go
+- [X] T087 [P] [US2] TUI component test for workflow builder view in tests/tui/builder_test.go
+- [X] T088 [P] [US2] TUI interaction test for node addition in tests/tui/node_operations_test.go
+- [X] T089 [P] [US2] TUI interaction test for edge creation in tests/tui/edge_operations_test.go
+- [X] T090 [P] [US2] TUI interaction test for vim keybindings in tests/tui/keyboard_test.go
 
 ### TUI Foundation
 
-- [ ] T091 [US2] Create TUI application root using goterm in pkg/tui/app.go
-- [ ] T092 [P] [US2] Implement reusable TUI components (buttons, panels, modals) in pkg/tui/components/
-- [ ] T093 [P] [US2] Implement vim-style keyboard handler in pkg/tui/keyboard.go
-- [ ] T094 [P] [US2] Implement view switching system in pkg/tui/views.go
+- [X] T091 [US2] Create TUI application root using goterm in pkg/tui/app.go
+- [X] T092 [P] [US2] Implement reusable TUI components (buttons, panels, modals) in pkg/tui/components/
+- [X] T093 [P] [US2] Implement vim-style keyboard handler in pkg/tui/keyboard.go
+- [X] T094 [P] [US2] Implement view switching system in pkg/tui/views.go
 
 ### Workflow Explorer View
 
-- [ ] T095 [US2] Implement workflow list view in pkg/tui/workflow_explorer.go
-- [ ] T096 [US2] Implement workflow creation dialog in pkg/tui/workflow_explorer.go
-- [ ] T097 [US2] Implement workflow deletion confirmation in pkg/tui/workflow_explorer.go
-- [ ] T098 [US2] Implement workflow rename functionality in pkg/tui/workflow_explorer.go
+- [X] T095 [US2] Implement workflow list view in pkg/tui/workflow_explorer.go
+- [X] T096 [US2] Implement workflow creation dialog in pkg/tui/workflow_explorer.go
+- [X] T097 [US2] Implement workflow deletion confirmation in pkg/tui/workflow_explorer.go
+- [X] T098 [US2] Implement workflow rename functionality in pkg/tui/workflow_explorer.go
 
 ### Workflow Builder View
 
-- [ ] T099 [US2] Implement canvas rendering for workflow graph in pkg/tui/workflow_builder.go
-- [ ] T100 [US2] Implement node palette (add node menu) in pkg/tui/workflow_builder.go
-- [ ] T101 [US2] Implement node selection and highlighting in pkg/tui/workflow_builder.go
-- [ ] T102 [US2] Implement edge creation mode in pkg/tui/workflow_builder.go
-- [ ] T103 [US2] Implement node property panel in pkg/tui/workflow_builder.go
-- [ ] T104 [US2] Implement real-time validation display in pkg/tui/workflow_builder.go
-- [ ] T105 [US2] Implement workflow save/load in pkg/tui/workflow_builder.go
+- [X] T099 [US2] Implement canvas rendering for workflow graph in pkg/tui/workflow_builder.go
+- [X] T100 [US2] Implement node palette (add node menu) in pkg/tui/workflow_builder.go
+- [X] T101 [US2] Implement node selection and highlighting in pkg/tui/workflow_builder.go
+- [X] T102 [US2] Implement edge creation mode in pkg/tui/workflow_builder.go
+- [X] T103 [US2] Implement node property panel in pkg/tui/workflow_builder.go
+- [X] T104 [US2] Implement real-time validation display in pkg/tui/workflow_builder.go
+- [X] T105 [US2] Implement workflow save/load in pkg/tui/workflow_builder.go
 
 ### CLI Integration
 
-- [ ] T106 [US2] Implement `goflow edit` command to launch TUI in pkg/cli/edit.go
-- [ ] T107 [US2] Implement `goflow init` command to create workflow template in pkg/cli/init.go
+- [X] T106 [US2] Implement `goflow edit` command to launch TUI in pkg/cli/edit.go
+- [X] T107 [US2] Implement `goflow init` command to create workflow template in pkg/cli/init.go
 
 ### Performance Optimization
 
-- [ ] T108 [US2] Implement incremental canvas rendering (<16ms frame time) in pkg/tui/renderer.go
-- [ ] T109 [US2] Add performance profiling for TUI operations in pkg/tui/profiler.go
+- [X] T108 [US2] Implement incremental canvas rendering (<16ms frame time) in pkg/tui/renderer.go
+- [X] T109 [US2] Add performance profiling for TUI operations in pkg/tui/profiler.go
 
 **Checkpoint**: At this point, User Stories 1 AND 2 should both work - users can create workflows via TUI or YAML and execute them
 

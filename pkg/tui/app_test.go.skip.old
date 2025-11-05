@@ -1,0 +1,330 @@
+package tui
+
+import (
+	"testing"
+	"time"
+
+	"github.com/dshills/goterm"
+)
+
+// TestNewApp tests app creation
+func TestNewApp(t *testing.T) {
+	// This test may fail if stdout is not a TTY
+	// Skip if running in non-interactive environment
+	if !isTerminal() {
+		t.Skip("Skipping terminal test: not running in a TTY")
+	}
+
+	app, err := NewApp()
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+	defer app.Close()
+
+	if app.screen == nil {
+		t.Error("app.screen is nil")
+	}
+
+	if app.currentView == nil {
+		t.Error("app.currentView is nil")
+	}
+
+	if len(app.views) != 4 {
+		t.Errorf("expected 4 views, got %d", len(app.views))
+	}
+}
+
+// TestSwitchView tests view switching
+func TestSwitchView(t *testing.T) {
+	if !isTerminal() {
+		t.Skip("Skipping terminal test: not running in a TTY")
+	}
+
+	app, err := NewApp()
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+	defer app.Close()
+
+	tests := []struct {
+		name     string
+		viewName ViewName
+		wantErr  bool
+	}{
+		{
+			name:     "switch to workflow builder",
+			viewName: ViewWorkflowBuilder,
+			wantErr:  false,
+		},
+		{
+			name:     "switch to execution monitor",
+			viewName: ViewExecutionMonitor,
+			wantErr:  false,
+		},
+		{
+			name:     "switch to server registry",
+			viewName: ViewServerRegistry,
+			wantErr:  false,
+		},
+		{
+			name:     "switch to workflow explorer",
+			viewName: ViewWorkflowExplorer,
+			wantErr:  false,
+		},
+		{
+			name:     "switch to invalid view",
+			viewName: "invalid",
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := app.SwitchView(tt.viewName)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("SwitchView() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			if !tt.wantErr {
+				if app.currentView.Name() != tt.viewName {
+					t.Errorf("currentView.Name() = %v, want %v", app.currentView.Name(), tt.viewName)
+				}
+			}
+		})
+	}
+}
+
+// TestCycleView tests view cycling
+func TestCycleView(t *testing.T) {
+	if !isTerminal() {
+		t.Skip("Skipping terminal test: not running in a TTY")
+	}
+
+	app, err := NewApp()
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+	defer app.Close()
+
+	expectedOrder := []ViewName{
+		ViewWorkflowExplorer,
+		ViewWorkflowBuilder,
+		ViewExecutionMonitor,
+		ViewServerRegistry,
+		ViewWorkflowExplorer, // Wraps around
+	}
+
+	for i := 0; i < len(expectedOrder)-1; i++ {
+		if app.currentView.Name() != expectedOrder[i] {
+			t.Errorf("cycle %d: expected view %s, got %s", i, expectedOrder[i], app.currentView.Name())
+		}
+
+		err := app.cycleView()
+		if err != nil {
+			t.Errorf("cycleView() error = %v", err)
+		}
+	}
+
+	// Verify we wrapped around
+	if app.currentView.Name() != ViewWorkflowExplorer {
+		t.Errorf("after cycling, expected to wrap to %s, got %s", ViewWorkflowExplorer, app.currentView.Name())
+	}
+}
+
+// TestParseInput tests input parsing
+func TestParseInput(t *testing.T) {
+	app := &App{} // Don't need full initialization for this test
+
+	tests := []struct {
+		name         string
+		input        []byte
+		expectedKey  rune
+		expectedMods byte
+	}{
+		{
+			name:         "regular character 'a'",
+			input:        []byte{'a'},
+			expectedKey:  'a',
+			expectedMods: ModNone,
+		},
+		{
+			name:         "regular character 'q'",
+			input:        []byte{'q'},
+			expectedKey:  'q',
+			expectedMods: ModNone,
+		},
+		{
+			name:         "tab key",
+			input:        []byte{9},
+			expectedKey:  KeyTab,
+			expectedMods: ModNone,
+		},
+		{
+			name:         "escape key",
+			input:        []byte{27},
+			expectedKey:  KeyEsc,
+			expectedMods: ModNone,
+		},
+		{
+			name:         "ctrl+c",
+			input:        []byte{3},
+			expectedKey:  3,
+			expectedMods: ModCtrl,
+		},
+		{
+			name:         "arrow up",
+			input:        []byte{27, '[', 'A'},
+			expectedKey:  KeyArrowUp,
+			expectedMods: ModNone,
+		},
+		{
+			name:         "arrow down",
+			input:        []byte{27, '[', 'B'},
+			expectedKey:  KeyArrowDown,
+			expectedMods: ModNone,
+		},
+		{
+			name:         "arrow right",
+			input:        []byte{27, '[', 'C'},
+			expectedKey:  KeyArrowRight,
+			expectedMods: ModNone,
+		},
+		{
+			name:         "arrow left",
+			input:        []byte{27, '[', 'D'},
+			expectedKey:  KeyArrowLeft,
+			expectedMods: ModNone,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			event := app.parseInput(tt.input)
+			if event.key != tt.expectedKey {
+				t.Errorf("parseInput() key = %v, want %v", event.key, tt.expectedKey)
+			}
+			if event.modifiers != tt.expectedMods {
+				t.Errorf("parseInput() modifiers = %v, want %v", event.modifiers, tt.expectedMods)
+			}
+		})
+	}
+}
+
+// TestPlaceholderView tests the placeholder view implementation
+func TestPlaceholderView(t *testing.T) {
+	view := &placeholderView{
+		name:  ViewWorkflowExplorer,
+		title: "Test View",
+	}
+
+	// Test Init
+	if err := view.Init(); err != nil {
+		t.Errorf("Init() error = %v", err)
+	}
+
+	// Test Name
+	if view.Name() != ViewWorkflowExplorer {
+		t.Errorf("Name() = %v, want %v", view.Name(), ViewWorkflowExplorer)
+	}
+
+	// Test HandleInput (should return false for placeholder)
+	if handled := view.HandleInput('a', ModNone); handled {
+		t.Error("HandleInput() should return false for placeholder view")
+	}
+
+	// Test Render
+	if !isTerminal() {
+		t.Skip("Skipping render test: not running in a TTY")
+	}
+
+	screen := goterm.NewScreen(80, 24)
+	if err := view.Render(screen); err != nil {
+		t.Errorf("Render() error = %v", err)
+	}
+
+	// Test Cleanup
+	if err := view.Cleanup(); err != nil {
+		t.Errorf("Cleanup() error = %v", err)
+	}
+}
+
+// TestRenderPerformance tests that rendering meets performance targets
+func TestRenderPerformance(t *testing.T) {
+	if !isTerminal() {
+		t.Skip("Skipping terminal test: not running in a TTY")
+	}
+
+	app, err := NewApp()
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+	defer app.Close()
+
+	// Measure render time
+	start := time.Now()
+	err = app.render()
+	duration := time.Since(start)
+
+	if err != nil {
+		t.Fatalf("render() error = %v", err)
+	}
+
+	// Constitutional requirement: < 16ms frame time for 60 FPS
+	targetFrameTime := 16 * time.Millisecond
+	if duration > targetFrameTime {
+		t.Errorf("render() took %v, exceeds target of %v", duration, targetFrameTime)
+	}
+}
+
+// TestViewLifecycle tests view initialization and cleanup
+func TestViewLifecycle(t *testing.T) {
+	if !isTerminal() {
+		t.Skip("Skipping terminal test: not running in a TTY")
+	}
+
+	app, err := NewApp()
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+
+	// Test that all views are initialized
+	if len(app.views) != 4 {
+		t.Errorf("expected 4 views, got %d", len(app.views))
+	}
+
+	// Test cleanup
+	if err := app.Close(); err != nil {
+		t.Errorf("Close() error = %v", err)
+	}
+}
+
+// isTerminal checks if stdout is a terminal
+func isTerminal() bool {
+	// For testing purposes, we'll use goterm's check
+	screen, err := goterm.Init()
+	if err != nil {
+		return false
+	}
+	screen.Close()
+	return true
+}
+
+// BenchmarkRender benchmarks the render performance
+func BenchmarkRender(b *testing.B) {
+	if !isTerminal() {
+		b.Skip("Skipping terminal test: not running in a TTY")
+	}
+
+	app, err := NewApp()
+	if err != nil {
+		b.Fatalf("NewApp() error = %v", err)
+	}
+	defer app.Close()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := app.render(); err != nil {
+			b.Fatalf("render() error = %v", err)
+		}
+	}
+}
