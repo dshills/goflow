@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/dshills/goflow/pkg/workflow"
@@ -26,6 +27,57 @@ func LoadWorkflowFromFile(path string) (*workflow.Workflow, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read workflow file: %w", err)
+	}
+
+	// Parse YAML into intermediate structure
+	var yamlWf WorkflowYAML
+	if err := yaml.Unmarshal(data, &yamlWf); err != nil {
+		return nil, fmt.Errorf("failed to parse workflow YAML: %w", err)
+	}
+
+	// Create workflow
+	wf := &workflow.Workflow{
+		ID:            yamlWf.Name, // Use name as ID for now
+		Name:          yamlWf.Name,
+		Version:       yamlWf.Version,
+		Description:   yamlWf.Description,
+		Metadata:      yamlWf.Metadata,
+		Variables:     yamlWf.Variables,
+		ServerConfigs: yamlWf.ServerConfigs,
+		Nodes:         make([]workflow.Node, 0),
+		Edges:         make([]*workflow.Edge, 0),
+	}
+
+	// Convert node maps to concrete node types
+	for _, nodeMap := range yamlWf.Nodes {
+		node, err := nodeMapToNode(nodeMap)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert node: %w", err)
+		}
+		wf.Nodes = append(wf.Nodes, node)
+	}
+
+	// Process edges to add IDs if missing
+	for _, edge := range yamlWf.Edges {
+		if edge == nil {
+			continue
+		}
+		// Generate ID if not present
+		if edge.ID == "" {
+			edge.ID = fmt.Sprintf("edge-%s-%s", edge.FromNodeID, edge.ToNodeID)
+		}
+		wf.Edges = append(wf.Edges, edge)
+	}
+
+	return wf, nil
+}
+
+// LoadWorkflowFromReader loads a workflow from an io.Reader (e.g., stdin)
+func LoadWorkflowFromReader(reader io.Reader) (*workflow.Workflow, error) {
+	// Read all data from reader
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read workflow data: %w", err)
 	}
 
 	// Parse YAML into intermediate structure

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -20,6 +21,7 @@ type ServerConfig struct {
 type ServerEntry struct {
 	ID            string            `yaml:"id"`
 	Name          string            `yaml:"name,omitempty"`
+	Description   string            `yaml:"description,omitempty"`
 	Command       string            `yaml:"command"`
 	Args          []string          `yaml:"args,omitempty"`
 	Transport     string            `yaml:"transport,omitempty"`
@@ -39,6 +41,8 @@ func NewServerCommand() *cobra.Command {
 	cmd.AddCommand(newServerListCommand())
 	cmd.AddCommand(newServerTestCommand())
 	cmd.AddCommand(newServerRemoveCommand())
+	cmd.AddCommand(newServerUpdateCommand())
+	cmd.AddCommand(newServerShowCommand())
 
 	return cmd
 }
@@ -50,6 +54,7 @@ func newServerAddCommand() *cobra.Command {
 		envVars       []string
 		credentialRef string
 		name          string
+		description   string
 	)
 
 	cmd := &cobra.Command{
@@ -71,6 +76,11 @@ Examples:
 			serverID := args[0]
 			command := args[1]
 			commandArgs := args[2:]
+
+			// Validate server ID (alphanumeric, dashes, underscores only)
+			if !isValidServerID(serverID) {
+				return fmt.Errorf("invalid server ID: %s (must contain only letters, numbers, dashes, and underscores)", serverID)
+			}
 
 			// Parse environment variables
 			env := make(map[string]string)
@@ -113,6 +123,7 @@ Examples:
 			config.Servers[serverID] = &ServerEntry{
 				ID:            serverID,
 				Name:          name,
+				Description:   description,
 				Command:       command,
 				Args:          commandArgs,
 				Transport:     transport,
@@ -134,12 +145,15 @@ Examples:
 	cmd.Flags().StringSliceVar(&envVars, "env", []string{}, "Environment variables (KEY=VALUE)")
 	cmd.Flags().StringVar(&credentialRef, "credential-ref", "", "Reference to keyring credential")
 	cmd.Flags().StringVar(&name, "name", "", "Friendly name for the server")
+	cmd.Flags().StringVar(&description, "description", "", "Description of the server")
 
 	return cmd
 }
 
 // newServerListCommand creates the server list subcommand
 func newServerListCommand() *cobra.Command {
+	var outputFormat string
+
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List registered MCP servers",
@@ -151,12 +165,47 @@ func newServerListCommand() *cobra.Command {
 			}
 
 			if len(config.Servers) == 0 {
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "No servers registered.")
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "\nRegister a server with: goflow server add <id> <command> [args...]")
+				if outputFormat == "json" {
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), "[]")
+				} else {
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), "No servers registered.")
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), "\nRegister a server with: goflow server add <id> <command> [args...]")
+				}
 				return nil
 			}
 
-			// Create table writer
+			// Output as JSON if requested
+			if outputFormat == "json" {
+				servers := make([]map[string]interface{}, 0, len(config.Servers))
+				for _, server := range config.Servers {
+					name := server.Name
+					if name == "" {
+						name = server.ID
+					}
+					transport := server.Transport
+					if transport == "" {
+						transport = "stdio"
+					}
+					servers = append(servers, map[string]interface{}{
+						"id":          server.ID,
+						"name":        name,
+						"description": server.Description,
+						"command":     server.Command,
+						"args":        server.Args,
+						"transport":   transport,
+						"env":         server.Env,
+						"status":      "Registered",
+					})
+				}
+				output, err := json.MarshalIndent(servers, "", "  ")
+				if err != nil {
+					return fmt.Errorf("failed to marshal JSON: %w", err)
+				}
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(output))
+				return nil
+			}
+
+			// Create table writer for human-readable output
 			w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
 			_, _ = fmt.Fprintln(w, "ID\tNAME\tCOMMAND\tTRANSPORT\tSTATUS")
 			_, _ = fmt.Fprintln(w, "──\t────\t───────\t─────────\t──────")
@@ -193,6 +242,8 @@ func newServerListCommand() *cobra.Command {
 			return nil
 		},
 	}
+
+	cmd.Flags().StringVarP(&outputFormat, "output", "o", "", "Output format (json or text)")
 
 	return cmd
 }
@@ -304,6 +355,120 @@ func newServerRemoveCommand() *cobra.Command {
 	return cmd
 }
 
+// newServerUpdateCommand creates the server update subcommand
+func newServerUpdateCommand() *cobra.Command {
+	var (
+		description string
+		name        string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "update <server-id>",
+		Short: "Update an MCP server's configuration",
+		Long:  `Update configuration details for an existing MCP server.`,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			serverID := args[0]
+
+			// Load servers config
+			config, err := loadServersConfig()
+			if err != nil {
+				return fmt.Errorf("failed to load servers config: %w", err)
+			}
+
+			// Check if server exists
+			server, exists := config.Servers[serverID]
+			if !exists {
+				return fmt.Errorf("server not found: %s", serverID)
+			}
+
+			// Update fields if provided
+			if cmd.Flags().Changed("description") {
+				server.Description = description
+			}
+			if cmd.Flags().Changed("name") {
+				server.Name = name
+			}
+
+			// Save config
+			if err := saveServersConfig(config); err != nil {
+				return fmt.Errorf("failed to save servers config: %w", err)
+			}
+
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "✓ Server '%s' updated successfully\n", serverID)
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&description, "description", "", "Update server description")
+	cmd.Flags().StringVar(&name, "name", "", "Update server name")
+
+	return cmd
+}
+
+// newServerShowCommand creates the server show subcommand
+func newServerShowCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "show <server-id>",
+		Short: "Show detailed information about an MCP server",
+		Long:  `Display detailed configuration and status information for a specific MCP server.`,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			serverID := args[0]
+
+			// Load servers config
+			config, err := loadServersConfig()
+			if err != nil {
+				return fmt.Errorf("failed to load servers config: %w", err)
+			}
+
+			// Find server
+			server, exists := config.Servers[serverID]
+			if !exists {
+				return fmt.Errorf("server not found: %s", serverID)
+			}
+
+			// Display server details
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Server ID: %s\n", server.ID)
+
+			if server.Name != "" {
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Name: %s\n", server.Name)
+			}
+
+			if server.Description != "" {
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Description: %s\n", server.Description)
+			}
+
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Command: %s", server.Command)
+			if len(server.Args) > 0 {
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), " %s", strings.Join(server.Args, " "))
+			}
+			_, _ = fmt.Fprintln(cmd.OutOrStdout())
+
+			transport := server.Transport
+			if transport == "" {
+				transport = "stdio"
+			}
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Transport: %s\n", transport)
+
+			if len(server.Env) > 0 {
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Environment Variables:")
+				for key, value := range server.Env {
+					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  %s=%s\n", key, value)
+				}
+			}
+
+			if server.CredentialRef != "" {
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Credential Reference: %s\n", server.CredentialRef)
+			}
+
+			return nil
+		},
+	}
+
+	return cmd
+}
+
 // loadServersConfig loads the servers configuration file
 func loadServersConfig() (*ServerConfig, error) {
 	configPath := GetServersConfigPath()
@@ -358,4 +523,17 @@ func saveServersConfig(config *ServerConfig) error {
 	}
 
 	return nil
+}
+
+// isValidServerID validates that a server ID contains only alphanumeric characters, dashes, and underscores
+func isValidServerID(id string) bool {
+	if id == "" {
+		return false
+	}
+	for _, ch := range id {
+		if !((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '-' || ch == '_') {
+			return false
+		}
+	}
+	return true
 }

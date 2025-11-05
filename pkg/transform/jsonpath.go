@@ -127,8 +127,19 @@ func convertJSONPathToGJSON(path string) (string, error) {
 	result := strings.TrimPrefix(path, "$")
 	result = strings.TrimPrefix(result, ".")
 
-	// Replace [*] with .#
+	// Handle recursive descent (..)
+	// gjson supports .. but we need to ensure it's properly formatted
+	// $..email -> ..email (gjson format)
+	// This is already handled by removing $ and .
+
+	// Handle .length() function - convert to .#
+	result = strings.ReplaceAll(result, ".length()", ".#")
+
+	// Replace [*] with .# for array wildcard
 	result = strings.ReplaceAll(result, "[*]", ".#")
+
+	// Handle filter expressions: [?(@.field op value)] -> #(field op value)
+	result = convertFilters(result)
 
 	// Replace [@.field] patterns (remove @.)
 	result = strings.ReplaceAll(result, "[@.", "[")
@@ -139,6 +150,53 @@ func convertJSONPathToGJSON(path string) (string, error) {
 	result = replaceArrayIndexes(result)
 
 	return result, nil
+}
+
+// convertFilters converts JSONPath filter syntax to gjson filter syntax
+// JSONPath: $.items[?(@.price < 100)]
+// gjson:    items.#(price<100)
+func convertFilters(path string) string {
+	result := ""
+	i := 0
+
+	for i < len(path) {
+		// Look for filter pattern: [?(...)]
+		if i < len(path)-3 && path[i:i+3] == "[?(" {
+			// Find the closing )]
+			depth := 1
+			j := i + 3
+			for j < len(path) && depth > 0 {
+				if path[j] == '(' {
+					depth++
+				} else if path[j] == ')' {
+					depth--
+				}
+				j++
+			}
+
+			if depth == 0 && j < len(path) && path[j] == ']' {
+				// Extract filter expression
+				filterExpr := path[i+3 : j-1]
+
+				// Remove @. prefix from fields in filter
+				filterExpr = strings.ReplaceAll(filterExpr, "@.", "")
+
+				// Convert && to & and || to | for some gjson versions
+				// Actually gjson supports && and || so keep them as-is
+
+				// Replace the entire [?(...)] with .#(...)#
+				// The trailing # returns all matches, not just the first
+				result += ".#(" + filterExpr + ")#"
+				i = j + 1 // Skip past the ]
+				continue
+			}
+		}
+
+		result += string(path[i])
+		i++
+	}
+
+	return result
 }
 
 // replaceArrayIndexes converts [n] to .n for gjson

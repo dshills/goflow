@@ -7,15 +7,21 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/dshills/goflow/pkg/workflow"
 	"github.com/spf13/cobra"
 )
 
 // NewRunCommand creates the run command
 func NewRunCommand() *cobra.Command {
 	var (
-		inputFile  string
-		watch      bool
-		outputJSON bool
+		inputFile    string
+		watch        bool
+		outputJSON   bool
+		varFlags     []string // Inline variables (--var key=value)
+		debugMode    bool
+		outputFormat string
+		timeout      int // Timeout in seconds
+		fromStdin    bool
 	)
 
 	cmd := &cobra.Command{
@@ -37,22 +43,44 @@ Examples:
 
   # Run with debug output
   goflow run my-workflow --debug`,
-		Args: cobra.ExactArgs(1),
+		Args: func(cmd *cobra.Command, args []string) error {
+			if fromStdin {
+				return nil // No args required when reading from stdin
+			}
+			return cobra.ExactArgs(1)(cmd, args)
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			workflowName := args[0]
+			var workflowName string
+			var workflowPath string
 
-			// Construct workflow path
-			workflowPath := filepath.Join(GetWorkflowsDir(), workflowName+".yaml")
-
-			// Check if workflow file exists
-			if _, err := os.Stat(workflowPath); os.IsNotExist(err) {
-				return fmt.Errorf("workflow not found: %s\n\nLooked in: %s", workflowName, workflowPath)
+			if fromStdin {
+				workflowName = "stdin"
+			} else {
+				workflowName = args[0]
+				// Construct workflow path
+				workflowPath = filepath.Join(GetWorkflowsDir(), workflowName+".yaml")
 			}
 
-			// Load workflow file
-			wf, err := LoadWorkflowFromFile(workflowPath)
-			if err != nil {
-				return fmt.Errorf("failed to parse workflow YAML: %w", err)
+			var wf *workflow.Workflow
+			var err error
+
+			if fromStdin {
+				// Read workflow from stdin
+				wf, err = LoadWorkflowFromReader(os.Stdin)
+				if err != nil {
+					return fmt.Errorf("failed to parse workflow from stdin: %w", err)
+				}
+			} else {
+				// Check if workflow file exists
+				if _, err := os.Stat(workflowPath); os.IsNotExist(err) {
+					return fmt.Errorf("workflow not found: %s\n\nLooked in: %s", workflowName, workflowPath)
+				}
+
+				// Load workflow file
+				wf, err = LoadWorkflowFromFile(workflowPath)
+				if err != nil {
+					return fmt.Errorf("failed to parse workflow YAML: %w", err)
+				}
 			}
 
 			// Validate workflow
@@ -61,7 +89,9 @@ Examples:
 			}
 
 			// Load input variables if provided
-			var inputVars map[string]interface{}
+			inputVars := make(map[string]interface{})
+
+			// Load from file if specified
 			if inputFile != "" {
 				inputData, err := os.ReadFile(inputFile)
 				if err != nil {
@@ -73,8 +103,33 @@ Examples:
 				}
 			}
 
+			// Parse inline variables (--var key=value)
+			for _, varFlag := range varFlags {
+				parts := splitKeyValue(varFlag)
+				if len(parts) != 2 {
+					return fmt.Errorf("invalid variable format: %s (expected key=value)", varFlag)
+				}
+				inputVars[parts[0]] = parts[1]
+			}
+
+			// Apply timeout if specified
+			if timeout > 0 {
+				// TODO: Implement timeout context when runtime is integrated
+				_ = timeout
+			}
+
+			// Set debug mode from flag
+			if debugMode {
+				GlobalConfig.Debug = true
+			}
+
 			// Generate execution ID
 			execID := fmt.Sprintf("exec-%d", time.Now().Unix())
+
+			// Determine output format
+			if outputFormat == "json" {
+				outputJSON = true
+			}
 
 			if !outputJSON {
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "✓ Started execution (ID: %s)\n", execID)
@@ -154,6 +209,26 @@ Examples:
 	cmd.Flags().StringVarP(&inputFile, "input", "i", "", "Input variables JSON file")
 	cmd.Flags().BoolVarP(&watch, "watch", "w", false, "Monitor execution progress in real-time")
 	cmd.Flags().BoolVar(&outputJSON, "output-json", false, "Output result as JSON")
+	cmd.Flags().StringArrayVar(&varFlags, "var", []string{}, "Set input variable (key=value), can be used multiple times")
+	cmd.Flags().BoolVar(&debugMode, "debug", false, "Enable debug output")
+	cmd.Flags().StringVarP(&outputFormat, "output", "o", "", "Output format (json or text)")
+	cmd.Flags().IntVar(&timeout, "timeout", 0, "Execution timeout in seconds (0 = no timeout)")
+	cmd.Flags().BoolVar(&fromStdin, "stdin", false, "Read workflow definition from stdin")
 
 	return cmd
+}
+
+// splitKeyValue splits a string like "key=value" into ["key", "value"]
+func splitKeyValue(s string) []string {
+	idx := -1
+	for i, ch := range s {
+		if ch == '=' {
+			idx = i
+			break
+		}
+	}
+	if idx == -1 {
+		return []string{s}
+	}
+	return []string{s[:idx], s[idx+1:]}
 }
