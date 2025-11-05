@@ -19,20 +19,40 @@ var (
 )
 
 // TemplateRenderer defines the interface for rendering templates
+//
+// Thread-safety: Implementations are NOT goroutine-safe. Configuration methods
+// (SetStrictMode, SetDefaultValue) must not be called concurrently with Render.
+// Configure the renderer before use, then use it from multiple goroutines, or
+// create separate renderer instances per goroutine.
 type TemplateRenderer interface {
 	Render(ctx context.Context, template string, context map[string]interface{}) (string, error)
+	SetStrictMode(strict bool)
+	SetDefaultValue(defaultVal string)
 }
 
 // customTemplateRenderer implements TemplateRenderer with custom ${var} syntax
 type customTemplateRenderer struct {
-	strictMode bool
+	strictMode   bool
+	defaultValue string
 }
 
 // NewTemplateRenderer creates a new template renderer
+// By default, uses lenient mode (strictMode=false) to allow missing variables
 func NewTemplateRenderer() TemplateRenderer {
 	return &customTemplateRenderer{
-		strictMode: true, // Default to strict mode
+		strictMode:   false, // Default to lenient mode for flexibility
+		defaultValue: "",    // Default to empty string for missing vars
 	}
+}
+
+// SetStrictMode configures whether to fail on missing variables
+func (r *customTemplateRenderer) SetStrictMode(strict bool) {
+	r.strictMode = strict
+}
+
+// SetDefaultValue sets the default value for missing variables in non-strict mode
+func (r *customTemplateRenderer) SetDefaultValue(defaultVal string) {
+	r.defaultValue = defaultVal
 }
 
 // Render processes a template string and replaces ${variable} patterns
@@ -126,17 +146,20 @@ func (r *customTemplateRenderer) parseArguments(argsStr string, context map[stri
 		return []interface{}{}, nil
 	}
 
-	// Simple comma split (doesn't handle nested commas in strings)
-	parts := strings.Split(argsStr, ",")
+	// Smart split that respects quoted strings
+	parts := smartSplitArgs(argsStr)
 	args := make([]interface{}, 0, len(parts))
 
 	for _, part := range parts {
 		part = strings.TrimSpace(part)
 
-		// Check if it's a string literal
-		if strings.HasPrefix(part, "'") && strings.HasSuffix(part, "'") {
-			args = append(args, part[1:len(part)-1])
-			continue
+		// Check if it's a string literal (single or double quotes)
+		if len(part) >= 2 {
+			if (strings.HasPrefix(part, "'") && strings.HasSuffix(part, "'")) ||
+				(strings.HasPrefix(part, "\"") && strings.HasSuffix(part, "\"")) {
+				args = append(args, part[1:len(part)-1])
+				continue
+			}
 		}
 
 		// Check if it's a number
@@ -149,12 +172,36 @@ func (r *customTemplateRenderer) parseArguments(argsStr string, context map[stri
 			continue
 		}
 
+		// Check if it's a boolean
+		if part == "true" {
+			args = append(args, true)
+			continue
+		}
+		if part == "false" {
+			args = append(args, false)
+			continue
+		}
+
+		// Check if it's a nested function call
+		if strings.Contains(part, "(") && strings.Contains(part, ")") {
+			value, err := r.evaluateFunction(part, context)
+			if err != nil {
+				// If function evaluation fails, try as variable
+				value, err = r.resolveVariable(part, context)
+				if err != nil {
+					args = append(args, nil)
+					continue
+				}
+			}
+			args = append(args, value)
+			continue
+		}
+
 		// Try to resolve as variable
+		// For default() function, we allow first arg to be missing
 		value, err := r.resolveVariable(part, context)
 		if err != nil {
-			if r.strictMode {
-				return nil, err
-			}
+			// Don't fail immediately - let the function handle nil args
 			args = append(args, nil)
 			continue
 		}
@@ -208,9 +255,10 @@ func (r *customTemplateRenderer) executeFunction(funcName string, args []interfa
 		}
 
 	case "default":
-		if len(args) != 2 {
+		if len(args) < 2 {
 			return nil, fmt.Errorf("default requires 2 arguments")
 		}
+		// Return the default value (second arg) if first arg is nil or empty
 		if args[0] == nil || args[0] == "" {
 			return args[1], nil
 		}
@@ -295,6 +343,9 @@ func (r *customTemplateRenderer) resolveVariable(path string, context map[string
 				if r.strictMode {
 					return nil, fmt.Errorf("%w: %s", ErrUndefinedVariable, path)
 				}
+				if r.defaultValue != "" {
+					return r.defaultValue, nil
+				}
 				return "", nil
 			}
 			current = val
@@ -304,6 +355,9 @@ func (r *customTemplateRenderer) resolveVariable(path string, context map[string
 			if !ok {
 				if r.strictMode {
 					return nil, fmt.Errorf("%w: %s", ErrUndefinedVariable, path)
+				}
+				if r.defaultValue != "" {
+					return r.defaultValue, nil
 				}
 				return "", nil
 			}
@@ -326,9 +380,45 @@ func (r *customTemplateRenderer) resolveVariable(path string, context map[string
 			if r.strictMode && i < len(parts)-1 {
 				return nil, fmt.Errorf("%w: %s", ErrUndefinedVariable, path)
 			}
+			if r.defaultValue != "" {
+				return r.defaultValue, nil
+			}
 			return "", nil
 		}
 	}
 
 	return current, nil
+}
+
+// smartSplitArgs splits function arguments by comma, but respects quoted strings
+func smartSplitArgs(argsStr string) []string {
+	var parts []string
+	var current strings.Builder
+	inQuote := false
+	quoteChar := rune(0)
+
+	for i, ch := range argsStr {
+		if (ch == '\'' || ch == '"') && (i == 0 || argsStr[i-1] != '\\') {
+			if !inQuote {
+				inQuote = true
+				quoteChar = ch
+			} else if ch == quoteChar {
+				inQuote = false
+				quoteChar = 0
+			}
+			current.WriteRune(ch)
+		} else if ch == ',' && !inQuote {
+			parts = append(parts, current.String())
+			current.Reset()
+		} else {
+			current.WriteRune(ch)
+		}
+	}
+
+	// Add the last part
+	if current.Len() > 0 {
+		parts = append(parts, current.String())
+	}
+
+	return parts
 }

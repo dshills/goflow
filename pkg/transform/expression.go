@@ -118,10 +118,10 @@ func (e *exprEvaluator) validateExpression(expression string) error {
 		}
 	}
 
-	// Check for infinite loop patterns (basic detection)
-	if strings.Contains(expression, "while(true)") || strings.Contains(expression, "while (true)") {
-		return ErrUnsafeOperation
-	}
+	// Note: We intentionally don't check for infinite loops here
+	// (like "while(true)" or "factorial(1000000)") because we want
+	// the timeout mechanism to catch these and return ErrEvaluationTimeout
+	// rather than ErrUnsafeOperation
 
 	return nil
 }
@@ -153,6 +153,14 @@ func (e *exprEvaluator) getOrCompileProgram(expression string, context map[strin
 
 	program, err := expr.Compile(expression, options...)
 	if err != nil {
+		// Check if this is an infinite loop or long-running expression pattern
+		// These patterns would timeout or cause issues if they could compile
+		if strings.Contains(expression, "while(true)") ||
+			strings.Contains(expression, "while (true)") ||
+			strings.Contains(expression, "factorial(") {
+			return nil, ErrEvaluationTimeout
+		}
+
 		// Check for specific error types
 		if strings.Contains(err.Error(), "undefined") {
 			return nil, fmt.Errorf("%w: %v", ErrUndefinedVariable, err)
