@@ -63,11 +63,13 @@ Security:
   - Credential values are never displayed by GoFlow commands
 
 Note:
-  - --stdin reads until EOF (max 1MB) and preserves leading/trailing spaces
+  - All input methods have a 1MB maximum credential size limit
+  - --stdin reads until EOF and preserves leading/trailing spaces
   - Only trailing CR/LF characters are removed; other whitespace is preserved
   - Use printf '%s' to avoid adding a trailing newline
   - To send EOF: Ctrl-D on Unix/Linux/macOS, Ctrl-Z then Enter on Windows
-  - Input buffers are zeroed after reading (best-effort memory security)`,
+  - Whitespace-only credentials are rejected (includes all Unicode whitespace)
+  - Input buffers are zeroed after reading (best-effort; Go strings are immutable)`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			serverID := args[0]
@@ -118,6 +120,14 @@ Note:
 				const maxCredentialSize = 1 << 20 // 1MB
 				limitedReader := io.LimitReader(cmd.InOrStdin(), maxCredentialSize+1)
 				inputBytes, err := io.ReadAll(limitedReader)
+
+				// Ensure buffer is zeroed on all exit paths
+				defer func() {
+					for i := range inputBytes {
+						inputBytes[i] = 0
+					}
+				}()
+
 				if err != nil {
 					return fmt.Errorf("failed to read from stdin: %w", err)
 				}
@@ -130,53 +140,70 @@ Note:
 				// Trim only trailing newline characters using bytes (preserve intentional spaces)
 				trimmed := bytes.TrimRight(inputBytes, "\r\n")
 
-				// Validate non-empty and not whitespace-only (using temporary string for validation)
+				// Validate non-empty
 				if len(trimmed) == 0 {
-					// Zero out buffers before returning
-					for i := range inputBytes {
-						inputBytes[i] = 0
-					}
 					return fmt.Errorf("credential value cannot be empty")
 				}
 
-				// Check if whitespace-only (validate without modifying)
-				if len(bytes.TrimSpace(trimmed)) == 0 {
-					// Zero out buffers before returning
-					for i := range inputBytes {
-						inputBytes[i] = 0
-					}
+				// Check if whitespace-only using string conversion (minimal temporary string)
+				// Note: bytes.TrimSpace only handles ASCII whitespace, need string version for Unicode
+				tempStr := string(trimmed)
+				if strings.TrimSpace(tempStr) == "" {
 					return fmt.Errorf("credential cannot contain only whitespace characters")
 				}
 
 				// Convert to string only at the last moment for keyring storage
 				credValue = string(trimmed)
-
-				// Zero out the input buffer (best-effort security)
-				for i := range inputBytes {
-					inputBytes[i] = 0
-				}
 			} else if value != "" {
 				// Value provided via flag (warn about security)
+				const maxCredentialSize = 1 << 20 // 1MB
 				_, _ = fmt.Fprintln(cmd.OutOrStderr(), "Warning: Using --value flag exposes credential in shell history.")
 				_, _ = fmt.Fprintln(cmd.OutOrStderr(), "Consider using interactive prompt (omit --value) or --stdin for better security.")
+
+				// Validate size
+				if len(value) > maxCredentialSize {
+					return fmt.Errorf("credential value exceeds maximum size of %d bytes", maxCredentialSize)
+				}
+
+				// Validate not whitespace-only
+				if strings.TrimSpace(value) == "" {
+					return fmt.Errorf("credential cannot contain only whitespace characters")
+				}
+
 				credValue = value
 			} else {
 				// Prompt for value securely (no echo)
+				const maxCredentialSize = 1 << 20 // 1MB
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Enter value for '%s': ", key)
 
 				// Read password without echo
 				passwordBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
 				_, _ = fmt.Fprintln(cmd.OutOrStdout()) // New line after hidden input
 
+				// Zero password bytes on all exit paths
+				defer func() {
+					for i := range passwordBytes {
+						passwordBytes[i] = 0
+					}
+				}()
+
 				if err != nil {
 					return fmt.Errorf("failed to read credential value: %w", err)
 				}
 
+				// Validate size
+				if len(passwordBytes) > maxCredentialSize {
+					return fmt.Errorf("credential value exceeds maximum size of %d bytes", maxCredentialSize)
+				}
+
 				credValue = string(passwordBytes)
 
-				// Validate non-empty
-				if strings.TrimSpace(credValue) == "" {
+				// Validate non-empty and not whitespace-only
+				if credValue == "" {
 					return fmt.Errorf("credential value cannot be empty")
+				}
+				if strings.TrimSpace(credValue) == "" {
+					return fmt.Errorf("credential cannot contain only whitespace characters")
 				}
 			}
 
