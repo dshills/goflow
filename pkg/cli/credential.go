@@ -57,9 +57,14 @@ Examples:
 Security:
   - Credentials are stored in your system keyring (never in plain text)
   - Use interactive prompt for local use (avoids shell history)
-  - Use --stdin for automation (avoids process list exposure)
+  - Use --stdin for automation (avoids process list exposure, max 1MB)
   - Avoid --value flag (visible in shell history and process list)
-  - Credential values are never displayed by GoFlow commands`,
+  - Credential values are never displayed by GoFlow commands
+
+Note:
+  - --stdin reads until EOF and preserves leading/trailing spaces
+  - Trailing newlines from printf/echo are automatically stripped
+  - To use interactively with --stdin, type value and press Ctrl-D (EOF)`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			serverID := args[0]
@@ -106,14 +111,21 @@ Security:
 			var credValue string
 			if useStdin {
 				// Read from stdin (for automation/CI/CD)
-				// Use io.ReadAll to support large secrets and multiline content
-				inputBytes, err := io.ReadAll(cmd.InOrStdin())
+				// Limit stdin reading to 1MB to prevent memory exhaustion
+				const maxCredentialSize = 1 << 20 // 1MB
+				limitedReader := io.LimitReader(cmd.InOrStdin(), maxCredentialSize+1)
+				inputBytes, err := io.ReadAll(limitedReader)
 				if err != nil {
 					return fmt.Errorf("failed to read from stdin: %w", err)
 				}
 
-				// Trim trailing newline/whitespace that may come from echo or printf
-				credValue = strings.TrimSpace(string(inputBytes))
+				// Check if credential exceeded size limit
+				if len(inputBytes) > maxCredentialSize {
+					return fmt.Errorf("credential value exceeds maximum size of 1MB")
+				}
+
+				// Trim only trailing newline characters (preserve intentional spaces)
+				credValue = strings.TrimRight(string(inputBytes), "\r\n")
 
 				// Validate non-empty
 				if credValue == "" {

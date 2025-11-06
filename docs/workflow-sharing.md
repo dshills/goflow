@@ -51,7 +51,7 @@ servers:
     command: npx
     args: ["-y", "@modelcontextprotocol/server-github"]
     env:
-      GITHUB_TOKEN: "<YOUR_GITHUB_TOKEN>"  # Sensitive - will be stripped
+      GITHUB_TOKEN: "YOUR_GITHUB_TOKEN_HERE"  # Sensitive - will be stripped
       GITHUB_ORG: myorg                          # Non-sensitive - preserved
       API_BASE_URL: https://api.github.com       # Non-sensitive - preserved
     credential_ref: keyring://github-token
@@ -372,7 +372,11 @@ cat /var/secrets/api-key | goflow credential add api-server --key API_KEY --stdi
 cat /run/secrets/api_key | goflow credential add api-server --key API_KEY --stdin
 ```
 
-**⚠️ Security Note**: Never use `--value` flag in automation. Always use stdin or environment variables that are injected securely by your CI/CD system.
+**⚠️ Security Notes**:
+- Never use `--value` flag in automation. Always use stdin or environment variables that are injected securely by your CI/CD system.
+- The `--stdin` flag reads until EOF (Ctrl-D) with a maximum size limit of 1MB
+- Leading and trailing spaces in credentials are preserved; only trailing newlines are stripped
+- Use `printf '%s'` instead of `echo` to avoid adding unwanted newlines to secrets
 
 ### Credential Setup After Import
 
