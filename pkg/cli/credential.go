@@ -192,8 +192,8 @@ Note:
 					return fmt.Errorf("credential value exceeds maximum size of %d bytes", maxCredentialSize)
 				}
 
-				// Validate not whitespace-only
-				if strings.TrimSpace(value) == "" {
+				// Validate not whitespace-only using consistent Unicode-aware validation
+				if isOnlyWhitespace([]byte(value)) {
 					return fmt.Errorf("credential cannot contain only whitespace characters")
 				}
 
@@ -222,15 +222,15 @@ Note:
 					return fmt.Errorf("credential value exceeds maximum size of %d bytes", maxCredentialSize)
 				}
 
-				credValue = string(passwordBytes)
-
-				// Validate non-empty and not whitespace-only
-				if credValue == "" {
+				// Validate non-empty and not whitespace-only using consistent validation
+				if len(passwordBytes) == 0 {
 					return fmt.Errorf("credential value cannot be empty")
 				}
-				if strings.TrimSpace(credValue) == "" {
+				if isOnlyWhitespace(passwordBytes) {
 					return fmt.Errorf("credential cannot contain only whitespace characters")
 				}
+
+				credValue = string(passwordBytes)
 			}
 
 			// Store credential in keyring
