@@ -1,0 +1,265 @@
+# ETL Pipeline Template
+# Extract-Transform-Load workflow for data processing using MCP tools
+# This template demonstrates common data pipeline patterns with parameter substitution
+
+name: etl-pipeline
+description: Extract-Transform-Load pipeline template for data processing
+version: "1.0"
+
+# Template parameters allow customization when instantiating this workflow
+parameters:
+  - name: source_path
+    type: string
+    required: true
+    description: Path to source data file or directory
+    validation:
+      min_length: 1
+      max_length: 4096
+
+  - name: destination_path
+    type: string
+    required: true
+    description: Path where processed data will be written
+    validation:
+      min_length: 1
+      max_length: 4096
+
+  - name: transform_expression
+    type: string
+    required: false
+    default: "$"
+    description: JSONPath expression for data transformation (default is identity transform)
+
+  - name: batch_size
+    type: number
+    required: false
+    default: 100
+    description: Number of records to process in each batch
+    validation:
+      min: 1
+      max: 10000
+
+  - name: validate_output
+    type: boolean
+    required: false
+    default: true
+    description: Whether to validate output data before writing
+
+  - name: error_handling
+    type: string
+    required: false
+    default: "fail_fast"
+    description: Error handling strategy (fail_fast, continue, retry)
+
+# The workflow_spec defines the actual workflow structure with parameter placeholders
+workflow_spec:
+  version: "1.0"
+  name: "ETL Pipeline: {{source_path}}"
+
+  # Server definitions for MCP tools used in this workflow
+  servers:
+    - id: filesystem-server
+      name: filesystem
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-filesystem", "/"]
+      transport: stdio
+
+    - id: transform-server
+      name: transform
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-transform"]
+      transport: stdio
+
+  # Workflow nodes with parameter substitution
+  nodes:
+    # Start node (required entry point)
+    - id: start
+      type: start
+      config: {}
+
+    # Extract Phase: Read data from source
+    - id: extract
+      type: mcp_tool
+      config:
+        server: filesystem-server
+        tool: read_file
+        parameters:
+          path: "{{source_path}}"
+          encoding: "utf-8"
+        output_variable: raw_data
+        description: "Extract data from {{source_path}}"
+        timeout: 30000
+        retry:
+          max_attempts: 3
+          backoff: exponential
+
+    # Validation: Check if extraction succeeded
+    - id: check_extraction
+      type: condition
+      config:
+        condition: "${raw_data != null && raw_data.length > 0}"
+        description: "Verify data was successfully extracted"
+
+    # Transform Phase: Apply data transformation
+    - id: transform
+      type: transform
+      config:
+        input: "${raw_data}"
+        expression: "{{transform_expression}}"
+        output_variable: transformed_data
+        description: "Transform data using expression: {{transform_expression}}"
+        validation:
+          schema_check: true
+          type: object
+
+    # Batch Processing: Split data into batches
+    - id: batch_processor
+      type: transform
+      config:
+        input: "${transformed_data}"
+        expression: "jq([range(0; length; {{batch_size}}) as $i | .[$i:$i+{{batch_size}}]])"
+        output_variable: batches
+        description: "Split data into batches of {{batch_size}} records"
+
+    # Optional Validation Phase
+    - id: validate_check
+      type: condition
+      condition: "{{validate_output}}"
+      config:
+        description: "Determine if output validation is required"
+
+    # Validation: Verify transformed data
+    - id: validate_output
+      type: transform
+      config:
+        input: "${transformed_data}"
+        expression: "jq(if type == \"array\" then length > 0 else . != null end)"
+        output_variable: validation_result
+        description: "Validate transformed data meets requirements"
+
+    # Validation Failed Handler
+    - id: validation_failed
+      type: end
+      config:
+        return_value: "${validation_result}"
+        status: "error"
+        message: "Data validation failed"
+
+    # Load Phase: Write processed data to destination
+    - id: load
+      type: mcp_tool
+      config:
+        server: filesystem-server
+        tool: write_file
+        parameters:
+          path: "{{destination_path}}"
+          content: "${transformed_data}"
+          encoding: "utf-8"
+          create_dirs: true
+        output_variable: write_result
+        description: "Load transformed data to {{destination_path}}"
+        timeout: 60000
+        retry:
+          max_attempts: 3
+          backoff: exponential
+
+    # Success: Verify load operation
+    - id: verify_load
+      type: condition
+      config:
+        condition: "${write_result.success == true}"
+        description: "Verify data was successfully written"
+
+    # Error Handler: Handle extraction failure
+    - id: extraction_error
+      type: end
+      config:
+        return_value:
+          status: "error"
+          phase: "extract"
+          message: "Failed to read from {{source_path}}"
+        status: "error"
+
+    # Error Handler: Handle load failure
+    - id: load_error
+      type: end
+      config:
+        return_value:
+          status: "error"
+          phase: "load"
+          message: "Failed to write to {{destination_path}}"
+        status: "error"
+
+    # Success End: Return success metrics
+    - id: success
+      type: end
+      config:
+        return_value:
+          status: "success"
+          source: "{{source_path}}"
+          destination: "{{destination_path}}"
+          records_processed: "${transformed_data.length}"
+          batch_size: "{{batch_size}}"
+          timestamp: "${execution.timestamp}"
+
+  # Workflow edges define the execution flow
+  edges:
+    # Start -> Extract
+    - from: start
+      to: extract
+
+    # Extract -> Check Extraction
+    - from: extract
+      to: check_extraction
+
+    # Check Extraction Success -> Transform
+    - from: check_extraction
+      to: transform
+      condition: "true"
+
+    # Check Extraction Failure -> Error
+    - from: check_extraction
+      to: extraction_error
+      condition: "false"
+
+    # Transform -> Batch Processor
+    - from: transform
+      to: batch_processor
+
+    # Batch Processor -> Validation Check
+    - from: batch_processor
+      to: validate_check
+
+    # Validation Check (enabled) -> Validate Output
+    - from: validate_check
+      to: validate_output
+      condition: "true"
+
+    # Validation Check (disabled) -> Load
+    - from: validate_check
+      to: load
+      condition: "false"
+
+    # Validate Output Success -> Load
+    - from: validate_output
+      to: load
+      condition: "${validation_result == true}"
+
+    # Validate Output Failed -> Validation Error
+    - from: validate_output
+      to: validation_failed
+      condition: "${validation_result == false}"
+
+    # Load -> Verify Load
+    - from: load
+      to: verify_load
+
+    # Verify Load Success -> Success End
+    - from: verify_load
+      to: success
+      condition: "true"
+
+    # Verify Load Failure -> Load Error
+    - from: verify_load
+      to: load_error
+      condition: "false"

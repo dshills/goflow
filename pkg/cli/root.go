@@ -58,6 +58,7 @@ with conditional logic, data transformation, and parallel execution.`,
 
 	// Add subcommands
 	cmd.AddCommand(NewServerCommand())
+	cmd.AddCommand(NewCredentialCommand())
 	cmd.AddCommand(NewValidateCommand())
 	cmd.AddCommand(NewRunCommand())
 	cmd.AddCommand(NewInitCommand())
@@ -65,6 +66,8 @@ with conditional logic, data transformation, and parallel execution.`,
 	cmd.AddCommand(NewExecutionsCommand())
 	cmd.AddCommand(NewExecutionCommand())
 	cmd.AddCommand(NewLogsCommand())
+	cmd.AddCommand(NewExportCommand())
+	cmd.AddCommand(NewImportCommand())
 
 	return cmd
 }

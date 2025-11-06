@@ -428,7 +428,7 @@ func displayInlineProgress(cmd *cobra.Command, progress execution.ExecutionProgr
 
 // displayFinalResult shows the final execution result.
 func displayFinalResult(cmd *cobra.Command, exec *domainexec.Execution, err error, state *watchState, debugMode bool) {
-	fmt.Fprintln(cmd.OutOrStdout(), "\n")
+	fmt.Fprintln(cmd.OutOrStdout())
 
 	duration := time.Since(state.startTime)
 

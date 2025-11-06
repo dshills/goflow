@@ -1,0 +1,152 @@
+name: multi-server-workflow
+description: Workflow coordinating multiple MCP servers (filesystem, database, notifications)
+version: "1.0"
+
+parameters:
+  - name: input_source
+    type: string
+    required: true
+    description: Data source identifier (file path or database query)
+    validation:
+      min_length: 1
+
+  - name: processing_mode
+    type: string
+    required: false
+    default: "sequential"
+    description: Processing strategy (sequential or parallel)
+    validation:
+      pattern: "^(sequential|parallel)$"
+
+  - name: notification_enabled
+    type: boolean
+    required: false
+    default: true
+    description: Enable notifications when processing completes
+
+  - name: recipients
+    type: array
+    required: false
+    default: []
+    description: Email recipients for notifications
+    validation:
+      max_length: 10
+
+workflow_spec:
+  # Note: In a real workflow, servers would be configured in the workflow YAML
+  # with actual command, args, and transport settings. This template assumes
+  # servers are pre-configured in the workflow that instantiates this template.
+
+  nodes:
+    - id: start
+      type: start
+      config: {}
+
+    - id: read_source
+      type: mcp_tool
+      config:
+        server: filesystem-server
+        tool: read_file
+        input:
+          path: "{{input_source}}"
+        output_var: file_data
+
+    - id: parse_data
+      type: transform
+      config:
+        input: "{{file_data}}"
+        operation: jsonpath
+        expression: "$.records"
+        output_var: parsed_records
+
+    - id: store_in_database
+      type: mcp_tool
+      config:
+        server: database-server
+        tool: bulk_insert
+        input:
+          table: "processing_results"
+          records: "{{parsed_records}}"
+          mode: "{{processing_mode}}"
+        output_var: db_result
+
+    - id: count_processed
+      type: transform
+      config:
+        input: "{{db_result}}"
+        operation: jsonpath
+        expression: "$.rows_affected"
+        output_var: processed_records
+
+    - id: check_notification
+      type: condition
+      condition: "{{notification_enabled}}"
+      config:
+        condition: "{{notification_enabled}}"
+
+    - id: prepare_notification
+      type: transform
+      condition: "{{notification_enabled}}"
+      config:
+        input:
+          source: "{{input_source}}"
+          count: "{{processed_records}}"
+          mode: "{{processing_mode}}"
+        operation: template
+        template: "Successfully processed {{count}} records from {{source}} using {{mode}} mode"
+        output_var: notification_message
+
+    - id: send_notification
+      type: mcp_tool
+      condition: "{{notification_enabled}}"
+      config:
+        server: notification-server
+        tool: send_email
+        input:
+          recipients: "{{recipients}}"
+          subject: "Data Processing Complete"
+          body: "{{notification_message}}"
+        output_var: notification_result
+
+    - id: skip_notification
+      type: passthrough
+      config: {}
+
+    - id: end
+      type: end
+      config:
+        return_value: "{{processed_records}}"
+
+  edges:
+    - from: start
+      to: read_source
+
+    - from: read_source
+      to: parse_data
+
+    - from: parse_data
+      to: store_in_database
+
+    - from: store_in_database
+      to: count_processed
+
+    - from: count_processed
+      to: check_notification
+
+    # Conditional branching based on notification_enabled parameter
+    - from: check_notification
+      to: prepare_notification
+      condition: "true"
+
+    - from: check_notification
+      to: skip_notification
+      condition: "false"
+
+    - from: prepare_notification
+      to: send_notification
+
+    - from: send_notification
+      to: end
+
+    - from: skip_notification
+      to: end

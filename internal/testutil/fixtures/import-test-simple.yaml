@@ -1,0 +1,44 @@
+version: "1.0"
+name: "import-test-simple"
+description: "Simple workflow for import testing"
+
+metadata:
+  author: "test-user"
+  created: "2025-11-05T00:00:00Z"
+  tags: ["test", "import"]
+
+variables:
+  - name: "input_data"
+    type: "string"
+    default: "test input"
+  - name: "output_data"
+    type: "string"
+
+servers:
+  - id: "test-server"
+    name: "test-filesystem"
+    command: "go"
+    args: ["run", "test.go"]
+
+nodes:
+  - id: "start"
+    type: "start"
+
+  - id: "process"
+    type: "mcp_tool"
+    server: "test-server"
+    tool: "process_data"
+    parameters:
+      data: "test"
+    output: "output_data"
+
+  - id: "end"
+    type: "end"
+    return: "success"
+
+edges:
+  - from: "start"
+    to: "process"
+
+  - from: "process"
+    to: "end"

@@ -1,0 +1,176 @@
+# GoFlow API Integration Template
+# This template demonstrates API integration patterns with error handling and validation
+# Suitable for HTTP REST API calls with retry logic and response processing
+#
+# Template Features:
+#   - Parameterized API endpoint, method, and request body
+#   - Configurable retry count and timeout
+#   - Response validation with conditional logic
+#   - Success and error path handling
+#   - Response transformation and error logging
+#
+# Usage:
+#   goflow create my-api-workflow --template api-workflow \
+#     --param api_endpoint="https://api.example.com/users" \
+#     --param api_method="POST" \
+#     --param request_body='{"name":"John","email":"john@example.com"}' \
+#     --param retry_count=5 \
+#     --param timeout_seconds=60
+
+name: api-workflow
+description: API integration workflow with error handling and validation
+version: "1.0"
+
+parameters:
+  - name: api_endpoint
+    type: string
+    required: true
+    description: Target API endpoint URL
+    validation:
+      pattern: "^https?://.+"
+
+  - name: api_method
+    type: string
+    required: false
+    default: "GET"
+    description: HTTP method (GET, POST, PUT, DELETE, PATCH)
+    validation:
+      pattern: "^(GET|POST|PUT|DELETE|PATCH)$"
+
+  - name: request_body
+    type: string
+    required: false
+    default: ""
+    description: JSON request body (for POST/PUT/PATCH requests)
+
+  - name: retry_count
+    type: number
+    required: false
+    default: 3
+    description: Number of retry attempts on failure
+    validation:
+      min: 1
+      max: 10
+
+  - name: timeout_seconds
+    type: number
+    required: false
+    default: 30
+    description: Request timeout in seconds
+    validation:
+      min: 1
+      max: 300
+
+workflow_spec:
+  nodes:
+    # Start node
+    - id: start
+      type: start
+
+    # Make HTTP request to API endpoint
+    - id: api_call
+      type: mcp_tool
+      config:
+        server: http-client-server
+        tool: http_request
+        parameters:
+          url: "{{api_endpoint}}"
+          method: "{{api_method}}"
+          body: "{{request_body}}"
+          timeout: "{{timeout_seconds}}"
+          headers:
+            "Content-Type": "application/json"
+            "Accept": "application/json"
+            "User-Agent": "GoFlow/1.0"
+        output: api_response
+        # NOTE: Retry logic can be configured per node
+        # In actual workflow instantiation, add retry policy like:
+        #   retry:
+        #     max_attempts: {{retry_count}}
+        #     backoff: exponential
+        #     initial_delay: 1s
+        #     max_delay: 30s
+        #     multiplier: 2.0
+        #     on: ["connection_error", "timeout", "service_unavailable"]
+
+    # Validate API response status
+    - id: check_success
+      type: condition
+      config:
+        condition: "api_response.status >= 200 && api_response.status < 300"
+
+    # Transform successful response
+    - id: process_success
+      type: transform
+      config:
+        input: api_response
+        expression: 'jq({success: true, status: .status, data: .body, timestamp: "${now()}"})'
+        output: result
+
+    # Extract error information
+    - id: process_error
+      type: transform
+      config:
+        input: api_response
+        expression: 'jq({success: false, status: .status, error: .body.error // "Unknown error", message: .body.message // "Request failed", timestamp: "${now()}"})'
+        output: error_details
+
+    # Log error for debugging/monitoring
+    - id: log_error
+      type: mcp_tool
+      config:
+        server: http-client-server
+        tool: log_event
+        parameters:
+          level: "error"
+          message: "API request failed: {{api_endpoint}}"
+          context:
+            endpoint: "{{api_endpoint}}"
+            method: "{{api_method}}"
+            status: "${error_details.status}"
+            error: "${error_details.error}"
+        output: log_result
+
+    # Set final error result
+    - id: set_error_result
+      type: transform
+      config:
+        input: error_details
+        expression: "."
+        output: result
+
+    # End node with result
+    - id: end
+      type: end
+      config:
+        return_value: result
+
+  edges:
+    # Main flow: start -> api call -> validation
+    - from: start
+      to: api_call
+
+    - from: api_call
+      to: check_success
+
+    # Success path: process response and return
+    - from: check_success
+      to: process_success
+      condition: "true"
+
+    - from: process_success
+      to: end
+
+    # Error path: extract error -> log -> set result -> return
+    - from: check_success
+      to: process_error
+      condition: "false"
+
+    - from: process_error
+      to: log_error
+
+    - from: log_error
+      to: set_error_result
+
+    - from: set_error_result
+      to: end
