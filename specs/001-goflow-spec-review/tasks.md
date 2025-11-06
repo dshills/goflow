@@ -330,34 +330,34 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T147 [P] [US5] Integration test for workflow export (credential stripping) in tests/integration/workflow_export_test.go
-- [ ] T148 [P] [US5] Integration test for workflow import in tests/integration/workflow_import_test.go
-- [ ] T149 [P] [US5] Integration test for template instantiation in tests/integration/template_test.go
+- [X] T147 [P] [US5] Integration test for workflow export (credential stripping) in tests/integration/workflow_export_test.go
+- [X] T148 [P] [US5] Integration test for workflow import in tests/integration/workflow_import_test.go
+- [X] T149 [P] [US5] Integration test for template instantiation in tests/integration/template_test.go
 
 ### Workflow Export/Import Implementation
 
-- [ ] T150 [US5] Implement credential detection and removal in workflow export in pkg/workflow/export.go
-- [ ] T151 [US5] Implement server reference validation in workflow import in pkg/workflow/import.go
-- [ ] T152 [US5] Implement missing server detection and user prompts in pkg/workflow/import.go
+- [X] T150 [US5] Implement credential detection and removal in workflow export in pkg/workflow/export.go
+- [X] T151 [US5] Implement server reference validation in workflow import in pkg/workflow/import.go
+- [X] T152 [US5] Implement missing server detection and user prompts in pkg/workflow/import.go
 
 ### Workflow Template System
 
-- [ ] T153 [US5] Define template format with parameter placeholders in pkg/workflow/template.go
-- [ ] T154 [US5] Implement template instantiation with parameter substitution in pkg/workflow/template.go
-- [ ] T155 [US5] Create built-in template library in internal/templates/
+- [X] T153 [US5] Define template format with parameter placeholders in pkg/workflow/template.go
+- [X] T154 [US5] Implement template instantiation with parameter substitution in pkg/workflow/template.go
+- [X] T155 [US5] Create built-in template library in internal/templates/
 
 ### CLI Integration
 
-- [ ] T156 [P] [US5] Implement `goflow export` command in pkg/cli/export.go
-- [ ] T157 [P] [US5] Implement `goflow import` command in pkg/cli/import.go
-- [ ] T158 [P] [US5] Implement `goflow credential add` command in pkg/cli/credential.go
-- [ ] T159 [P] [US5] Implement `goflow credential list` command in pkg/cli/credential.go
+- [X] T156 [P] [US5] Implement `goflow export` command in pkg/cli/export.go
+- [X] T157 [P] [US5] Implement `goflow import` command in pkg/cli/import.go
+- [X] T158 [P] [US5] Implement `goflow credential add` command in pkg/cli/credential.go
+- [X] T159 [P] [US5] Implement `goflow credential list` command in pkg/cli/credential.go
 
 ### Built-in Templates
 
-- [ ] T160 [P] [US5] Create ETL pipeline template in internal/templates/etl-pipeline.yaml
-- [ ] T161 [P] [US5] Create API integration template in internal/templates/api-workflow.yaml
-- [ ] T162 [P] [US5] Create multi-server template in internal/templates/multi-server.yaml
+- [X] T160 [P] [US5] Create ETL pipeline template in internal/templates/etl-pipeline.yaml
+- [X] T161 [P] [US5] Create API integration template in internal/templates/api-workflow.yaml
+- [X] T162 [P] [US5] Create multi-server template in internal/templates/multi-server.yaml
 
 ### Documentation
 
