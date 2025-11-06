@@ -8,11 +8,35 @@ import (
 	"sort"
 	"strings"
 	"text/tabwriter"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/dshills/goflow/pkg/storage"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
+
+const maxCredentialSize = 1 << 20 // 1MB limit for all credential inputs
+
+// isOnlyWhitespace checks if a byte slice contains only Unicode whitespace characters
+// without allocating strings. Returns true if empty or whitespace-only.
+func isOnlyWhitespace(data []byte) bool {
+	if len(data) == 0 {
+		return true
+	}
+	for i := 0; i < len(data); {
+		r, size := utf8.DecodeRune(data[i:])
+		if r == utf8.RuneError && size == 1 {
+			// Invalid UTF-8 is treated as non-whitespace
+			return false
+		}
+		if !unicode.IsSpace(r) {
+			return false
+		}
+		i += size
+	}
+	return true
+}
 
 // NewCredentialCommand creates the credential management command
 func NewCredentialCommand() *cobra.Command {
@@ -116,8 +140,7 @@ Note:
 			var credValue string
 			if useStdin {
 				// Read from stdin (for automation/CI/CD)
-				// Limit stdin reading to 1MB to prevent memory exhaustion
-				const maxCredentialSize = 1 << 20 // 1MB
+				// Limit stdin reading to prevent memory exhaustion
 				limitedReader := io.LimitReader(cmd.InOrStdin(), maxCredentialSize+1)
 				inputBytes, err := io.ReadAll(limitedReader)
 
@@ -140,15 +163,12 @@ Note:
 				// Trim only trailing newline characters using bytes (preserve intentional spaces)
 				trimmed := bytes.TrimRight(inputBytes, "\r\n")
 
-				// Validate non-empty
+				// Validate non-empty and not whitespace-only using Unicode-aware checks
+				// This avoids creating temporary strings that can't be zeroed
 				if len(trimmed) == 0 {
 					return fmt.Errorf("credential value cannot be empty")
 				}
-
-				// Check if whitespace-only using string conversion (minimal temporary string)
-				// Note: bytes.TrimSpace only handles ASCII whitespace, need string version for Unicode
-				tempStr := string(trimmed)
-				if strings.TrimSpace(tempStr) == "" {
+				if isOnlyWhitespace(trimmed) {
 					return fmt.Errorf("credential cannot contain only whitespace characters")
 				}
 
@@ -156,7 +176,6 @@ Note:
 				credValue = string(trimmed)
 			} else if value != "" {
 				// Value provided via flag (warn about security)
-				const maxCredentialSize = 1 << 20 // 1MB
 				_, _ = fmt.Fprintln(cmd.OutOrStderr(), "Warning: Using --value flag exposes credential in shell history.")
 				_, _ = fmt.Fprintln(cmd.OutOrStderr(), "Consider using interactive prompt (omit --value) or --stdin for better security.")
 
@@ -173,7 +192,6 @@ Note:
 				credValue = value
 			} else {
 				// Prompt for value securely (no echo)
-				const maxCredentialSize = 1 << 20 // 1MB
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Enter value for '%s': ", key)
 
 				// Read password without echo
