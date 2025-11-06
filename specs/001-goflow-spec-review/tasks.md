@@ -283,40 +283,40 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T127 [P] [US4] Integration test for execution monitoring in tests/integration/execution_monitor_test.go
-- [ ] T128 [P] [US4] Unit test for execution history queries in tests/unit/execution/history_test.go
-- [ ] T129 [P] [US4] TUI test for execution monitor view in tests/tui/execution_monitor_test.go
+- [X] T127 [P] [US4] Integration test for execution monitoring in tests/integration/execution_monitor_test.go
+- [X] T128 [P] [US4] Unit test for execution history queries in tests/unit/execution/history_test.go
+- [X] T129 [P] [US4] TUI test for execution monitor view in tests/tui/execution_monitor_test.go
 
 ### Execution Monitoring Implementation
 
-- [ ] T130 [US4] Implement real-time execution event stream in pkg/execution/events.go
-- [ ] T131 [US4] Implement execution progress tracking in pkg/execution/progress.go
-- [ ] T132 [US4] Implement variable snapshot recording in pkg/execution/snapshot.go
-- [ ] T133 [US4] Enhance error context with stack traces and MCP logs in pkg/execution/error.go
+- [X] T130 [US4] Implement real-time execution event stream in pkg/execution/events.go
+- [X] T131 [US4] Implement execution progress tracking in pkg/execution/progress.go
+- [X] T132 [US4] Implement variable snapshot recording in pkg/execution/snapshot.go
+- [X] T133 [US4] Enhance error context with stack traces and MCP logs in pkg/execution/error.go
 
 ### Execution History and Querying
 
-- [ ] T134 [US4] Implement execution history queries in pkg/storage/sqlite.go (list, filter by status, search)
-- [ ] T135 [US4] Implement execution detail retrieval in pkg/storage/sqlite.go
-- [ ] T136 [US4] Implement audit trail reconstruction in pkg/execution/audit.go
+- [X] T134 [US4] Implement execution history queries in pkg/storage/sqlite.go (list, filter by status, search)
+- [X] T135 [US4] Implement execution detail retrieval in pkg/storage/sqlite.go
+- [X] T136 [US4] Implement audit trail reconstruction in pkg/execution/audit.go
 
 ### TUI Execution Monitor View
 
-- [ ] T137 [US4] Implement execution monitor view in pkg/tui/execution_monitor.go
-- [ ] T138 [US4] Implement real-time execution visualization (highlighted nodes, progress) in pkg/tui/execution_monitor.go
-- [ ] T139 [US4] Implement variable inspector panel in pkg/tui/execution_monitor.go
-- [ ] T140 [US4] Implement error detail view in pkg/tui/execution_monitor.go
-- [ ] T141 [US4] Implement execution log viewer in pkg/tui/execution_monitor.go
-- [ ] T142 [US4] Implement performance metrics display (time per node, memory) in pkg/tui/execution_monitor.go
+- [X] T137 [US4] Implement execution monitor view in pkg/tui/execution_monitor.go
+- [X] T138 [US4] Implement real-time execution visualization (highlighted nodes, progress) in pkg/tui/execution_monitor.go
+- [X] T139 [US4] Implement variable inspector panel in pkg/tui/execution_monitor.go
+- [X] T140 [US4] Implement error detail view in pkg/tui/execution_monitor.go
+- [X] T141 [US4] Implement execution log viewer in pkg/tui/execution_monitor.go
+- [X] T142 [US4] Implement performance metrics display (time per node, memory) in pkg/tui/execution_monitor.go
 
 ### CLI Integration
 
-- [ ] T143 [P] [US4] Implement `goflow executions` command to list execution history in pkg/cli/executions.go
-- [ ] T144 [P] [US4] Implement `goflow execution <id>` command to view details in pkg/cli/executions.go
-- [ ] T145 [P] [US4] Implement `goflow logs <id>` command to view logs in pkg/cli/logs.go
-- [ ] T146 [US4] Add `--watch` flag to `goflow run` for real-time monitoring in pkg/cli/run.go
+- [X] T143 [P] [US4] Implement `goflow executions` command to list execution history in pkg/cli/executions.go
+- [X] T144 [P] [US4] Implement `goflow execution <id>` command to view details in pkg/cli/executions.go
+- [X] T145 [P] [US4] Implement `goflow logs <id>` command to view logs in pkg/cli/logs.go
+- [X] T146 [US4] Add `--watch` flag to `goflow run` for real-time monitoring in pkg/cli/run.go
 
-**Checkpoint**: At this point, User Stories 1-4 should work - users can monitor and debug workflow executions
+**Checkpoint**: ✅ User Story 4 COMPLETE - users can monitor and debug workflow executions
 
 ---
 

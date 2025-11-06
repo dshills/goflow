@@ -71,9 +71,13 @@ func applyMigration1(db *sql.DB) error {
 
 	// Indexes for common queries
 	executionsIndexes := []string{
+		// Primary indexes for filtering
 		"CREATE INDEX idx_executions_workflow_id ON executions(workflow_id, started_at DESC);",
-		"CREATE INDEX idx_executions_status ON executions(status);",
+		"CREATE INDEX idx_executions_status ON executions(status, started_at DESC);",
 		"CREATE INDEX idx_executions_started_at ON executions(started_at DESC);",
+
+		// Composite index for common combined queries (workflow + status)
+		"CREATE INDEX idx_executions_workflow_status ON executions(workflow_id, status, started_at DESC);",
 	}
 
 	for _, idx := range executionsIndexes {

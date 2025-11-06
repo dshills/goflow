@@ -18,6 +18,7 @@ type Engine struct {
 	serverRegistry *mcpserver.Registry
 	execRepository *storage.SQLiteExecutionRepository
 	logger         *Logger
+	monitor        *monitor // Current execution monitor (set during Execute)
 }
 
 // NewEngine creates a new execution engine with default configuration.
@@ -64,6 +65,15 @@ func (e *Engine) Execute(ctx context.Context, wf *workflow.Workflow, inputs map[
 		return nil, fmt.Errorf("failed to create execution: %w", err)
 	}
 
+	// Create execution monitor
+	e.monitor = &monitor{
+		exec:        exec,
+		totalNodes:  len(wf.Nodes),
+		subscribers: make([]*subscription, 0),
+		closed:      false,
+	}
+	defer e.monitor.Close()
+
 	// Validate required input variables
 	if err := e.validateInputs(wf, inputs); err != nil {
 		return nil, fmt.Errorf("input validation failed: %w", err)
@@ -84,6 +94,9 @@ func (e *Engine) Execute(ctx context.Context, wf *workflow.Workflow, inputs map[
 		return exec, fmt.Errorf("failed to start execution: %w", err)
 	}
 
+	// Emit execution started event
+	e.emitExecutionStarted(exec)
+
 	// Connect to MCP servers
 	if err := e.connectServers(ctx, wf); err != nil {
 		execErr := &execution.ExecutionError{
@@ -96,6 +109,7 @@ func (e *Engine) Execute(ctx context.Context, wf *workflow.Workflow, inputs map[
 		if e.logger != nil {
 			e.logger.LogExecutionComplete(exec)
 		}
+		e.emitExecutionFailed(exec, execErr)
 		return exec, err
 	}
 
@@ -107,6 +121,7 @@ func (e *Engine) Execute(ctx context.Context, wf *workflow.Workflow, inputs map[
 		// Check if context was cancelled
 		if ctx.Err() == context.Canceled {
 			_ = exec.Cancel()
+			e.emitExecutionCancelled(exec)
 		} else {
 			// Execution failed
 			execErr, ok := err.(*execution.ExecutionError)
@@ -121,6 +136,7 @@ func (e *Engine) Execute(ctx context.Context, wf *workflow.Workflow, inputs map[
 				}
 			}
 			_ = exec.Fail(execErr)
+			e.emitExecutionFailed(exec, execErr)
 		}
 
 		if e.logger != nil {
@@ -138,6 +154,9 @@ func (e *Engine) Execute(ctx context.Context, wf *workflow.Workflow, inputs map[
 	if e.logger != nil {
 		e.logger.LogExecutionComplete(exec)
 	}
+
+	// Emit execution completed event
+	e.emitExecutionCompleted(exec)
 
 	return exec, nil
 }
@@ -313,6 +332,9 @@ func (e *Engine) executeNode(ctx context.Context, node workflow.Node, wf *workfl
 	nodeExec := execution.NewNodeExecution(exec.ID, nodeID, node.Type())
 	nodeExec.Start()
 
+	// Emit node started event
+	e.emitNodeStarted(exec, nodeExec)
+
 	// Set current node in context
 	exec.Context.SetCurrentNode(&nodeID)
 	defer exec.Context.SetCurrentNode(nil)
@@ -349,6 +371,9 @@ func (e *Engine) executeNode(ctx context.Context, node workflow.Node, wf *workfl
 		// Add to execution record
 		_ = exec.AddNodeExecution(nodeExec)
 
+		// Emit node failed event
+		e.emitNodeFailed(exec, nodeExec, nodeErr)
+
 		// Log node execution
 		if e.logger != nil {
 			e.logger.LogNodeExecution(nodeExec)
@@ -372,6 +397,9 @@ func (e *Engine) executeNode(ctx context.Context, node workflow.Node, wf *workfl
 
 	// Add to execution record
 	_ = exec.AddNodeExecution(nodeExec)
+
+	// Emit node completed event
+	e.emitNodeCompleted(exec, nodeExec)
 
 	// Log node execution
 	if e.logger != nil {
@@ -519,4 +547,145 @@ func (e *Engine) Close() error {
 		return e.execRepository.Close()
 	}
 	return nil
+}
+
+// GetMonitor returns the execution monitor for the current execution.
+// Returns nil if no execution is currently running.
+func (e *Engine) GetMonitor() ExecutionMonitor {
+	if e.monitor == nil {
+		return nil
+	}
+	return e.monitor
+}
+
+// emitExecutionStarted emits an execution started event.
+func (e *Engine) emitExecutionStarted(exec *execution.Execution) {
+	if e.monitor == nil {
+		return
+	}
+
+	e.monitor.Emit(ExecutionEvent{
+		Type:        EventExecutionStarted,
+		Timestamp:   time.Now(),
+		ExecutionID: exec.ID,
+		Status:      exec.Status,
+		Variables:   e.monitor.GetVariableSnapshot(),
+		Metadata:    map[string]interface{}{},
+	})
+}
+
+// emitExecutionCompleted emits an execution completed event.
+func (e *Engine) emitExecutionCompleted(exec *execution.Execution) {
+	if e.monitor == nil {
+		return
+	}
+
+	e.monitor.Emit(ExecutionEvent{
+		Type:        EventExecutionCompleted,
+		Timestamp:   time.Now(),
+		ExecutionID: exec.ID,
+		Status:      exec.Status,
+		Variables:   e.monitor.GetVariableSnapshot(),
+		Metadata: map[string]interface{}{
+			"return_value": exec.ReturnValue,
+			"duration":     exec.Duration().String(),
+		},
+	})
+}
+
+// emitExecutionFailed emits an execution failed event.
+func (e *Engine) emitExecutionFailed(exec *execution.Execution, err *execution.ExecutionError) {
+	if e.monitor == nil {
+		return
+	}
+
+	e.monitor.Emit(ExecutionEvent{
+		Type:        EventExecutionFailed,
+		Timestamp:   time.Now(),
+		ExecutionID: exec.ID,
+		Status:      exec.Status,
+		Error:       err,
+		Variables:   e.monitor.GetVariableSnapshot(),
+		Metadata: map[string]interface{}{
+			"error_type": err.Type,
+			"node_id":    err.NodeID,
+		},
+	})
+}
+
+// emitExecutionCancelled emits an execution cancelled event.
+func (e *Engine) emitExecutionCancelled(exec *execution.Execution) {
+	if e.monitor == nil {
+		return
+	}
+
+	e.monitor.Emit(ExecutionEvent{
+		Type:        EventExecutionCancelled,
+		Timestamp:   time.Now(),
+		ExecutionID: exec.ID,
+		Status:      exec.Status,
+		Variables:   e.monitor.GetVariableSnapshot(),
+		Metadata:    map[string]interface{}{},
+	})
+}
+
+// emitNodeStarted emits a node started event.
+func (e *Engine) emitNodeStarted(exec *execution.Execution, nodeExec *execution.NodeExecution) {
+	if e.monitor == nil {
+		return
+	}
+
+	e.monitor.Emit(ExecutionEvent{
+		Type:        EventNodeStarted,
+		Timestamp:   time.Now(),
+		ExecutionID: exec.ID,
+		NodeID:      nodeExec.NodeID,
+		Status:      nodeExec.Status,
+		Variables:   e.monitor.GetVariableSnapshot(),
+		Metadata: map[string]interface{}{
+			"node_type": nodeExec.NodeType,
+		},
+	})
+}
+
+// emitNodeCompleted emits a node completed event.
+func (e *Engine) emitNodeCompleted(exec *execution.Execution, nodeExec *execution.NodeExecution) {
+	if e.monitor == nil {
+		return
+	}
+
+	e.monitor.Emit(ExecutionEvent{
+		Type:        EventNodeCompleted,
+		Timestamp:   time.Now(),
+		ExecutionID: exec.ID,
+		NodeID:      nodeExec.NodeID,
+		Status:      nodeExec.Status,
+		Variables:   e.monitor.GetVariableSnapshot(),
+		Metadata: map[string]interface{}{
+			"node_type": nodeExec.NodeType,
+			"outputs":   nodeExec.Outputs,
+			"duration":  nodeExec.Duration().String(),
+		},
+	})
+}
+
+// emitNodeFailed emits a node failed event.
+func (e *Engine) emitNodeFailed(exec *execution.Execution, nodeExec *execution.NodeExecution, err *execution.NodeError) {
+	if e.monitor == nil {
+		return
+	}
+
+	e.monitor.Emit(ExecutionEvent{
+		Type:        EventNodeFailed,
+		Timestamp:   time.Now(),
+		ExecutionID: exec.ID,
+		NodeID:      nodeExec.NodeID,
+		Status:      nodeExec.Status,
+		Error:       err,
+		Variables:   e.monitor.GetVariableSnapshot(),
+		Metadata: map[string]interface{}{
+			"node_type":  nodeExec.NodeType,
+			"error_type": err.Type,
+		},
+	})
 }

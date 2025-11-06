@@ -1,14 +1,24 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"sync"
+	"syscall"
 	"time"
 
+	domainexec "github.com/dshills/goflow/pkg/domain/execution"
+	"github.com/dshills/goflow/pkg/domain/types"
+	"github.com/dshills/goflow/pkg/execution"
+	"github.com/dshills/goflow/pkg/tui"
 	"github.com/dshills/goflow/pkg/workflow"
+	"github.com/dshills/goterm"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 // NewRunCommand creates the run command
@@ -16,6 +26,7 @@ func NewRunCommand() *cobra.Command {
 	var (
 		inputFile    string
 		watch        bool
+		tuiMode      bool
 		outputJSON   bool
 		varFlags     []string // Inline variables (--var key=value)
 		debugMode    bool
@@ -38,8 +49,11 @@ Examples:
   # Run with input variables from JSON file
   goflow run my-workflow --input input.json
 
-  # Run with progress monitoring
+  # Run with inline progress monitoring
   goflow run my-workflow --watch
+
+  # Run with full TUI monitoring
+  goflow run my-workflow --tui
 
   # Run with debug output
   goflow run my-workflow --debug`,
@@ -123,83 +137,43 @@ Examples:
 				GlobalConfig.Debug = true
 			}
 
-			// Generate execution ID
-			execID := fmt.Sprintf("exec-%d", time.Now().Unix())
-
 			// Determine output format
 			if outputFormat == "json" {
 				outputJSON = true
 			}
 
-			if !outputJSON {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "✓ Started execution (ID: %s)\n", execID)
+			// Create execution engine
+			engine := execution.NewEngine()
+			defer engine.Close()
+
+			// Create context with cancellation
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			// Apply timeout if specified
+			if timeout > 0 {
+				ctx, cancel = context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
+				defer cancel()
 			}
 
-			// Execute workflow
-			// TODO: Use actual runtime when implemented
-			// For now, simulate execution
-			startTime := time.Now()
+			// Handle Ctrl+C for graceful cancellation
+			sigChan := make(chan os.Signal, 1)
+			signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+			go func() {
+				<-sigChan
+				cancel()
+			}()
 
-			if watch {
-				// Simulate progress output
-				nodeCount := len(wf.Nodes)
-				for i, node := range wf.Nodes {
-					if node.Type() == "start" {
-						continue
-					}
-
-					// Simulate node execution time
-					time.Sleep(50 * time.Millisecond)
-
-					elapsed := time.Since(startTime).Seconds()
-					if !outputJSON {
-						_, _ = fmt.Fprintf(cmd.OutOrStdout(), "✓ Node '%s' completed (%.2fs)\n", node.GetID(), elapsed)
-					}
-
-					if i == nodeCount-1 {
-						break
-					}
-				}
-			}
-
-			totalTime := time.Since(startTime)
-
-			// Create result
-			result := map[string]interface{}{
-				"execution_id": execID,
-				"workflow":     workflowName,
-				"status":       "completed",
-				"duration":     totalTime.Seconds(),
-				"return_value": map[string]interface{}{
-					"success": true,
-				},
-			}
-
-			if outputJSON {
-				// Output as JSON
-				output, err := json.MarshalIndent(result, "", "  ")
-				if err != nil {
-					return fmt.Errorf("failed to marshal output: %w", err)
-				}
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(output))
+			// Decide execution mode: TUI, watch (inline), or silent
+			if tuiMode {
+				// Launch TUI monitoring mode
+				return runWithTUI(ctx, engine, wf, workflowName, inputVars)
+			} else if watch {
+				// Run with inline watch mode
+				return runWithInlineWatch(ctx, cmd, engine, wf, workflowName, inputVars, outputJSON, debugMode)
 			} else {
-				// Human-readable output
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "✓ Workflow completed successfully (%.2fs)\n", totalTime.Seconds())
-
-				// Display return value if available
-				returnVal, _ := json.MarshalIndent(result["return_value"], "", "  ")
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nReturn value:\n%s\n", string(returnVal))
-			}
-
-			// TODO: Save execution to SQLite storage
-			if GlobalConfig.Debug {
-				_, _ = fmt.Fprintf(cmd.OutOrStderr(), "DEBUG: Execution details:\n")
-				_, _ = fmt.Fprintf(cmd.OutOrStderr(), "  Workflow: %s\n", workflowName)
-				_, _ = fmt.Fprintf(cmd.OutOrStderr(), "  Execution ID: %s\n", execID)
-				_, _ = fmt.Fprintf(cmd.OutOrStderr(), "  Duration: %.2fs\n", totalTime.Seconds())
-				if inputVars != nil {
-					_, _ = fmt.Fprintf(cmd.OutOrStderr(), "  Input variables: %d\n", len(inputVars))
-				}
+				// Run silently, only show result at end
+				return runSilent(ctx, cmd, engine, wf, workflowName, inputVars, outputJSON, debugMode)
 			}
 
 			return nil
@@ -207,7 +181,8 @@ Examples:
 	}
 
 	cmd.Flags().StringVarP(&inputFile, "input", "i", "", "Input variables JSON file")
-	cmd.Flags().BoolVarP(&watch, "watch", "w", false, "Monitor execution progress in real-time")
+	cmd.Flags().BoolVarP(&watch, "watch", "w", false, "Monitor execution progress with inline updates")
+	cmd.Flags().BoolVar(&tuiMode, "tui", false, "Launch full TUI execution monitor")
 	cmd.Flags().BoolVar(&outputJSON, "output-json", false, "Output result as JSON")
 	cmd.Flags().StringArrayVar(&varFlags, "var", []string{}, "Set input variable (key=value), can be used multiple times")
 	cmd.Flags().BoolVar(&debugMode, "debug", false, "Enable debug output")
@@ -231,4 +206,274 @@ func splitKeyValue(s string) []string {
 		return []string{s}
 	}
 	return []string{s[:idx], s[idx+1:]}
+}
+
+// runWithTUI launches the full TUI execution monitor.
+func runWithTUI(ctx context.Context, engine *execution.Engine, wf *workflow.Workflow, workflowName string, inputs map[string]interface{}) error {
+	// Create a goroutine to run the execution
+	var exec *domainexec.Execution
+	var execErr error
+	execDone := make(chan struct{})
+
+	go func() {
+		exec, execErr = engine.Execute(ctx, wf, inputs)
+		close(execDone)
+	}()
+
+	// Initialize TUI screen
+	screen, err := goterm.Init()
+	if err != nil {
+		return fmt.Errorf("failed to initialize TUI: %w", err)
+	}
+	defer screen.Close()
+
+	// Wait for execution to start and get monitor
+	time.Sleep(100 * time.Millisecond)
+	monitor := engine.GetMonitor()
+	if monitor == nil {
+		return fmt.Errorf("failed to get execution monitor")
+	}
+
+	// Create a temporary execution for initial display
+	if exec == nil {
+		exec, _ = domainexec.NewExecution(types.WorkflowID(wf.ID), wf.Version, inputs)
+	}
+
+	// Create execution monitor view
+	monitorView := tui.NewExecutionMonitor(exec, wf, screen)
+	monitorView.SetEventMonitor(monitor)
+	defer monitorView.Close()
+
+	// TUI event loop with periodic refresh
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	// Initial render
+	monitorView.Render()
+
+	for {
+		select {
+		case <-execDone:
+			// Execution finished, show final state for a moment then exit
+			monitorView.Render()
+			time.Sleep(2 * time.Second)
+
+			if execErr != nil {
+				return execErr
+			}
+			return nil
+
+		case <-ctx.Done():
+			return fmt.Errorf("execution cancelled")
+
+		case <-ticker.C:
+			// Periodic refresh
+			monitorView.Render()
+		}
+	}
+}
+
+// runWithInlineWatch runs execution with inline progress updates.
+func runWithInlineWatch(ctx context.Context, cmd *cobra.Command, engine *execution.Engine, wf *workflow.Workflow, workflowName string, inputs map[string]interface{}, outputJSON, debugMode bool) error {
+	// Start execution in background
+	var exec *domainexec.Execution
+	var execErr error
+	execDone := make(chan struct{})
+
+	go func() {
+		exec, execErr = engine.Execute(ctx, wf, inputs)
+		close(execDone)
+	}()
+
+	// Wait for execution to start and get monitor
+	time.Sleep(100 * time.Millisecond)
+	monitor := engine.GetMonitor()
+	if monitor == nil {
+		return fmt.Errorf("failed to get execution monitor")
+	}
+
+	// Subscribe to execution events
+	eventChan := monitor.Subscribe()
+	defer monitor.Unsubscribe(eventChan)
+
+	// Check if stdout is a terminal for ANSI codes
+	isTerm := term.IsTerminal(int(os.Stdout.Fd()))
+
+	if !outputJSON {
+		fmt.Fprintf(cmd.OutOrStdout(), "Executing: %s\n", workflowName)
+		fmt.Fprintf(cmd.OutOrStdout(), "[Press Ctrl+C to cancel]\n\n")
+	}
+
+	// Track state for display
+	state := &watchState{
+		startTime: time.Now(),
+		nodeCount: len(wf.Nodes),
+	}
+
+	// Event processing loop
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-execDone:
+			// Show final status
+			if !outputJSON {
+				displayFinalResult(cmd, exec, execErr, state, debugMode)
+			} else {
+				displayJSONResult(cmd, exec, execErr)
+			}
+			return execErr
+
+		case event := <-eventChan:
+			if !outputJSON {
+				handleInlineEvent(cmd, event, state, isTerm)
+			}
+
+		case <-ticker.C:
+			// Periodic progress update
+			if !outputJSON && isTerm {
+				progress := monitor.GetProgress()
+				displayInlineProgress(cmd, progress, state)
+			}
+
+		case <-ctx.Done():
+			return fmt.Errorf("execution cancelled")
+		}
+	}
+}
+
+// runSilent runs execution without progress updates, only showing final result.
+func runSilent(ctx context.Context, cmd *cobra.Command, engine *execution.Engine, wf *workflow.Workflow, workflowName string, inputs map[string]interface{}, outputJSON, debugMode bool) error {
+	if !outputJSON {
+		fmt.Fprintf(cmd.OutOrStdout(), "Executing workflow: %s\n", workflowName)
+	}
+
+	// Execute workflow
+	exec, err := engine.Execute(ctx, wf, inputs)
+
+	// Display result
+	if !outputJSON {
+		displayFinalResult(cmd, exec, err, &watchState{startTime: time.Now()}, debugMode)
+	} else {
+		displayJSONResult(cmd, exec, err)
+	}
+
+	return err
+}
+
+// watchState tracks state for inline watch display.
+type watchState struct {
+	startTime      time.Time
+	nodeCount      int
+	lastNodeID     string
+	lastUpdateTime time.Time
+	recentLogs     []string
+	variables      map[string]interface{}
+	mu             sync.Mutex
+}
+
+// handleInlineEvent processes execution events for inline display.
+func handleInlineEvent(cmd *cobra.Command, event execution.ExecutionEvent, state *watchState, isTerm bool) {
+	state.mu.Lock()
+	defer state.mu.Unlock()
+
+	elapsed := time.Since(state.startTime)
+
+	switch event.Type {
+	case execution.EventExecutionStarted:
+		timestamp := elapsed.Truncate(time.Millisecond)
+		fmt.Fprintf(cmd.OutOrStdout(), "%s ▶ Execution started\n", timestamp)
+
+	case execution.EventNodeStarted:
+		timestamp := elapsed.Truncate(time.Millisecond)
+		state.lastNodeID = string(event.NodeID)
+		fmt.Fprintf(cmd.OutOrStdout(), "%s ▶ %s started\n", timestamp, event.NodeID)
+
+	case execution.EventNodeCompleted:
+		timestamp := elapsed.Truncate(time.Millisecond)
+		fmt.Fprintf(cmd.OutOrStdout(), "%s ✓ %s completed\n", timestamp, event.NodeID)
+
+	case execution.EventNodeFailed:
+		timestamp := elapsed.Truncate(time.Millisecond)
+		fmt.Fprintf(cmd.OutOrStdout(), "%s ✗ %s failed: %v\n", timestamp, event.NodeID, event.Error)
+
+	case execution.EventVariableChanged:
+		state.variables = event.Variables
+	}
+
+	state.lastUpdateTime = time.Now()
+}
+
+// displayInlineProgress shows current execution progress in place (using ANSI codes).
+func displayInlineProgress(cmd *cobra.Command, progress execution.ExecutionProgress, state *watchState) {
+	state.mu.Lock()
+	defer state.mu.Unlock()
+
+	// Use ANSI escape codes to update in place
+	// Move cursor up and clear line
+	fmt.Fprintf(cmd.OutOrStdout(), "\r\033[K")
+
+	status := fmt.Sprintf("Status: Running | Progress: %.0f%% (%d/%d nodes)",
+		progress.PercentComplete,
+		progress.CompletedNodes+progress.FailedNodes+progress.SkippedNodes,
+		progress.TotalNodes)
+
+	if progress.CurrentNode != "" {
+		status += fmt.Sprintf(" | Current: %s", progress.CurrentNode)
+	}
+
+	fmt.Fprintf(cmd.OutOrStdout(), "%s", status)
+}
+
+// displayFinalResult shows the final execution result.
+func displayFinalResult(cmd *cobra.Command, exec *domainexec.Execution, err error, state *watchState, debugMode bool) {
+	fmt.Fprintln(cmd.OutOrStdout(), "\n")
+
+	duration := time.Since(state.startTime)
+
+	if err != nil {
+		fmt.Fprintf(cmd.OutOrStdout(), "✗ Workflow failed (%.2fs)\n", duration.Seconds())
+		fmt.Fprintf(cmd.OutOrStdout(), "Error: %v\n", err)
+	} else if exec != nil {
+		fmt.Fprintf(cmd.OutOrStdout(), "✓ Workflow completed successfully (%.2fs)\n", duration.Seconds())
+
+		if exec.ReturnValue != nil {
+			fmt.Fprintln(cmd.OutOrStdout(), "\nReturn value:")
+			returnJSON, _ := json.MarshalIndent(exec.ReturnValue, "", "  ")
+			fmt.Fprintln(cmd.OutOrStdout(), string(returnJSON))
+		}
+
+		if debugMode {
+			fmt.Fprintf(cmd.OutOrStderr(), "\nDEBUG: Execution details:\n")
+			fmt.Fprintf(cmd.OutOrStderr(), "  Execution ID: %s\n", exec.ID)
+			fmt.Fprintf(cmd.OutOrStderr(), "  Duration: %.2fs\n", duration.Seconds())
+			fmt.Fprintf(cmd.OutOrStderr(), "  Nodes executed: %d\n", len(exec.NodeExecutions))
+		}
+	}
+}
+
+// displayJSONResult outputs execution result as JSON.
+func displayJSONResult(cmd *cobra.Command, exec *domainexec.Execution, err error) {
+	result := map[string]interface{}{}
+
+	if exec != nil {
+		result["execution_id"] = exec.ID.String()
+		result["status"] = string(exec.Status)
+		result["started_at"] = exec.StartedAt
+		result["completed_at"] = exec.CompletedAt
+		result["return_value"] = exec.ReturnValue
+
+		if !exec.CompletedAt.IsZero() {
+			duration := exec.CompletedAt.Sub(exec.StartedAt)
+			result["duration"] = duration.Seconds()
+		}
+	}
+
+	if err != nil {
+		result["error"] = err.Error()
+	}
+
+	output, _ := json.MarshalIndent(result, "", "  ")
+	fmt.Fprintln(cmd.OutOrStdout(), string(output))
 }

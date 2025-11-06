@@ -62,6 +62,9 @@ with conditional logic, data transformation, and parallel execution.`,
 	cmd.AddCommand(NewRunCommand())
 	cmd.AddCommand(NewInitCommand())
 	cmd.AddCommand(NewEditCommand())
+	cmd.AddCommand(NewExecutionsCommand())
+	cmd.AddCommand(NewExecutionCommand())
+	cmd.AddCommand(NewLogsCommand())
 
 	return cmd
 }

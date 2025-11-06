@@ -144,3 +144,31 @@ func (ctx *ExecutionContext) CreateSnapshot() map[string]interface{} {
 
 	return snapshot
 }
+
+// CurrentNode returns the currently executing node ID (or nil if none).
+func (ctx *ExecutionContext) CurrentNode() *types.NodeID {
+	ctx.mu.RLock()
+	defer ctx.mu.RUnlock()
+
+	return ctx.CurrentNodeID
+}
+
+// GetCurrentNode is an alias for CurrentNode for backwards compatibility.
+func (ctx *ExecutionContext) GetCurrentNode() *types.NodeID {
+	return ctx.CurrentNode()
+}
+
+// GetVariableSnapshot returns all current variable values.
+// This is used by the monitor to get a snapshot of the current state.
+func (ctx *ExecutionContext) GetVariableSnapshot() map[string]interface{} {
+	ctx.mu.RLock()
+	defer ctx.mu.RUnlock()
+
+	// Create a copy to prevent external modification
+	snapshot := make(map[string]interface{}, len(ctx.Variables))
+	for key, value := range ctx.Variables {
+		snapshot[key] = value
+	}
+
+	return snapshot
+}
