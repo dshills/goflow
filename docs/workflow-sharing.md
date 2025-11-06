@@ -6,152 +6,286 @@ GoFlow workflows are designed to be safely shared between team members, publishe
 
 This guide covers best practices for exporting, sharing, and importing GoFlow workflows while maintaining security and ease of use.
 
-## Exporting Workflows
+## Benefits of Workflow Sharing
 
-### Basic Export
+- **Reusability**: Share common patterns across teams and projects
+- **Collaboration**: Build workflows together with version control
+- **Security**: Automatic credential stripping prevents accidental exposure
+- **Portability**: Workflows work across different environments with proper credential setup
+- **Templates**: Parameterized workflows enable customization without editing
+- **Knowledge Sharing**: Document and distribute best practices
 
-Export a workflow with credentials stripped for safe sharing:
+## Security Considerations
 
-```bash
-# Export to stdout (for piping or viewing)
-goflow export my-workflow.yaml
+### The Security Model
 
-# Export to a file
-goflow export my-workflow.yaml --output shared-workflow.yaml
+GoFlow follows a strict separation between workflow logic and credentials:
 
-# Export from workflows directory
-goflow export ~/.goflow/workflows/my-workflow.yaml -o exported.yaml
+1. **Workflows define structure**: Nodes, edges, transformations, and logic
+2. **Credentials are stored separately**: System keyring or secure credential store
+3. **Export strips credentials**: Automatic sanitization prevents leaks
+4. **Import requires setup**: Recipients must configure their own credentials
+
+This ensures that shared workflows are safe to commit to version control, post in public repositories, or share via email/Slack.
+
+### What Gets Stripped on Export
+
+GoFlow automatically removes sensitive information matching these patterns:
+
+#### Sensitive Environment Variable Patterns
+- `KEY`, `SECRET`, `TOKEN`
+- `PASSWORD`, `PASSPHRASE`
+- `CREDENTIAL`, `AUTH`, `BEARER`
+- `PRIVATE`, `CLIENT_SECRET`
+- `DATABASE_URL`, `CONNECTION_STRING`, `DSN`
+- `OAUTH` (any OAuth-related variables)
+
+#### Credential References
+- `credential_ref` fields are replaced with `<CREDENTIAL_REF_REQUIRED>` placeholder
+- This signals to recipients that credentials must be configured
+
+#### Example: Before Export
+```yaml
+servers:
+  - id: github-api
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_TOKEN: ghp_abc123xyz789    # Sensitive - will be stripped
+      GITHUB_ORG: myorg                 # Non-sensitive - preserved
+      API_BASE_URL: https://api.github.com  # Non-sensitive - preserved
+    credential_ref: keyring://github-token
 ```
 
-### What Gets Exported
-
-When you export a workflow, GoFlow creates a sanitized copy that includes:
-
-- **Workflow structure**: All nodes, edges, and execution flow
-- **Non-sensitive configuration**: Server commands, transport settings
-- **Variable definitions**: Workflow variables with types and defaults
-- **Metadata**: Name, version, description, tags
-- **Non-sensitive environment variables**: HOST, PORT, LOG_LEVEL, etc.
-
-### What Gets Stripped
-
-For security, the following sensitive information is automatically removed:
-
-- **API keys and tokens**: Any environment variable containing KEY, TOKEN, SECRET
-- **Passwords and credentials**: Variables with PASSWORD, PASSPHRASE, CREDENTIAL
-- **Authentication tokens**: BEARER, AUTH, OAUTH patterns
-- **Private keys**: Variables containing PRIVATE, CLIENT_SECRET
-- **Database credentials**: DATABASE_URL, CONNECTION_STRING, DSN
-- **Credential references**: Replaced with `<CREDENTIAL_REF_REQUIRED>` placeholder
-
-### Export Warning Header
-
-Exported workflows include a warning header:
-
+#### Example: After Export
 ```yaml
 # CREDENTIAL WARNING: This workflow has been exported for sharing.
 # Sensitive credentials have been removed and must be configured before use.
 # Please set up credential references for servers marked with <CREDENTIAL_REF_REQUIRED>.
 
-version: "1.0"
-name: my-workflow
-# ... rest of workflow
+servers:
+  - id: github-api
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_ORG: myorg
+      API_BASE_URL: https://api.github.com
+    credential_ref: <CREDENTIAL_REF_REQUIRED>
 ```
-
-## Security Considerations
-
-### What Credentials Are Removed
-
-GoFlow's export system uses pattern matching to identify sensitive environment variables. The following patterns trigger credential stripping:
-
-- KEY, SECRET, TOKEN
-- PASSWORD, PASSPHRASE
-- CREDENTIAL, AUTH, BEARER
-- PRIVATE, CLIENT_SECRET
-- DATABASE (when combined with URL)
-- CONN (when combined with STRING)
-- DSN (Data Source Name)
-- OAUTH
 
 ### What Stays in Exported Files
 
-Non-sensitive configuration is preserved for usability:
+Non-sensitive configuration is preserved to ensure workflows remain functional:
 
 - **Server commands**: The command and arguments to start MCP servers
 - **Transport type**: stdio, sse, or http
-- **Non-sensitive env vars**: Configuration like HOST, PORT, SERVICE_NAME
+- **Non-sensitive env vars**: HOST, PORT, SERVICE_NAME, LOG_LEVEL, etc.
 - **Workflow logic**: All nodes, edges, conditions, and transformations
 - **Variable definitions**: Workflow-scoped variables (not credential values)
+- **Metadata**: Name, version, description, tags, author
 
-### Best Practices for Sensitive Data
+### Best Practices for Safe Sharing
 
-1. **Never commit credentials to workflow files**
-   - Always use credential references or environment variables
-   - Let GoFlow's export system handle sanitization
+1. **Always use credential references**
+   ```yaml
+   servers:
+     - id: api-server
+       credential_ref: keyring://api-credentials
+       # NOT: env: { API_KEY: "hardcoded-secret" }
+   ```
 
-2. **Use descriptive server IDs**
-   - Helps recipients understand what credentials are needed
-   - Example: `github-api`, `slack-notifier`, `database-prod`
+2. **Never commit credentials to version control**
+   - Add `.env` files to `.gitignore`
+   - Use GoFlow's credential management commands
+   - Let export system handle sanitization
 
-3. **Document required credentials**
-   - Add comments in the workflow description
-   - Create a README with credential setup instructions
+3. **Review exported workflows before sharing**
+   ```bash
+   # Export and review
+   goflow export my-workflow -o /tmp/review.yaml
+   cat /tmp/review.yaml | grep -i "secret\|token\|password"
 
-4. **Version your workflows**
-   - Use semantic versioning (1.0.0, 1.1.0)
-   - Document breaking changes in credential requirements
+   # If clean, share it
+   cp /tmp/review.yaml shared-workflows/
+   ```
 
-5. **Test exported workflows**
-   - Export, import, and validate before sharing
-   - Ensure all placeholders are clear and actionable
+4. **Document required credentials**
+   ```yaml
+   # In workflow description or separate README
+   description: |
+     This workflow requires the following credentials:
+     - github-api: GITHUB_TOKEN (personal access token with repo scope)
+     - slack-notifier: SLACK_WEBHOOK_URL (incoming webhook URL)
+   ```
+
+5. **Use descriptive server IDs**
+   - Good: `github-api`, `prod-database`, `slack-alerts`
+   - Bad: `server1`, `api`, `db`
+
+## Exporting Workflows
+
+### Basic Export Commands
+
+```bash
+# Export to stdout (for piping or viewing)
+goflow export my-workflow
+
+# Export to a file
+goflow export my-workflow -o shared-workflow.yaml
+goflow export my-workflow --output ~/Desktop/workflow.yaml
+
+# Export with verbose information
+goflow export my-workflow -o workflow.yaml --verbose
+```
+
+### Export Process
+
+When you export a workflow:
+
+1. **Load workflow**: Read from `~/.goflow/workflows/<name>.yaml`
+2. **Validate structure**: Ensure workflow is well-formed (optional)
+3. **Strip credentials**: Remove sensitive environment variables
+4. **Replace credential references**: Use `<CREDENTIAL_REF_REQUIRED>` placeholder
+5. **Add warning header**: Include credential setup instructions
+6. **Output YAML**: Write to file or stdout
+
+### Export Output Example
+
+```bash
+$ goflow export data-pipeline -o shared.yaml --verbose
+
+✓ Exported workflow 'data-pipeline' successfully
+  - Removed credentials from 2 server configuration(s)
+  - Output: shared.yaml
+
+⚠ Warning: Workflow contains credential references. Recipients must configure:
+  - filesystem-server
+  - database-server
+
+Workflow details:
+  Name: data-pipeline
+  Version: 1.0
+  Nodes: 8
+  Servers: 2
+```
+
+### Exporting for Different Scenarios
+
+#### For Team Collaboration (Version Control)
+```bash
+# Export to team workflows directory
+goflow export data-pipeline -o team-workflows/data-pipeline.yaml
+
+# Commit to version control
+cd team-workflows
+git add data-pipeline.yaml
+git commit -m "Add data pipeline workflow"
+git push
+```
+
+#### For Public Sharing (GitHub/GitLab)
+```bash
+# Export to public repository
+goflow export api-integration -o workflows/api-integration.yaml
+
+# Create README with setup instructions
+cat > workflows/README.md << EOF
+# API Integration Workflow
+
+## Required Credentials
+- \`api-server\`: API_KEY (get from https://example.com/api/keys)
+
+## Setup
+1. Register server: \`goflow server add api-server...\`
+2. Add credentials: \`goflow credential add api-server --key API_KEY\`
+3. Import workflow: \`goflow import api-integration.yaml\`
+EOF
+
+git add workflows/
+git commit -m "Add API integration workflow with setup docs"
+```
+
+#### For One-off Sharing (Email/Slack)
+```bash
+# Export and share
+goflow export quick-task -o /tmp/quick-task.yaml
+
+# Email/Slack the file with instructions
+echo "Import with: goflow import quick-task.yaml"
+```
 
 ## Importing Workflows
 
-### Basic Import
-
-Import a shared workflow from a file:
+### Basic Import Commands
 
 ```bash
 # Import a workflow
 goflow import /path/to/workflow.yaml
 
+# Import with custom name
+goflow import workflow.yaml --name my-custom-name
+
 # Import with verbose output
-goflow import ./shared-workflow.yaml --verbose
+goflow import workflow.yaml --verbose
+
+# Non-interactive import (skip server setup prompts)
+goflow import workflow.yaml --no-interact
 ```
 
 ### Import Process
 
-When you import a workflow, GoFlow performs several validation steps:
+When you import a workflow, GoFlow performs these steps:
 
-1. **File validation**: Checks that the workflow file exists and is readable
-2. **Version compatibility**: Ensures the workflow version is supported
-3. **Server validation**: Checks that referenced MCP servers are registered
-4. **Credential detection**: Identifies missing credentials and placeholders
-5. **Workflow validation**: Validates structure, nodes, and edges
-6. **Installation**: Copies to `~/.goflow/workflows/<workflow-name>.yaml`
+1. **File validation**: Verify file exists and is readable
+2. **Parse YAML**: Load and validate workflow structure
+3. **Version check**: Ensure workflow version is compatible
+4. **Server validation**: Check that referenced servers are registered
+5. **Credential detection**: Identify missing credentials and placeholders
+6. **Workflow validation**: Validate nodes, edges, and structure
+7. **Installation**: Copy to `~/.goflow/workflows/<name>.yaml`
 
-### Import Success
+### Interactive Server Setup
 
-A successful import displays:
+If servers are missing, GoFlow can configure them interactively:
 
+```bash
+$ goflow import team-workflow.yaml
+
+⚠  Missing server configurations detected:
+  - github-api
+  - slack-notifier
+
+Would you like to configure these servers now? (y/n): y
+
+--- Configuring server: github-api ---
+Command (e.g., node, python, npx): npx
+Args (space-separated, or press Enter to skip): -y @modelcontextprotocol/server-github
+Transport (stdio/sse/http) [default: stdio]: stdio
+Friendly name [default: github-api]: GitHub API
+Description (optional): GitHub integration server
+
+✓ Server 'github-api' configured
+
+--- Configuring server: slack-notifier ---
+Command (e.g., node, python, npx): npx
+Args (space-separated, or press Enter to skip): -y @modelcontextprotocol/server-slack
+Transport (stdio/sse/http) [default: stdio]: sse
+Friendly name [default: slack-notifier]: Slack Notifications
+Description (optional): Slack notification integration
+
+✓ Server 'slack-notifier' configured
+
+✓ Saved 2 server configuration(s)
+
+Note: Credentials must be configured separately using:
+  goflow credential add <server-id> --key <credential-key>
 ```
-✓ Workflow imported successfully
-✓ Workflow validation passed
 
-✓ Workflow 'data-pipeline' imported successfully
-  Location: /Users/yourname/.goflow/workflows/data-pipeline.yaml
+### Handling Missing Servers (Non-interactive)
 
-Next steps:
-  1. Edit the workflow: goflow edit data-pipeline
-  2. Validate: goflow validate data-pipeline
-  3. Execute: goflow run data-pipeline
-```
+```bash
+$ goflow import workflow.yaml --no-interact
 
-### Handling Missing Servers
-
-If the workflow references servers not in your registry:
-
-```
 ✗ Workflow references missing servers
 
 Missing servers:
@@ -162,169 +296,806 @@ Please register these servers before importing:
   goflow server add <server-id> <command> [args...]
 ```
 
-**Resolution**: Register the missing servers first, then re-import:
-
+**Resolution**:
 ```bash
-# Register the required servers
-goflow server add github-api github-mcp-server
-goflow server add slack-notifier slack-mcp-server --transport sse
+# Register servers manually
+goflow server add github-api npx -y @modelcontextprotocol/server-github
+goflow server add slack-notifier npx -y @modelcontextprotocol/server-slack --transport sse
 
-# Retry the import
+# Retry import
 goflow import workflow.yaml
 ```
 
-### Handling Credential Placeholders
+### Credential Setup After Import
 
-If the workflow contains credential placeholders:
+When importing workflows with credential placeholders:
 
-```
-⚠ Workflow contains credential placeholders
+```bash
+$ goflow import workflow.yaml
+
+⚠  Workflow contains credential placeholders
 
 Servers with placeholders:
   - github-api
-  - database-prod
+  - database-server
 
 You will need to configure credentials before execution.
+
+✓ Imported workflow 'data-pipeline' successfully
+  - Workflow saved to: /Users/yourname/.goflow/workflows/data-pipeline.yaml
+
+⚠  Required setup:
+  1. Configure credentials:
+     goflow credential add github-api --key GITHUB_TOKEN
+     goflow credential add database-server --key DB_PASSWORD
+
+  2. Test servers:
+     goflow server test github-api
+     goflow server test database-server
+
+  3. Run workflow:
+     goflow run data-pipeline
 ```
 
-**Note**: This is a warning, not an error. The workflow is still imported successfully, but you must configure credentials before running it.
+### Successful Import
+
+```bash
+$ goflow import simple-workflow.yaml
+
+✓ Imported workflow 'simple-workflow' successfully
+  - Workflow saved to: /Users/yourname/.goflow/workflows/simple-workflow.yaml
+
+Next steps:
+  1. Validate: goflow validate simple-workflow
+  2. Run: goflow run simple-workflow
+```
+
+## Using Built-in Templates
+
+GoFlow includes several built-in workflow templates for common patterns. Templates provide parameterized workflows that can be customized for your needs.
+
+### Available Templates
+
+#### 1. ETL Pipeline Template
+
+Extract-Transform-Load workflow for data processing:
+
+```bash
+# View template parameters
+goflow template show etl-pipeline
+
+# Instantiate with parameters
+goflow template instantiate etl-pipeline \
+  --param source_path=/data/input.json \
+  --param destination_path=/data/output.json \
+  --param transform_expression='$.items[*].{name,price}' \
+  --param batch_size=100 \
+  --param validate_output=true \
+  --output my-etl-workflow.yaml
+
+# Import and run
+goflow import my-etl-workflow.yaml
+goflow run my-etl-workflow
+```
+
+**Parameters**:
+- `source_path` (string, required): Path to source data file
+- `destination_path` (string, required): Output file path
+- `transform_expression` (string, optional): JSONPath transformation
+- `batch_size` (number, optional): Records per batch (default: 100)
+- `validate_output` (boolean, optional): Validate before writing (default: true)
+- `error_handling` (string, optional): fail_fast, continue, or retry
+
+**Use Cases**:
+- Processing log files
+- Converting data formats
+- Data migration pipelines
+- Batch data transformations
+
+#### 2. API Workflow Template
+
+HTTP API integration with error handling:
+
+```bash
+# Instantiate API workflow
+goflow template instantiate api-workflow \
+  --param api_endpoint=https://api.example.com/users \
+  --param api_method=POST \
+  --param request_body='{"name":"John","email":"john@example.com"}' \
+  --param retry_count=5 \
+  --param timeout_seconds=60 \
+  --output user-api-workflow.yaml
+```
+
+**Parameters**:
+- `api_endpoint` (string, required): Target API endpoint URL
+- `api_method` (string, optional): HTTP method (default: GET)
+- `request_body` (string, optional): JSON request body
+- `retry_count` (number, optional): Retry attempts (default: 3)
+- `timeout_seconds` (number, optional): Request timeout (default: 30)
+
+**Use Cases**:
+- REST API integration
+- Webhook processing
+- Third-party service integration
+- API testing workflows
+
+#### 3. Multi-Server Workflow Template
+
+Coordinate multiple MCP servers:
+
+```bash
+# Instantiate multi-server workflow
+goflow template instantiate multi-server-workflow \
+  --param input_source=/data/records.json \
+  --param processing_mode=parallel \
+  --param notification_enabled=true \
+  --param recipients='["admin@example.com","dev@example.com"]' \
+  --output data-processor.yaml
+```
+
+**Parameters**:
+- `input_source` (string, required): Data source identifier
+- `processing_mode` (string, optional): sequential or parallel (default: sequential)
+- `notification_enabled` (boolean, optional): Enable notifications (default: true)
+- `recipients` (array, optional): Email recipients for notifications
+
+**Use Cases**:
+- Complex data pipelines
+- Multi-service orchestration
+- Event-driven workflows
+- Notification systems
+
+### Creating Custom Templates
+
+You can create your own templates from existing workflows:
+
+```yaml
+# my-template.yaml
+name: custom-api-template
+description: Custom API integration template
+version: "1.0"
+
+parameters:
+  - name: endpoint
+    type: string
+    required: true
+    description: API endpoint URL
+    validation:
+      pattern: "^https?://.+"
+
+  - name: timeout
+    type: number
+    required: false
+    default: 30
+    validation:
+      min: 1
+      max: 300
+
+workflow_spec:
+  nodes:
+    - id: start
+      type: start
+
+    - id: api_call
+      type: mcp_tool
+      config:
+        server: http-server
+        tool: fetch
+        parameters:
+          url: "{{endpoint}}"
+          timeout: "{{timeout}}"
+
+    - id: end
+      type: end
+
+  edges:
+    - from: start
+      to: api_call
+    - from: api_call
+      to: end
+```
+
+See [Template System Documentation](template-system.md) for complete template creation guide.
 
 ## Credential Management
 
-### Understanding Credential Storage
+### Adding Credentials
 
-GoFlow stores credentials securely in the system keyring (or in-memory during development). Credentials are:
-
-- **Never written to workflow files**: Export strips them automatically
-- **Referenced by server ID**: Each server has its own credential set
-- **Type-safe**: Support environment variables and named credential references
-- **Isolated**: Each server's credentials are independent
-
-### Adding Credentials After Import
-
-Once you've imported a workflow, configure credentials for servers that need them:
+After importing a workflow, configure credentials for servers that need them:
 
 ```bash
-# Add environment variable credentials
-goflow credential add github-api \
-  --env GITHUB_TOKEN=ghp_yourtokenhere \
-  --env GITHUB_ORG=myorg
+# Add credential with interactive prompt (recommended - secure)
+goflow credential add github-api --key GITHUB_TOKEN
+# Prompts: Enter value for 'GITHUB_TOKEN': [hidden input]
 
-# Add a credential reference (for system-managed credentials)
-goflow credential add database-prod \
-  --credential-ref aws-rds-prod-credentials
+# Add credential with value in command (NOT recommended - visible in shell history)
+goflow credential add api-server --key API_KEY --value sk-abc123
 
-# Mix environment variables and references
-goflow credential add api-server \
-  --env API_BASE_URL=https://api.example.com \
-  --env DEBUG=false \
-  --credential-ref oauth-token-prod
+# Add multiple credentials for one server
+goflow credential add database-server --key DB_HOST --value localhost
+goflow credential add database-server --key DB_PORT --value 5432
+goflow credential add database-server --key DB_PASSWORD
+# Prompts: Enter value for 'DB_PASSWORD': [hidden input]
 ```
 
-### Listing Stored Credentials
-
-View which servers have credentials configured:
+### Listing Credentials
 
 ```bash
+# List all credentials
 goflow credential list
+
+# Output:
+# Configured Credentials:
+#
+# SERVER ID        CREDENTIAL KEY   STATUS
+# ─────────        ──────────────   ──────
+# github-api       GITHUB_TOKEN     (set)
+# database-server  DB_HOST          (set)
+# database-server  DB_PORT          (set)
+# database-server  DB_PASSWORD      (set)
+
+# List credentials for specific server
+goflow credential list github-api
+
+# Output:
+# Credentials for 'github-api':
+#   - GITHUB_TOKEN (set)
 ```
 
-Output:
+### Credential Security
 
-```
-SERVER ID       ENV VARS         CREDENTIAL REF           TYPE
-─────────       ────────         ──────────────           ────
-github-api      GITHUB_TOKEN     -                        Environment
-database-prod   -                aws-rds-prod-credentials Reference
-api-server      API_BASE_URL     oauth-token-prod         Mixed
+Credentials are stored securely:
 
-Note: Secret values are not displayed for security.
-```
+1. **System Keyring**: Uses OS native credential storage (future)
+   - macOS: Keychain
+   - Windows: Credential Manager
+   - Linux: Secret Service / libsecret
 
-### Removing Credentials
+2. **In-Memory Storage**: Current implementation (development)
+   - Secure in-memory storage
+   - Not persisted to disk
+   - Cleared on application exit
 
-Remove credentials when no longer needed:
+3. **Never Exported**: Credentials never appear in exported workflows
+
+4. **Access Control**: Only accessible by GoFlow and your user account
+
+### Security Best Practices
 
 ```bash
-goflow credential remove github-api
+# ✓ GOOD: Use interactive prompt
+goflow credential add api-server --key API_KEY
+# (type password when prompted - not visible in shell history)
+
+# ✗ BAD: Value in command line
+goflow credential add api-server --key API_KEY --value secret123
+# (visible in shell history with: history | grep credential)
+
+# ✓ GOOD: Use environment variables for CI/CD
+export API_KEY=$CI_SECRET_API_KEY
+goflow credential add api-server --key API_KEY --value "$API_KEY"
+
+# ✓ GOOD: Load from secure file
+goflow credential add api-server --key API_KEY --value "$(cat /secure/api-key.txt)"
 ```
 
-### Security Model
+## Collaboration Workflows
 
-GoFlow's credential system provides security through:
+### Team Workflow Repository
 
-1. **Separation of concerns**: Workflows define logic, credentials are stored separately
-2. **Keyring integration**: Future releases will use OS keyring (Keychain, Windows Credential Manager, etc.)
-3. **In-memory only**: Current implementation uses secure in-memory storage (not persisted to disk)
-4. **No export**: Credentials are never included in exported workflows
-5. **User-scoped**: Credentials are local to your machine
+**Structure**:
+```
+team-workflows/
+├── README.md                   # Setup instructions
+├── CREDENTIALS_REQUIRED.md     # Credential documentation
+├── workflows/
+│   ├── data-pipeline.yaml
+│   ├── api-integration.yaml
+│   └── notification-system.yaml
+├── templates/
+│   ├── etl-template.yaml
+│   └── api-template.yaml
+└── docs/
+    ├── data-pipeline.md
+    └── api-integration.md
+```
 
-## Distribution Strategies
+**Setup README**:
+```markdown
+# Team Workflows
 
-### Version Control
+## Quick Start
 
-**Best for**: Team collaboration, change tracking, code review
+1. Clone repository:
+   ```bash
+   git clone https://github.com/yourorg/workflows.git
+   cd workflows
+   ```
+
+2. Import workflows:
+   ```bash
+   goflow import workflows/data-pipeline.yaml
+   goflow import workflows/api-integration.yaml
+   ```
+
+3. Configure credentials (see CREDENTIALS_REQUIRED.md)
+
+4. Validate and run:
+   ```bash
+   goflow validate data-pipeline
+   goflow run data-pipeline
+   ```
+
+## Adding New Workflows
+
+1. Create workflow locally
+2. Test thoroughly
+3. Export: `goflow export my-workflow -o workflows/my-workflow.yaml`
+4. Document credentials in CREDENTIALS_REQUIRED.md
+5. Create PR for review
+```
+
+**Credentials Documentation** (CREDENTIALS_REQUIRED.md):
+```markdown
+# Required Credentials
+
+## data-pipeline workflow
+
+### filesystem-server
+- **STORAGE_ACCESS_KEY**: S3/storage access key
+- **Where to get**: AWS Console > IAM > Access Keys
+- **Setup**: `goflow credential add filesystem-server --key STORAGE_ACCESS_KEY`
+
+### database-server
+- **DB_PASSWORD**: PostgreSQL password
+- **Where to get**: Database admin
+- **Setup**: `goflow credential add database-server --key DB_PASSWORD`
+
+## api-integration workflow
+
+### api-server
+- **API_KEY**: Third-party API key
+- **Where to get**: https://example.com/api/keys
+- **Setup**: `goflow credential add api-server --key API_KEY`
+- **Scopes required**: read, write
+```
+
+### Version Control Best Practices
+
+#### .gitignore
+```gitignore
+# Credential files
+*.credentials
+*.secrets
+.env
+.env.local
+
+# Local workflow copies with credentials
+*-local.yaml
+*-dev.yaml
+
+# GoFlow local data (if committed by accident)
+.goflow/
+```
+
+#### Git Workflow
+```bash
+# 1. Create and test workflow locally
+goflow create my-workflow
+goflow edit my-workflow
+goflow validate my-workflow
+goflow run my-workflow
+
+# 2. Export for sharing
+goflow export my-workflow -o workflows/my-workflow.yaml
+
+# 3. Review exported file (ensure no credentials)
+cat workflows/my-workflow.yaml | grep -i "secret\|password\|token"
+
+# 4. Commit and push
+git add workflows/my-workflow.yaml
+git commit -m "Add my-workflow: description of what it does"
+git push origin feature/my-workflow
+
+# 5. Team members pull and import
+git pull origin main
+goflow import workflows/my-workflow.yaml
+```
+
+### Sharing Across Environments
+
+#### Development → Staging → Production
 
 ```bash
-# In your repository
-git clone https://github.com/yourorg/workflows.git
-cd workflows
+# Development
+goflow export data-pipeline -o data-pipeline-dev.yaml
 
-# Import team workflows
-goflow import ./team/data-pipeline.yaml
-goflow import ./team/notification-workflow.yaml
+# Staging (import and reconfigure for staging environment)
+goflow import data-pipeline-dev.yaml --name data-pipeline-staging
+goflow credential add filesystem-server --key STORAGE_ACCESS_KEY
+# (use staging credentials)
 
-# Set up credentials (not in version control!)
-goflow credential add github-api --env GITHUB_TOKEN=$GITHUB_TOKEN
+# Production (import and reconfigure for production)
+goflow import data-pipeline-dev.yaml --name data-pipeline-prod
+goflow credential add filesystem-server --key STORAGE_ACCESS_KEY
+# (use production credentials)
 ```
 
-**Tips**:
-- Create a `.gitignore` for credential files
-- Include a `CREDENTIALS_REQUIRED.md` documenting what credentials are needed
-- Use workflow templates for common patterns
-- Tag releases with semantic versions
+**Environment-Specific Variables**:
+```yaml
+# Use workflow variables for environment-specific configuration
+variables:
+  - name: environment
+    type: string
+    default: "development"
 
-### Workflow Registries
+  - name: api_base_url
+    type: string
+    default: "https://dev-api.example.com"
 
-**Best for**: Public sharing, community workflows, reusable templates
+  - name: log_level
+    type: string
+    default: "debug"
+```
 
-Coming in future releases: GoFlow will support workflow registries for discovering and installing community workflows.
+### Code Review for Workflows
 
-Planned features:
-- `goflow registry search <keyword>`
-- `goflow registry install <workflow-name>`
-- `goflow registry publish <workflow-file>`
-- Version compatibility checking
-- Dependency resolution
+**Review Checklist**:
+- [ ] No hardcoded credentials
+- [ ] All server configurations use credential references
+- [ ] Workflow validates successfully
+- [ ] Documentation includes credential setup
+- [ ] Sensitive environment variables are not present
+- [ ] Workflow tested in clean environment
+- [ ] Error handling is appropriate
+- [ ] Naming conventions followed
 
-### Direct File Sharing
+## Common Patterns and Examples
 
-**Best for**: One-off sharing, quick demos, prototypes
+### Example 1: Data Pipeline
+
+**Scenario**: Extract data from API, transform, load to database
 
 ```bash
-# Share via email, Slack, file sharing
-# Recipient imports directly
-goflow import ~/Downloads/workflow.yaml
+# Export the workflow
+goflow export data-pipeline -o workflows/data-pipeline.yaml
+
+# Team member imports
+goflow import workflows/data-pipeline.yaml
+
+# Configure credentials
+goflow credential add api-server --key API_KEY
+goflow credential add database-server --key DB_PASSWORD
+
+# Run
+goflow run data-pipeline
 ```
 
-### Workflow Templates
+### Example 2: Notification Workflow
 
-**Best for**: Parameterized workflows, organizational standards, reusable patterns
-
-Use GoFlow's template system for workflows with customizable parameters:
+**Scenario**: Monitor system and send Slack notifications
 
 ```bash
-# Create a template from a workflow
-# (See docs/template-system.md for details)
+# Create workflow
+goflow create system-monitor
 
-# Instantiate a template
-goflow template instantiate my-template \
-  --param api_endpoint=https://api.example.com \
-  --param retry_count=3 \
-  --output customized-workflow.yaml
+# Export for team
+goflow export system-monitor -o workflows/system-monitor.yaml
+
+# Document in README
+echo "Requires: Slack webhook URL" >> README.md
+
+# Team imports and configures
+goflow import workflows/system-monitor.yaml
+goflow credential add slack-notifier --key SLACK_WEBHOOK_URL
 ```
 
-See [Template System Documentation](template-system.md) for creating and using workflow templates.
+### Example 3: Multi-Environment Deployment
+
+**Scenario**: Deploy application to dev, staging, prod
+
+```bash
+# Create deployment workflow
+goflow create app-deployment
+
+# Export base workflow
+goflow export app-deployment -o workflows/app-deployment.yaml
+
+# Each environment imports with different name
+# Dev
+goflow import workflows/app-deployment.yaml --name app-deployment-dev
+goflow credential add deploy-server --key DEPLOY_KEY
+# (use dev deploy key)
+
+# Staging
+goflow import workflows/app-deployment.yaml --name app-deployment-staging
+goflow credential add deploy-server --key DEPLOY_KEY
+# (use staging deploy key)
+
+# Production
+goflow import workflows/app-deployment.yaml --name app-deployment-prod
+goflow credential add deploy-server --key DEPLOY_KEY
+# (use production deploy key)
+```
+
+## Troubleshooting
+
+### Common Import Errors
+
+#### Error: Workflow file not found
+
+```bash
+✗ workflow file not found: workflow.yaml
+```
+
+**Cause**: File path is incorrect or file doesn't exist
+
+**Fix**:
+```bash
+# Verify file exists
+ls -la /path/to/workflow.yaml
+
+# Use absolute path
+goflow import /absolute/path/to/workflow.yaml
+
+# Or use relative path from current directory
+cd /path/to
+goflow import ./workflow.yaml
+```
+
+#### Error: Workflow already exists
+
+```bash
+✗ workflow already exists: my-workflow
+
+Location: /Users/yourname/.goflow/workflows/my-workflow.yaml
+Use --name flag with a different name or remove the existing workflow first
+```
+
+**Fix Option 1**: Use different name
+```bash
+goflow import workflow.yaml --name my-workflow-v2
+```
+
+**Fix Option 2**: Remove existing workflow
+```bash
+rm ~/.goflow/workflows/my-workflow.yaml
+goflow import workflow.yaml
+```
+
+**Fix Option 3**: Backup and replace
+```bash
+mv ~/.goflow/workflows/my-workflow.yaml ~/.goflow/workflows/my-workflow-backup.yaml
+goflow import workflow.yaml
+```
+
+#### Error: Missing server configurations
+
+```bash
+✗ Workflow references missing servers
+
+Missing servers:
+  - github-api
+  - database-server
+
+Please register these servers before importing:
+  goflow server add <server-id> <command> [args...]
+```
+
+**Fix**: Register missing servers
+```bash
+# Register each server
+goflow server add github-api npx -y @modelcontextprotocol/server-github
+goflow server add database-server database-mcp-server --transport stdio
+
+# Verify registration
+goflow server list
+
+# Retry import
+goflow import workflow.yaml
+```
+
+#### Error: Version incompatibility
+
+```bash
+✗ Incompatible workflow version
+  Workflow version: 2.0
+  Supported versions: [1.0]
+```
+
+**Fix**: Update GoFlow or migrate workflow
+```bash
+# Option 1: Update GoFlow
+go install github.com/dshills/goflow@latest
+
+# Option 2: Check for migration guide
+# Visit: https://github.com/dshills/goflow/wiki/Migration-Guides
+```
+
+#### Error: Invalid YAML syntax
+
+```bash
+✗ Failed to parse workflow YAML: yaml: line 15: mapping values are not allowed in this context
+```
+
+**Fix**: Validate and fix YAML syntax
+```bash
+# Use YAML linter
+yamllint workflow.yaml
+
+# Common issues:
+# - Incorrect indentation (must use spaces, not tabs)
+# - Missing quotes around special characters
+# - Invalid escape sequences
+```
+
+### Common Execution Errors
+
+#### Error: Missing credentials
+
+```bash
+✗ Execution failed: server 'github-api' requires credentials
+```
+
+**Fix**: Add required credentials
+```bash
+# Check what credentials are needed
+goflow server show github-api
+
+# Add credentials
+goflow credential add github-api --key GITHUB_TOKEN
+
+# Verify
+goflow credential list github-api
+
+# Retry execution
+goflow run my-workflow
+```
+
+#### Error: Server connection failed
+
+```bash
+✗ Execution failed: failed to connect to server 'api-server'
+```
+
+**Fix**: Test server connectivity
+```bash
+# Test server
+goflow server test api-server
+
+# Check server configuration
+goflow server list --verbose
+
+# If server command is wrong, update it
+goflow server remove api-server
+goflow server add api-server correct-command [args...]
+```
+
+#### Error: Server not found
+
+```bash
+✗ Execution failed: server 'unknown-server' not found in registry
+```
+
+**Fix**: Register the server
+```bash
+# List registered servers
+goflow server list
+
+# Register missing server
+goflow server add unknown-server command [args...]
+
+# Or check workflow for typo
+goflow edit my-workflow
+# (verify server ID matches registered servers)
+```
+
+### Validation Issues
+
+#### Circular dependency detected
+
+```bash
+✗ Workflow validation failed: circular dependency detected: node1 -> node2 -> node3 -> node1
+```
+
+**Fix**: Remove circular edges
+```bash
+# Edit workflow
+goflow edit my-workflow
+
+# Remove edge that creates cycle
+# Or redesign workflow to eliminate loop
+
+# Validate
+goflow validate my-workflow
+```
+
+#### Undefined variable reference
+
+```bash
+✗ Workflow validation failed: node 'transform_data' references undefined variable 'missing_var'
+```
+
+**Fix**: Add missing variable or fix reference
+```bash
+# Edit workflow
+goflow edit my-workflow
+
+# Add variable definition:
+# variables:
+#   - name: missing_var
+#     type: string
+#     default: "value"
+
+# Or fix variable reference in node
+
+# Validate
+goflow validate my-workflow
+```
+
+#### Node type not supported
+
+```bash
+✗ Workflow validation failed: unknown node type 'custom_node'
+```
+
+**Fix**: Use supported node type
+```bash
+# Supported node types:
+# - start
+# - end
+# - mcp_tool
+# - transform
+# - condition
+# - loop
+# - parallel
+# - passthrough
+
+# Edit workflow and change node type
+goflow edit my-workflow
+```
+
+### Debug Mode
+
+Enable detailed troubleshooting output:
+
+```bash
+# Import with debug output
+goflow import workflow.yaml --verbose --debug
+
+# Export with debug output
+goflow export workflow.yaml -o output.yaml --verbose
+
+# Run with debug output
+goflow run workflow.yaml --debug --verbose
+```
+
+Debug output includes:
+- Full error stack traces
+- Server registration details
+- Credential detection information
+- Validation step-by-step output
+- YAML parsing details
+- File system operations
+
+### Getting Help
+
+```bash
+# Command help
+goflow import --help
+goflow export --help
+goflow credential --help
+
+# Check GoFlow version
+goflow version
+
+# View configuration
+goflow config show
+
+# Server diagnostics
+goflow server test <server-id> --verbose
+```
 
 ## Version Compatibility
 
@@ -336,213 +1107,138 @@ GoFlow workflows use semantic versioning:
 version: "1.0"
 ```
 
-### Compatibility Checks
+Current supported version: **1.0**
 
-During import, GoFlow validates version compatibility:
+### Compatibility Matrix
 
-- **Supported versions**: 1.0 (current)
-- **Future versions**: May introduce breaking changes in 2.0+
-- **Backward compatibility**: GoFlow strives to maintain compatibility within major versions
+| Workflow Version | GoFlow Version | Status      |
+|-----------------|----------------|-------------|
+| 1.0             | 0.1.0+         | ✓ Supported |
+| 2.0             | Future         | Planned     |
 
-### Version Mismatch Errors
+### Version Mismatch Handling
 
 If you import a workflow with an incompatible version:
 
-```
+```bash
 ✗ Incompatible workflow version
   Workflow version: 2.0
   Supported versions: [1.0]
 ```
 
 **Resolution**:
-- Update GoFlow to a compatible version: `go install github.com/dshills/goflow@latest`
-- Or migrate the workflow to the supported version (may require manual changes)
+1. Update GoFlow: `go install github.com/dshills/goflow@latest`
+2. Check migration guides: https://github.com/dshills/goflow/wiki/Migration
+3. Contact workflow author for compatible version
 
-### Migration Between Versions
+### Backward Compatibility
 
-When GoFlow releases a new major version, migration guides will be provided:
-
-- Breaking changes documentation
-- Automated migration tools (when possible)
-- Side-by-side version support during transition periods
-
-## Troubleshooting
-
-### Common Import Errors
-
-#### Error: Workflow file not found
-
-```
-✗ workflow file not found: workflow.yaml
-```
-
-**Cause**: File path is incorrect or file doesn't exist
-
-**Fix**: Verify the file path and try again
-```bash
-ls -la /path/to/workflow.yaml
-goflow import /absolute/path/to/workflow.yaml
-```
-
-#### Error: Workflow already exists
-
-```
-✗ workflow already exists: my-workflow
-
-Location: /Users/yourname/.goflow/workflows/my-workflow.yaml
-Use a different name or remove the existing workflow first
-```
-
-**Fix**: Remove the existing workflow or rename it
-```bash
-# Remove the existing workflow
-rm ~/.goflow/workflows/my-workflow.yaml
-
-# Or rename it
-mv ~/.goflow/workflows/my-workflow.yaml ~/.goflow/workflows/my-workflow-old.yaml
-
-# Then retry import
-goflow import workflow.yaml
-```
-
-#### Error: Failed to load server config
-
-**Cause**: Server configuration file is corrupted or missing
-
-**Fix**: Check or recreate your server configuration
-```bash
-# Check if servers.yaml exists
-cat ~/.goflow/servers.yaml
-
-# Re-register servers if needed
-goflow server add myserver command [args...]
-```
-
-### Common Execution Errors
-
-#### Error: Missing credentials
-
-When running a workflow without configured credentials:
-
-```
-✗ Execution failed: server 'github-api' requires credentials
-```
-
-**Fix**: Add credentials for the required server
-```bash
-goflow credential add github-api --env GITHUB_TOKEN=your_token
-```
-
-#### Error: Server not found
-
-```
-✗ Execution failed: server 'unknown-server' not found in registry
-```
-
-**Fix**: Ensure the server is registered
-```bash
-# List registered servers
-goflow server list
-
-# Register the missing server
-goflow server add unknown-server command [args...]
-```
-
-### Validation Issues
-
-#### Server Validation Failures
-
-If imported workflow references invalid servers:
-
-```bash
-# Test server connectivity
-goflow server test github-api
-
-# Check server configuration
-goflow server list --verbose
-```
-
-#### Workflow Structure Errors
-
-If validation fails after import:
-
-```
-✗ Workflow validation failed
-  Error: node 'process-data' references undefined variable 'missing_var'
-```
-
-**Fix**: Edit the workflow to fix structural issues
-```bash
-goflow edit my-workflow
-# Fix the issue in the editor
-goflow validate my-workflow
-```
-
-### Debug Mode
-
-Enable debug mode for detailed troubleshooting:
-
-```bash
-goflow import workflow.yaml --debug --verbose
-```
-
-This shows:
-- Full error stack traces
-- Server registration details
-- Credential detection information
-- Validation step-by-step output
+GoFlow strives to maintain backward compatibility:
+- **Minor versions** (1.0 → 1.1): Fully backward compatible
+- **Major versions** (1.x → 2.x): May introduce breaking changes
+- **Migration period**: Old versions supported for 6 months after new major release
 
 ## See Also
 
 - [Template System Documentation](template-system.md) - Creating reusable, parameterized workflows
 - [Template Quick Reference](TEMPLATE_QUICK_REFERENCE.md) - Template syntax and helpers
 - [CLI Commands Implementation](CLI_COMMANDS_IMPLEMENTATION.md) - Comprehensive CLI reference
-- [Template Helpers](TEMPLATE_HELPERS.md) - Template function reference
+- [Template Guide](template-guide.md) - In-depth template creation guide
 
 ## Quick Reference
 
 ### Export Commands
-
 ```bash
 # Export to stdout
-goflow export workflow.yaml
+goflow export workflow
 
 # Export to file
-goflow export workflow.yaml -o shared.yaml
+goflow export workflow -o shared.yaml
+
+# Export with verbose output
+goflow export workflow -o shared.yaml --verbose
 ```
 
 ### Import Commands
-
 ```bash
 # Import workflow
 goflow import workflow.yaml
 
+# Import with custom name
+goflow import workflow.yaml --name custom-name
+
 # Import with verbose output
 goflow import workflow.yaml --verbose
+
+# Non-interactive import
+goflow import workflow.yaml --no-interact
 ```
 
 ### Credential Commands
-
 ```bash
-# Add credentials
-goflow credential add server-id --env KEY=value
+# Add credential (interactive prompt)
+goflow credential add server-id --key KEY_NAME
 
-# List credentials
+# Add credential (command line - not recommended)
+goflow credential add server-id --key KEY_NAME --value secret
+
+# List all credentials
 goflow credential list
 
-# Remove credentials
-goflow credential remove server-id
+# List credentials for specific server
+goflow credential list server-id
 ```
 
 ### Server Commands
-
 ```bash
 # Register server
 goflow server add server-id command [args...]
 
+# Register with transport
+goflow server add server-id command [args...] --transport sse
+
 # List servers
 goflow server list
 
+# Show server details
+goflow server show server-id
+
 # Test server connectivity
 goflow server test server-id
+
+# Remove server
+goflow server remove server-id
+```
+
+### Template Commands
+```bash
+# Show available templates
+goflow template list
+
+# Show template parameters
+goflow template show etl-pipeline
+
+# Instantiate template
+goflow template instantiate etl-pipeline \
+  --param source_path=/data/input.json \
+  --param destination_path=/data/output.json \
+  --output my-workflow.yaml
+```
+
+### Workflow Commands
+```bash
+# Create workflow
+goflow create workflow-name
+
+# Edit workflow
+goflow edit workflow-name
+
+# Validate workflow
+goflow validate workflow-name
+
+# Run workflow
+goflow run workflow-name
+
+# List workflows
+goflow list
 ```
