@@ -221,15 +221,19 @@ func TestEdge_ConditionNodeRequirements(t *testing.T) {
 		{
 			name: "condition node with two branches should pass",
 			setupGraph: func(wf *workflow.Workflow) {
+				// Add variables used in conditions
+				wf.AddVariable(&workflow.Variable{Name: "count", Type: "number"})
+				wf.AddVariable(&workflow.Variable{Name: "result", Type: "boolean"})
+
 				wf.AddNode(&workflow.StartNode{ID: "start"})
-				wf.AddNode(&workflow.ConditionNode{ID: "cond-1", Condition: "${count > 10}"})
+				wf.AddNode(&workflow.ConditionNode{ID: "cond-1", Condition: "count > 10"})
 				wf.AddNode(&workflow.MCPToolNode{ID: "tool-1"})
 				wf.AddNode(&workflow.MCPToolNode{ID: "tool-2"})
 				wf.AddNode(&workflow.EndNode{ID: "end"})
 
 				wf.AddEdge(&workflow.Edge{FromNodeID: "start", ToNodeID: "cond-1"})
-				wf.AddEdge(&workflow.Edge{FromNodeID: "cond-1", ToNodeID: "tool-1", Condition: "${result == true}", Label: "true"})
-				wf.AddEdge(&workflow.Edge{FromNodeID: "cond-1", ToNodeID: "tool-2", Condition: "${result == false}", Label: "false"})
+				wf.AddEdge(&workflow.Edge{FromNodeID: "cond-1", ToNodeID: "tool-1", Condition: "result == true", Label: "true"})
+				wf.AddEdge(&workflow.Edge{FromNodeID: "cond-1", ToNodeID: "tool-2", Condition: "result == false", Label: "false"})
 				wf.AddEdge(&workflow.Edge{FromNodeID: "tool-1", ToNodeID: "end"})
 				wf.AddEdge(&workflow.Edge{FromNodeID: "tool-2", ToNodeID: "end"})
 			},
@@ -239,12 +243,12 @@ func TestEdge_ConditionNodeRequirements(t *testing.T) {
 			name: "condition node with one branch should fail",
 			setupGraph: func(wf *workflow.Workflow) {
 				wf.AddNode(&workflow.StartNode{ID: "start"})
-				wf.AddNode(&workflow.ConditionNode{ID: "cond-1", Condition: "${count > 10}"})
+				wf.AddNode(&workflow.ConditionNode{ID: "cond-1", Condition: "count > 10"})
 				wf.AddNode(&workflow.MCPToolNode{ID: "tool-1"})
 				wf.AddNode(&workflow.EndNode{ID: "end"})
 
 				wf.AddEdge(&workflow.Edge{FromNodeID: "start", ToNodeID: "cond-1"})
-				wf.AddEdge(&workflow.Edge{FromNodeID: "cond-1", ToNodeID: "tool-1", Condition: "${result == true}"})
+				wf.AddEdge(&workflow.Edge{FromNodeID: "cond-1", ToNodeID: "tool-1", Condition: "result == true"})
 				wf.AddEdge(&workflow.Edge{FromNodeID: "tool-1", ToNodeID: "end"})
 			},
 			wantErr: true,
@@ -254,16 +258,16 @@ func TestEdge_ConditionNodeRequirements(t *testing.T) {
 			name: "condition node with three branches should fail",
 			setupGraph: func(wf *workflow.Workflow) {
 				wf.AddNode(&workflow.StartNode{ID: "start"})
-				wf.AddNode(&workflow.ConditionNode{ID: "cond-1", Condition: "${count > 10}"})
+				wf.AddNode(&workflow.ConditionNode{ID: "cond-1", Condition: "count > 10"})
 				wf.AddNode(&workflow.MCPToolNode{ID: "tool-1"})
 				wf.AddNode(&workflow.MCPToolNode{ID: "tool-2"})
 				wf.AddNode(&workflow.MCPToolNode{ID: "tool-3"})
 				wf.AddNode(&workflow.EndNode{ID: "end"})
 
 				wf.AddEdge(&workflow.Edge{FromNodeID: "start", ToNodeID: "cond-1"})
-				wf.AddEdge(&workflow.Edge{FromNodeID: "cond-1", ToNodeID: "tool-1", Condition: "${result == 1}"})
-				wf.AddEdge(&workflow.Edge{FromNodeID: "cond-1", ToNodeID: "tool-2", Condition: "${result == 2}"})
-				wf.AddEdge(&workflow.Edge{FromNodeID: "cond-1", ToNodeID: "tool-3", Condition: "${result == 3}"})
+				wf.AddEdge(&workflow.Edge{FromNodeID: "cond-1", ToNodeID: "tool-1", Condition: "result == 1"})
+				wf.AddEdge(&workflow.Edge{FromNodeID: "cond-1", ToNodeID: "tool-2", Condition: "result == 2"})
+				wf.AddEdge(&workflow.Edge{FromNodeID: "cond-1", ToNodeID: "tool-3", Condition: "result == 3"})
 				wf.AddEdge(&workflow.Edge{FromNodeID: "tool-1", ToNodeID: "end"})
 				wf.AddEdge(&workflow.Edge{FromNodeID: "tool-2", ToNodeID: "end"})
 				wf.AddEdge(&workflow.Edge{FromNodeID: "tool-3", ToNodeID: "end"})
@@ -275,7 +279,7 @@ func TestEdge_ConditionNodeRequirements(t *testing.T) {
 			name: "condition node edges without conditions should fail",
 			setupGraph: func(wf *workflow.Workflow) {
 				wf.AddNode(&workflow.StartNode{ID: "start"})
-				wf.AddNode(&workflow.ConditionNode{ID: "cond-1", Condition: "${count > 10}"})
+				wf.AddNode(&workflow.ConditionNode{ID: "cond-1", Condition: "count > 10"})
 				wf.AddNode(&workflow.MCPToolNode{ID: "tool-1"})
 				wf.AddNode(&workflow.MCPToolNode{ID: "tool-2"})
 				wf.AddNode(&workflow.EndNode{ID: "end"})

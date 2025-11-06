@@ -14,16 +14,13 @@ variables:
   - name: "output_path"
     type: "string"
     default: "/tmp/output.txt"
-  - name: "file_contents"
-    type: "string"
-  - name: "transformed_content"
-    type: "string"
 
 servers:
   - id: "test-server"
     name: "test-filesystem"
     command: "go"
     args: ["run", "internal/testutil/mocks/mock_mcp_server.go", "--mode=server"]
+    transport: "stdio"
 
 nodes:
   - id: "start"

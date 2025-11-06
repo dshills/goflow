@@ -131,6 +131,7 @@ nodes:
     type: "mcp_tool"
     server: "test"
     tool: "echo"
+    output: "result"
   - id: "end"
     type: "end"
 edges:
@@ -218,10 +219,12 @@ nodes:
     type: "mcp_tool"
     server: "test"
     tool: "echo"
+    output: "result1"
   - id: "node2"
     type: "mcp_tool"
     server: "test"
     tool: "echo"
+    output: "result2"
   - id: "end"
     type: "end"
 edges:
@@ -257,6 +260,11 @@ func TestWorkflowValidation_VariableReferences(t *testing.T) {
 			yaml: `
 version: "1.0"
 name: "test"
+servers:
+  - id: "test"
+    name: "test"
+    command: "echo"
+    transport: "stdio"
 nodes:
   - id: "start"
     type: "start"
@@ -266,6 +274,7 @@ nodes:
     tool: "echo"
     parameters:
       message: "${undefined_var}"
+    output: "result"
   - id: "end"
     type: "end"
 edges:
@@ -286,6 +295,11 @@ variables:
   - name: "my_var"
     type: "string"
     default: "hello"
+servers:
+  - id: "test"
+    name: "test"
+    command: "echo"
+    transport: "stdio"
 nodes:
   - id: "start"
     type: "start"
@@ -295,6 +309,7 @@ nodes:
     tool: "echo"
     parameters:
       message: "${my_var}"
+    output: "result"
   - id: "end"
     type: "end"
 edges:
@@ -309,13 +324,8 @@ edges:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// This should fail because workflow.Parse doesn't exist yet
-			wf, err := workflow.Parse([]byte(tt.yaml))
-			if err != nil {
-				t.Fatalf("Failed to parse workflow: %v", err)
-			}
-
-			err = wf.Validate()
+			// Parse now calls Validate(), so we expect invalid workflows to fail during Parse
+			_, err := workflow.Parse([]byte(tt.yaml))
 
 			if tt.expectError && err == nil {
 				t.Errorf("Expected validation error containing '%s', got nil", tt.errorMsg)
@@ -352,6 +362,7 @@ nodes:
     type: "mcp_tool"
     server: "undefined_server"
     tool: "echo"
+    output: "result"
   - id: "end"
     type: "end"
 edges:
@@ -379,6 +390,7 @@ nodes:
     type: "mcp_tool"
     server: "test-server"
     tool: "echo"
+    output: "result"
   - id: "end"
     type: "end"
 edges:
@@ -393,13 +405,8 @@ edges:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// This should fail because workflow.Parse doesn't exist yet
-			wf, err := workflow.Parse([]byte(tt.yaml))
-			if err != nil {
-				t.Fatalf("Failed to parse workflow: %v", err)
-			}
-
-			err = wf.Validate()
+			// Parse now calls Validate(), so we expect invalid workflows to fail during Parse
+			_, err := workflow.Parse([]byte(tt.yaml))
 
 			if tt.expectError && err == nil {
 				t.Errorf("Expected validation error containing '%s', got nil", tt.errorMsg)

@@ -171,6 +171,11 @@ func Parse(yamlBytes []byte) (*Workflow, error) {
 		}
 	}
 
+	// Validate the parsed workflow
+	if err := wf.Validate(); err != nil {
+		return nil, fmt.Errorf("validation: %w", err)
+	}
+
 	return wf, nil
 }
 

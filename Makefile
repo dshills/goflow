@@ -1,7 +1,7 @@
 # GoFlow Makefile
 # Workflow orchestration system for MCP servers
 
-.PHONY: all build install test clean fmt lint help examples run-tests check deps
+.PHONY: all build install test test-failures clean fmt lint help examples run-tests check deps
 
 # Binary names
 BINARY_NAME=goflow
@@ -101,6 +101,11 @@ test-integration:
 test-unit:
 	@echo "Running unit tests..."
 	$(GOTEST) -v -race $(TEST_DIR)/unit/...
+
+## test-failures: Run tests and only show failures
+test-failures:
+	@echo "Running tests (showing failures only)..."
+	@$(GOTEST) -race ./... 2>&1 | grep -E '^(FAIL|--- FAIL:|#|.*\.go:[0-9]+:|.*error)' || echo "✓ All tests passed"
 
 ## run-tests: Alias for test (matches user request)
 run-tests: test

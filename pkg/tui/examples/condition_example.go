@@ -81,14 +81,14 @@ func main() {
 	builder.CreateEdge("regular_price", "end")
 
 	// Demonstrate property panel
-	fmt.Println("=== Workflow Created ===\n")
+	fmt.Println("=== Workflow Created ===")
 	fmt.Printf("Workflow: %s\n", wf.Name)
 	fmt.Printf("Nodes: %d\n", len(wf.Nodes))
 	fmt.Printf("Edges: %d\n", len(wf.Edges))
 	fmt.Println()
 
 	// Show property panel for condition node
-	fmt.Println("=== Property Panel ===\n")
+	fmt.Println("=== Property Panel ===")
 	err = builder.ShowPropertyPanel("check_threshold")
 	if err != nil {
 		panic(err)
@@ -98,7 +98,7 @@ func main() {
 	fmt.Println(panel.RenderPropertyPanel())
 
 	// Show edge information
-	fmt.Println("\n=== Edge Information ===\n")
+	fmt.Println("\n=== Edge Information ===")
 	for _, edge := range wf.Edges {
 		label := builder.GetEdgeLabel(edge)
 		style := builder.GetEdgeStyle(edge)
@@ -119,14 +119,14 @@ func main() {
 	}
 
 	// Show variable list
-	fmt.Println("\n=== Available Variables ===\n")
+	fmt.Println("\n=== Available Variables ===")
 	vars := builder.GetVariableList()
 	for _, v := range vars {
 		fmt.Printf("  - %s\n", v)
 	}
 
 	// Demonstrate validation
-	fmt.Println("\n=== Expression Validation ===\n")
+	fmt.Println("\n=== Expression Validation ===")
 
 	testExpressions := []string{
 		"price > 100",               // Valid
@@ -146,7 +146,7 @@ func main() {
 		fmt.Printf("  %s -> %s\n", expr, status)
 	}
 
-	fmt.Println("\n=== Workflow Visualization ===\n")
+	fmt.Println("\n=== Workflow Visualization ===")
 	fmt.Println("  [start]")
 	fmt.Println("     │")
 	fmt.Println("     ▼")

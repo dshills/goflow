@@ -179,12 +179,24 @@ func displayFollowLogs(cmd *cobra.Command, exec *execution.Execution, trail *pkg
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// Conditionally use color codes
+	yellow := ""
+	cyan := ""
+	gray := ""
+	reset := ""
+	if !noColor {
+		yellow = colorYellow
+		cyan = colorCyan
+		gray = colorGray
+		reset = colorReset
+	}
+
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-sigCh
 		fmt.Fprintf(cmd.OutOrStderr(), "\n%sReceived interrupt signal, stopping...%s\n",
-			colorYellow, colorReset)
+			yellow, reset)
 		cancel()
 	}()
 
@@ -195,7 +207,7 @@ func displayFollowLogs(cmd *cobra.Command, exec *execution.Execution, trail *pkg
 	defer ticker.Stop()
 
 	lastEventCount := len(trail.Events)
-	fmt.Fprintf(cmd.OutOrStdout(), "\n%s[waiting for more events...]%s\n", colorGray, colorReset)
+	fmt.Fprintf(cmd.OutOrStdout(), "\n%s[waiting for more events...]%s\n", gray, reset)
 
 	for {
 		select {
@@ -234,7 +246,7 @@ func displayFollowLogs(cmd *cobra.Command, exec *execution.Execution, trail *pkg
 			// Check if execution completed
 			if updatedExec.Status.IsTerminal() {
 				fmt.Fprintf(cmd.OutOrStdout(), "\n%sExecution completed with status: %s%s\n",
-					colorCyan, formatStatus(updatedExec.Status, noColor), colorReset)
+					cyan, formatStatus(updatedExec.Status, noColor), reset)
 				if !updatedExec.CompletedAt.IsZero() {
 					duration := updatedExec.CompletedAt.Sub(updatedExec.StartedAt)
 					fmt.Fprintf(cmd.OutOrStdout(), "Total duration: %s\n", duration.Round(time.Millisecond))
@@ -263,14 +275,24 @@ func displayEvent(w io.Writer, event pkgexec.AuditEvent, startTime time.Time, no
 	icon := getEventIcon(event.Type)
 	color := getEventColor(event.Type, noColor)
 
+	// Conditionally use color codes
+	reset := ""
+	gray := ""
+	red := ""
+	if !noColor {
+		reset = colorReset
+		gray = colorGray
+		red = colorRed
+	}
+
 	// Format main message
 	fmt.Fprintf(w, "%s  %8s  %s%s %s%s",
-		timestamp, offsetStr, color, icon, event.Message, colorReset)
+		timestamp, offsetStr, color, icon, event.Message, reset)
 
 	// Add duration if present
 	if event.Duration != nil {
 		fmt.Fprintf(w, " %s(%.3fs)%s",
-			colorGray, event.Duration.Seconds(), colorReset)
+			gray, event.Duration.Seconds(), reset)
 	}
 
 	fmt.Fprintf(w, "\n")
@@ -278,14 +300,14 @@ func displayEvent(w io.Writer, event pkgexec.AuditEvent, startTime time.Time, no
 	// Add node context if present (indented)
 	if event.NodeID != "" && event.NodeType != "" {
 		fmt.Fprintf(w, "           %sNode: %s (%s)%s\n",
-			colorGray, event.NodeID, event.NodeType, colorReset)
+			gray, event.NodeID, event.NodeType, reset)
 	}
 
 	// Display important error details
 	if event.Type == pkgexec.AuditEventNodeFailed || event.Type == pkgexec.AuditEventExecutionFailed || event.Type == pkgexec.AuditEventError {
 		if errorMsg, ok := event.Details["error_message"].(string); ok {
 			fmt.Fprintf(w, "           %sError: %s%s\n",
-				colorRed, errorMsg, colorReset)
+				red, errorMsg, reset)
 		}
 	}
 }

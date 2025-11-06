@@ -183,10 +183,27 @@ func createETLTemplate(name, description string) (*workflow.Workflow, error) {
 		return nil, err
 	}
 
+	// Add workflow variables
+	wf.AddVariable(&workflow.Variable{
+		Name:        "raw_data",
+		Type:        "string",
+		Description: "Raw extracted data",
+	})
+	wf.AddVariable(&workflow.Variable{
+		Name:        "processed_data",
+		Type:        "string",
+		Description: "Processed/transformed data",
+	})
+
 	// Add nodes
 	startNode := &workflow.StartNode{ID: "start"}
 	extractNode := &workflow.MCPToolNode{ID: "extract", ServerID: "data-server", ToolName: "extract_data"}
-	transformNode := &workflow.TransformNode{ID: "transform", InputVariable: "raw_data", OutputVariable: "processed_data"}
+	transformNode := &workflow.TransformNode{
+		ID:             "transform",
+		InputVariable:  "raw_data",
+		Expression:     "raw_data", // Identity transformation - user should customize
+		OutputVariable: "processed_data",
+	}
 	loadNode := &workflow.MCPToolNode{ID: "load", ServerID: "data-server", ToolName: "load_data"}
 	endNode := &workflow.EndNode{ID: "end"}
 
@@ -216,10 +233,27 @@ func createAPIIntegrationTemplate(name, description string) (*workflow.Workflow,
 		return nil, err
 	}
 
+	// Add workflow variables
+	wf.AddVariable(&workflow.Variable{
+		Name:        "api_response",
+		Type:        "string",
+		Description: "API response data",
+	})
+	wf.AddVariable(&workflow.Variable{
+		Name:        "result",
+		Type:        "string",
+		Description: "Processed result",
+	})
+
 	// Add nodes
 	startNode := &workflow.StartNode{ID: "start"}
 	fetchNode := &workflow.MCPToolNode{ID: "fetch_api", ServerID: "http-server", ToolName: "http_get"}
-	processNode := &workflow.TransformNode{ID: "process_response", InputVariable: "api_response", OutputVariable: "result"}
+	processNode := &workflow.TransformNode{
+		ID:             "process_response",
+		InputVariable:  "api_response",
+		Expression:     "api_response", // Identity transformation - user should customize
+		OutputVariable: "result",
+	}
 	endNode := &workflow.EndNode{ID: "end"}
 
 	wf.AddNode(startNode)

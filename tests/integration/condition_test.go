@@ -25,84 +25,84 @@ func TestConditionNodeEvaluation_SimpleComparison(t *testing.T) {
 	}{
 		{
 			name:        "greater than - true",
-			condition:   "$.fileSize > 1048576",
+			condition:   "fileSize > 1048576",
 			inputVar:    "fileSize",
 			inputValue:  2097152, // 2MB
 			expectedRes: true,
 		},
 		{
 			name:        "greater than - false",
-			condition:   "$.fileSize > 1048576",
+			condition:   "fileSize > 1048576",
 			inputVar:    "fileSize",
 			inputValue:  524288, // 512KB
 			expectedRes: false,
 		},
 		{
 			name:        "less than - true",
-			condition:   "$.count < 10",
+			condition:   "count < 10",
 			inputVar:    "count",
 			inputValue:  5,
 			expectedRes: true,
 		},
 		{
 			name:        "less than - false",
-			condition:   "$.count < 10",
+			condition:   "count < 10",
 			inputVar:    "count",
 			inputValue:  15,
 			expectedRes: false,
 		},
 		{
 			name:        "equal to - true",
-			condition:   "$.status == \"active\"",
+			condition:   "status == 'active'",
 			inputVar:    "status",
 			inputValue:  "active",
 			expectedRes: true,
 		},
 		{
 			name:        "equal to - false",
-			condition:   "$.status == \"active\"",
+			condition:   "status == 'active'",
 			inputVar:    "status",
 			inputValue:  "inactive",
 			expectedRes: false,
 		},
 		{
 			name:        "not equal - true",
-			condition:   "$.code != 200",
+			condition:   "code != 200",
 			inputVar:    "code",
 			inputValue:  404,
 			expectedRes: true,
 		},
 		{
 			name:        "not equal - false",
-			condition:   "$.code != 200",
+			condition:   "code != 200",
 			inputVar:    "code",
 			inputValue:  200,
 			expectedRes: false,
 		},
 		{
 			name:        "greater than or equal - true",
-			condition:   "$.score >= 80",
+			condition:   "score >= 80",
 			inputVar:    "score",
 			inputValue:  85,
 			expectedRes: true,
 		},
 		{
 			name:        "greater than or equal - boundary",
-			condition:   "$.score >= 80",
+			condition:   "score >= 80",
 			inputVar:    "score",
 			inputValue:  80,
 			expectedRes: true,
 		},
 		{
 			name:        "less than or equal - true",
-			condition:   "$.price <= 100",
+			condition:   "price <= 100",
 			inputVar:    "price",
 			inputValue:  95,
 			expectedRes: true,
 		},
 		{
 			name:        "less than or equal - boundary",
-			condition:   "$.price <= 100",
+			condition:   "price <= 100",
 			inputVar:    "price",
 			inputValue:  100,
 			expectedRes: true,
@@ -123,7 +123,7 @@ nodes:
     type: "start"
   - id: "condition_check"
     type: "condition"
-    condition: "` + tt.condition + `"
+    condition: '` + tt.condition + `'
   - id: "true_path"
     type: "passthrough"
   - id: "false_path"
@@ -199,7 +199,7 @@ func TestConditionNodeEvaluation_MultipleConditions(t *testing.T) {
 	}{
 		{
 			name:      "AND operator - both true",
-			condition: "$.status == \"active\" && $.count > 10",
+			condition: "status == \"active\" && count > 10",
 			variables: map[string]interface{}{
 				"status": "active",
 				"count":  15,
@@ -208,7 +208,7 @@ func TestConditionNodeEvaluation_MultipleConditions(t *testing.T) {
 		},
 		{
 			name:      "AND operator - first false",
-			condition: "$.status == \"active\" && $.count > 10",
+			condition: "status == \"active\" && count > 10",
 			variables: map[string]interface{}{
 				"status": "inactive",
 				"count":  15,
@@ -217,7 +217,7 @@ func TestConditionNodeEvaluation_MultipleConditions(t *testing.T) {
 		},
 		{
 			name:      "AND operator - second false",
-			condition: "$.status == \"active\" && $.count > 10",
+			condition: "status == \"active\" && count > 10",
 			variables: map[string]interface{}{
 				"status": "active",
 				"count":  5,
@@ -226,7 +226,7 @@ func TestConditionNodeEvaluation_MultipleConditions(t *testing.T) {
 		},
 		{
 			name:      "OR operator - both true",
-			condition: "$.isEnabled == true || $.isForced == true",
+			condition: "isEnabled == true || isForced == true",
 			variables: map[string]interface{}{
 				"isEnabled": true,
 				"isForced":  true,
@@ -235,7 +235,7 @@ func TestConditionNodeEvaluation_MultipleConditions(t *testing.T) {
 		},
 		{
 			name:      "OR operator - first true",
-			condition: "$.isEnabled == true || $.isForced == true",
+			condition: "isEnabled == true || isForced == true",
 			variables: map[string]interface{}{
 				"isEnabled": true,
 				"isForced":  false,
@@ -244,7 +244,7 @@ func TestConditionNodeEvaluation_MultipleConditions(t *testing.T) {
 		},
 		{
 			name:      "OR operator - second true",
-			condition: "$.isEnabled == true || $.isForced == true",
+			condition: "isEnabled == true || isForced == true",
 			variables: map[string]interface{}{
 				"isEnabled": false,
 				"isForced":  true,
@@ -253,7 +253,7 @@ func TestConditionNodeEvaluation_MultipleConditions(t *testing.T) {
 		},
 		{
 			name:      "OR operator - both false",
-			condition: "$.isEnabled == true || $.isForced == true",
+			condition: "isEnabled == true || isForced == true",
 			variables: map[string]interface{}{
 				"isEnabled": false,
 				"isForced":  false,
@@ -262,7 +262,7 @@ func TestConditionNodeEvaluation_MultipleConditions(t *testing.T) {
 		},
 		{
 			name:      "Complex AND/OR - true",
-			condition: "($.status == \"active\" && $.count > 10) || $.priority == \"high\"",
+			condition: "(status == \"active\" && count > 10) || priority == \"high\"",
 			variables: map[string]interface{}{
 				"status":   "inactive",
 				"count":    5,
@@ -272,7 +272,7 @@ func TestConditionNodeEvaluation_MultipleConditions(t *testing.T) {
 		},
 		{
 			name:      "Complex AND/OR - false",
-			condition: "($.status == \"active\" && $.count > 10) || $.priority == \"high\"",
+			condition: "(status == \"active\" && count > 10) || priority == \"high\"",
 			variables: map[string]interface{}{
 				"status":   "inactive",
 				"count":    5,
@@ -299,9 +299,19 @@ func TestConditionNodeEvaluation_MultipleConditions(t *testing.T) {
 					valueStr = fmt.Sprintf("%d", v)
 				}
 
+				typeStr := "string"
+				switch value.(type) {
+				case string:
+					typeStr = "string"
+				case bool:
+					typeStr = "boolean"
+				case int:
+					typeStr = "number"
+				}
+
 				variableYAML += `
   - name: "` + name + `"
-    type: "string"
+    type: "` + typeStr + `"
     default: ` + valueStr
 			}
 
@@ -314,7 +324,7 @@ nodes:
     type: "start"
   - id: "condition_check"
     type: "condition"
-    condition: "` + tt.condition + `"
+    condition: '` + tt.condition + `'
   - id: "true_path"
     type: "passthrough"
   - id: "false_path"
@@ -384,35 +394,35 @@ func TestConditionNodeEvaluation_BooleanVariables(t *testing.T) {
 	}{
 		{
 			name:        "boolean true comparison - true",
-			condition:   "$.isEnabled == true",
+			condition:   "isEnabled == true",
 			varName:     "isEnabled",
 			varValue:    true,
 			expectedRes: true,
 		},
 		{
 			name:        "boolean true comparison - false",
-			condition:   "$.isEnabled == true",
+			condition:   "isEnabled == true",
 			varName:     "isEnabled",
 			varValue:    false,
 			expectedRes: false,
 		},
 		{
 			name:        "boolean false comparison - true",
-			condition:   "$.isDisabled == false",
+			condition:   "isDisabled == false",
 			varName:     "isDisabled",
 			varValue:    false,
 			expectedRes: true,
 		},
 		{
 			name:        "boolean negation - true",
-			condition:   "!$.isDisabled",
+			condition:   "!isDisabled",
 			varName:     "isDisabled",
 			varValue:    false,
 			expectedRes: true,
 		},
 		{
 			name:        "boolean negation - false",
-			condition:   "!$.isDisabled",
+			condition:   "!isDisabled",
 			varName:     "isDisabled",
 			varValue:    true,
 			expectedRes: false,
@@ -433,7 +443,7 @@ nodes:
     type: "start"
   - id: "condition_check"
     type: "condition"
-    condition: "` + tt.condition + `"
+    condition: '` + tt.condition + `'
   - id: "true_path"
     type: "passthrough"
   - id: "false_path"
@@ -510,7 +520,7 @@ nodes:
     type: "start"
   - id: "check_admin"
     type: "condition"
-    condition: "$.userRole == \"admin\""
+    condition: "userRole == \"admin\""
   - id: "admin_action"
     type: "passthrough"
   - id: "user_action"
@@ -603,10 +613,10 @@ nodes:
     type: "start"
   - id: "check_value"
     type: "condition"
-    condition: "$.orderValue > 100"
+    condition: "orderValue > 100"
   - id: "check_customer"
     type: "condition"
-    condition: "$.customerType == \"vip\""
+    condition: "customerType == \"vip\""
   - id: "vip_premium"
     type: "passthrough"
   - id: "vip_standard"
@@ -717,15 +727,15 @@ func TestConditionNodeErrors_InvalidExpression(t *testing.T) {
 	}{
 		{
 			name:      "undefined variable",
-			condition: "$.undefinedVar > 10",
+			condition: "undefinedVar > 10",
 		},
 		{
 			name:      "invalid syntax",
-			condition: "$.value >>>>> 10",
+			condition: "value >>>>> 10",
 		},
 		{
 			name:      "unmatched parenthesis",
-			condition: "(($.value > 10)",
+			condition: "((value > 10)",
 		},
 	}
 
@@ -743,7 +753,7 @@ nodes:
     type: "start"
   - id: "condition_check"
     type: "condition"
-    condition: "` + tt.condition + `"
+    condition: '` + tt.condition + `'
   - id: "true_path"
     type: "passthrough"
   - id: "false_path"
@@ -805,7 +815,7 @@ nodes:
     type: "start"
   - id: "condition_check"
     type: "condition"
-    condition: "$.requiredValue > 10"
+    condition: "requiredValue > 10"
   - id: "true_path"
     type: "passthrough"
   - id: "end"
@@ -853,7 +863,7 @@ nodes:
     type: "start"
   - id: "condition_check"
     type: "condition"
-    condition: "$.stringValue > 10"
+    condition: "stringValue > 10"
   - id: "true_path"
     type: "passthrough"
   - id: "false_path"
@@ -902,7 +912,7 @@ func TestConditionNodeExecution_ComplexExpressions(t *testing.T) {
 	}{
 		{
 			name:      "Multiple ANDs",
-			condition: "$.a > 5 && $.b < 20 && $.c == \"test\"",
+			condition: "a > 5 && b < 20 && c == \"test\"",
 			variables: map[string]interface{}{
 				"a": 10,
 				"b": 15,
@@ -912,7 +922,7 @@ func TestConditionNodeExecution_ComplexExpressions(t *testing.T) {
 		},
 		{
 			name:      "Multiple ORs",
-			condition: "$.x == 1 || $.x == 2 || $.x == 3",
+			condition: "x == 1 || x == 2 || x == 3",
 			variables: map[string]interface{}{
 				"x": 2,
 			},
@@ -920,7 +930,7 @@ func TestConditionNodeExecution_ComplexExpressions(t *testing.T) {
 		},
 		{
 			name:      "Complex parentheses",
-			condition: "($.a > 10 && $.b < 20) || ($.c == \"admin\" && $.d == true)",
+			condition: "(a > 10 && b < 20) || (c == \"admin\" && d == true)",
 			variables: map[string]interface{}{
 				"a": 5,
 				"b": 25,
@@ -931,7 +941,7 @@ func TestConditionNodeExecution_ComplexExpressions(t *testing.T) {
 		},
 		{
 			name:      "Negation with AND",
-			condition: "!$.isDeleted && $.status == \"active\"",
+			condition: "!isDeleted && status == \"active\"",
 			variables: map[string]interface{}{
 				"isDeleted": false,
 				"status":    "active",
@@ -959,9 +969,19 @@ func TestConditionNodeExecution_ComplexExpressions(t *testing.T) {
 					valueStr = fmt.Sprintf("%f", v)
 				}
 
+				typeStr := "string"
+				switch value.(type) {
+				case string:
+					typeStr = "string"
+				case bool:
+					typeStr = "boolean"
+				case int:
+					typeStr = "number"
+				}
+
 				variableYAML += `
   - name: "` + name + `"
-    type: "string"
+    type: "` + typeStr + `"
     default: ` + valueStr
 			}
 
@@ -974,7 +994,7 @@ nodes:
     type: "start"
   - id: "condition_check"
     type: "condition"
-    condition: "` + tt.condition + `"
+    condition: '` + tt.condition + `'
   - id: "true_path"
     type: "passthrough"
   - id: "false_path"
@@ -1049,7 +1069,7 @@ nodes:
     type: "start"
   - id: "condition_check"
     type: "condition"
-    condition: "$.a || $.b && $.c"
+    condition: "a || b && c"
   - id: "true_path"
     type: "passthrough"
   - id: "false_path"

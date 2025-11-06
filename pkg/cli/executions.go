@@ -435,7 +435,9 @@ func truncateString(s string, maxLen int) string {
 	if len(s) <= maxLen {
 		return s
 	}
-	return s[:maxLen-2] + ".."
+	// Trim trailing spaces before adding ellipsis
+	truncated := strings.TrimRight(s[:maxLen-2], " ")
+	return truncated + ".."
 }
 
 // formatValue formats a value for display
@@ -448,7 +450,9 @@ func formatValue(v interface{}) string {
 	switch val := v.(type) {
 	case string:
 		if len(val) > 100 {
-			return fmt.Sprintf("%q...", val[:97])
+			// Truncate and show opening quote + content + ellipsis (no closing quote)
+			// Total format: " + content + ... = 1 + 94 + 3 = 98 (matches maxLen-2 pattern)
+			return `"` + val[:94] + `...`
 		}
 		return fmt.Sprintf("%q", val)
 	case bool, int, int64, float64:

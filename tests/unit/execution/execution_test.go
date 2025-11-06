@@ -1,6 +1,7 @@
 package execution
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
@@ -454,7 +455,7 @@ func TestExecutionReturnValue(t *testing.T) {
 				t.Errorf("Complete() error = %v, wantErr %v", err, tt.wantErr)
 			}
 
-			if !tt.wantErr && exec.ReturnValue != tt.returnValue {
+			if !tt.wantErr && !reflect.DeepEqual(exec.ReturnValue, tt.returnValue) {
 				t.Errorf("ReturnValue = %v, want %v", exec.ReturnValue, tt.returnValue)
 			}
 		})

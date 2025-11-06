@@ -93,6 +93,7 @@ nodes:
     tool: "echo"
     parameters:
       message: "hello"
+    output: "result"
 `,
 			expectedType: "mcp_tool",
 			nodeID:       "tool1",

@@ -697,9 +697,18 @@ func TestWorkflowBuilderView_LoadWorkflow(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			builder, _ := NewWorkflowBuilder(nil)
+			// Create initial workflow for the builder
+			initialWf, err := workflow.NewWorkflow("initial", "test")
+			if err != nil {
+				t.Fatalf("Failed to create initial workflow: %v", err)
+			}
 
-			err := builder.LoadWorkflow(tt.workflowName)
+			builder, err := NewWorkflowBuilder(initialWf)
+			if err != nil {
+				t.Fatalf("Failed to create builder: %v", err)
+			}
+
+			err = builder.LoadWorkflow(tt.workflowName)
 
 			if tt.wantErr && err == nil {
 				t.Error("LoadWorkflow() expected error but got none")

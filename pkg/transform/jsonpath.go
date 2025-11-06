@@ -704,6 +704,24 @@ func handleWildcardQuery(ctx context.Context, jsonStr, path string, data interfa
 	// Simple field extraction from array items
 	var result []interface{}
 	for _, item := range arrayItems {
+		// Handle array indexing like [0], [1], etc.
+		if strings.HasPrefix(afterWildcard, "[") && strings.HasSuffix(afterWildcard, "]") {
+			// Extract the index from [0] -> 0
+			indexStr := strings.TrimPrefix(afterWildcard, "[")
+			indexStr = strings.TrimSuffix(indexStr, "]")
+
+			// Check if it's a simple numeric index
+			if index, err := strconv.Atoi(indexStr); err == nil {
+				// Use numeric index directly
+				subResult := item.Get(strconv.Itoa(index))
+				if subResult.Exists() {
+					result = append(result, convertGJSONResult(subResult))
+				}
+				continue
+			}
+		}
+
+		// Regular field access
 		subResult := item.Get(afterWildcard)
 		if subResult.Exists() {
 			result = append(result, convertGJSONResult(subResult))

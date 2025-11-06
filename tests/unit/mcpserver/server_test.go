@@ -1,11 +1,43 @@
-package mcpserver
+package mcpserver_test
 
 import (
+	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/dshills/goflow/pkg/mcpserver"
 )
+
+// MockMCPClient is a mock implementation of MCPClient for testing
+type MockMCPClient struct {
+	tools     []mcpserver.Tool
+	pingError error // Set to simulate ping failures
+}
+
+func (m *MockMCPClient) Connect(ctx context.Context) error {
+	return nil
+}
+
+func (m *MockMCPClient) Close() error {
+	return nil
+}
+
+func (m *MockMCPClient) IsConnected() bool {
+	return true
+}
+
+func (m *MockMCPClient) ListTools(ctx context.Context) ([]mcpserver.Tool, error) {
+	return m.tools, nil
+}
+
+func (m *MockMCPClient) CallTool(ctx context.Context, toolName string, params map[string]interface{}) (map[string]interface{}, error) {
+	return map[string]interface{}{"result": "mock result"}, nil
+}
+
+func (m *MockMCPClient) Ping(ctx context.Context) error {
+	return m.pingError
+}
 
 // TestNewMCPServer tests creation of new MCP server instances
 func TestNewMCPServer(t *testing.T) {
@@ -282,6 +314,11 @@ func TestMCPServer_HealthStatusTracking(t *testing.T) {
 			server, _ := mcpserver.NewMCPServer("test-server", "npx", []string{"test"}, mcpserver.TransportStdio)
 			server.HealthStatus = tt.initialHealth
 
+			// Set connection state based on initial health (except for disconnected test cases)
+			if tt.initialHealth != mcpserver.HealthDisconnected {
+				server.Connection.State = mcpserver.StateConnected
+			}
+
 			oldLastCheck := server.LastHealthCheck
 
 			switch tt.operation {
@@ -441,6 +478,16 @@ func TestMCPServer_ToolCache(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			server, _ := mcpserver.NewMCPServer("test-server", "npx", []string{"test"}, mcpserver.TransportStdio)
+
+			// Setup: create mock client with tools
+			mockClient := &MockMCPClient{
+				tools: []mcpserver.Tool{
+					{Name: "read_file", Description: "Read a file"},
+					{Name: "write_file", Description: "Write a file"},
+					{Name: "list_files", Description: "List files"},
+				},
+			}
+			server.SetClient(mockClient)
 
 			// Setup: connect and discover tools
 			server.Connection.State = mcpserver.StateConnected
@@ -726,6 +773,18 @@ func TestMCPServer_HealthCheck(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			server, _ := mcpserver.NewMCPServer("test-server", "npx", []string{"test"}, mcpserver.TransportStdio)
 			server.Connection.State = tt.connectionState
+
+			// Setup mock client with appropriate error behavior
+			mockClient := &MockMCPClient{}
+			switch tt.simulateResponse {
+			case "timeout":
+				mockClient.pingError = context.DeadlineExceeded
+			case "error":
+				mockClient.pingError = fmt.Errorf("simulated ping error")
+			case "success":
+				mockClient.pingError = nil
+			}
+			server.SetClient(mockClient)
 
 			oldLastCheck := server.LastHealthCheck
 			time.Sleep(1 * time.Millisecond) // Ensure time difference

@@ -117,15 +117,10 @@ type ValidationError struct {
 }
 
 // NewWorkflowBuilder creates a new workflow builder
-// If wf is nil, creates an empty workflow for lazy loading
+// Returns an error if wf is nil
 func NewWorkflowBuilder(wf *workflow.Workflow) (*WorkflowBuilder, error) {
 	if wf == nil {
-		// Create empty workflow for lazy loading via LoadWorkflow
-		var err error
-		wf, err = workflow.NewWorkflow("__empty__", "temporary empty workflow")
-		if err != nil {
-			return nil, fmt.Errorf("failed to create empty workflow: %w", err)
-		}
+		return nil, errors.New("workflow cannot be nil")
 	}
 
 	builder := &WorkflowBuilder{
@@ -303,7 +298,8 @@ func (b *WorkflowBuilder) HandleKey(key string) error {
 		return nil
 	}
 
-	return nil
+	// Return error for unrecognized keys
+	return fmt.Errorf("unrecognized key: %s", key)
 }
 
 // GetValidationStatus returns the current validation status
@@ -626,26 +622,40 @@ func (b *WorkflowBuilder) validateWorkflow() {
 	}
 
 	// Parse error message to extract validation errors
-	// For now, treat each error as a separate validation error
-	// In a real implementation, we'd parse compound errors
+	// Split compound errors on common separators: semicolon and newline
 	errMsg := err.Error()
-	errors := []ValidationError{
-		{
-			Message: errMsg,
-			NodeID:  "",
-		},
-	}
+	var errorMessages []string
 
-	// Check for common validation patterns to extract multiple errors
-	// This is a simplified approach - a real implementation would use error wrapping
-	if strings.Contains(errMsg, "must have exactly one start node") {
-		if strings.Contains(errMsg, "must have at least one end node") {
-			// Multiple errors case - split them
-			errors = []ValidationError{
-				{Message: "must have exactly one start node", NodeID: ""},
-				{Message: "must have at least one end node", NodeID: ""},
+	// Try splitting on semicolon first (most common for compound errors)
+	if strings.Contains(errMsg, ";") {
+		parts := strings.Split(errMsg, ";")
+		for _, part := range parts {
+			trimmed := strings.TrimSpace(part)
+			if trimmed != "" {
+				errorMessages = append(errorMessages, trimmed)
 			}
 		}
+	} else if strings.Contains(errMsg, "\n") {
+		// Try splitting on newline
+		parts := strings.Split(errMsg, "\n")
+		for _, part := range parts {
+			trimmed := strings.TrimSpace(part)
+			if trimmed != "" {
+				errorMessages = append(errorMessages, trimmed)
+			}
+		}
+	} else {
+		// Single error message
+		errorMessages = []string{errMsg}
+	}
+
+	// Convert to ValidationError slice
+	errors := make([]ValidationError, 0, len(errorMessages))
+	for _, msg := range errorMessages {
+		errors = append(errors, ValidationError{
+			Message: msg,
+			NodeID:  "",
+		})
 	}
 
 	b.validationStatus = &ValidationStatus{

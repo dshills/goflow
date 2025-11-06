@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -214,6 +215,8 @@ func (w *Workflow) UpdateVariable(name string, updated *Variable) error {
 
 // Validate checks all workflow invariants
 func (w *Workflow) Validate() error {
+	var validationErrors []string
+
 	// Invariant 1: Must have exactly one Start node
 	startCount := 0
 	for _, node := range w.Nodes {
@@ -222,10 +225,10 @@ func (w *Workflow) Validate() error {
 		}
 	}
 	if startCount == 0 {
-		return errors.New("workflow must have exactly one start node (found 0)")
+		validationErrors = append(validationErrors, "workflow must have exactly one start node (found 0)")
 	}
 	if startCount > 1 {
-		return fmt.Errorf("workflow must have exactly one start node (found %d)", startCount)
+		validationErrors = append(validationErrors, fmt.Sprintf("workflow must have exactly one start node (found %d)", startCount))
 	}
 
 	// Invariant 2: Must have at least one End node
@@ -236,7 +239,7 @@ func (w *Workflow) Validate() error {
 		}
 	}
 	if endCount == 0 {
-		return errors.New("workflow must have at least one end node")
+		validationErrors = append(validationErrors, "workflow must have at least one end node")
 	}
 
 	// Invariant 4: All node IDs must be unique (checked during AddNode)
@@ -244,10 +247,11 @@ func (w *Workflow) Validate() error {
 	for _, node := range w.Nodes {
 		nodeID := node.GetID()
 		if nodeID == "" {
-			return errors.New("found node with empty node ID")
+			validationErrors = append(validationErrors, "found node with empty node ID")
+			continue
 		}
 		if nodeIDs[nodeID] {
-			return fmt.Errorf("duplicate node ID found: %s", nodeID)
+			validationErrors = append(validationErrors, fmt.Sprintf("duplicate node ID found: %s", nodeID))
 		}
 		nodeIDs[nodeID] = true
 	}
@@ -256,10 +260,11 @@ func (w *Workflow) Validate() error {
 	variableNames := make(map[string]bool)
 	for _, variable := range w.Variables {
 		if variable.Name == "" {
-			return errors.New("found variable with empty variable name")
+			validationErrors = append(validationErrors, "found variable with empty variable name")
+			continue
 		}
 		if variableNames[variable.Name] {
-			return fmt.Errorf("duplicate variable name found: %s", variable.Name)
+			validationErrors = append(validationErrors, fmt.Sprintf("duplicate variable name found: %s", variable.Name))
 		}
 		variableNames[variable.Name] = true
 	}
@@ -271,24 +276,24 @@ func (w *Workflow) Validate() error {
 			continue
 		}
 		if err := variable.Validate(); err != nil {
-			return fmt.Errorf("variable validation failed: %w", err)
+			validationErrors = append(validationErrors, fmt.Sprintf("variable validation failed: %v", err))
 		}
 	}
 
 	// Invariant 6: All edges must reference valid node IDs
 	for _, edge := range w.Edges {
 		if !nodeIDs[edge.FromNodeID] {
-			return fmt.Errorf("edge references invalid node reference (from): %s", edge.FromNodeID)
+			validationErrors = append(validationErrors, fmt.Sprintf("edge references invalid node reference (from): %s", edge.FromNodeID))
 		}
 		if !nodeIDs[edge.ToNodeID] {
-			return fmt.Errorf("edge references invalid node reference (to): %s", edge.ToNodeID)
+			validationErrors = append(validationErrors, fmt.Sprintf("edge references invalid node reference (to): %s", edge.ToNodeID))
 		}
 	}
 
 	// Validate all edges
 	for _, edge := range w.Edges {
 		if err := edge.Validate(); err != nil {
-			return fmt.Errorf("edge validation failed: %w", err)
+			validationErrors = append(validationErrors, fmt.Sprintf("edge validation failed: %v", err))
 		}
 	}
 
@@ -307,10 +312,10 @@ func (w *Workflow) Validate() error {
 				}
 			}
 			if outgoingEdges != 2 {
-				return fmt.Errorf("condition node %s must have exactly 2 outgoing edges (found %d)", nodeID, outgoingEdges)
+				validationErrors = append(validationErrors, fmt.Sprintf("condition node %s must have exactly 2 outgoing edges (found %d)", nodeID, outgoingEdges))
 			}
 			if conditionedEdges != 2 {
-				return fmt.Errorf("edges from condition node %s must have conditions", nodeID)
+				validationErrors = append(validationErrors, fmt.Sprintf("edges from condition node %s must have conditions", nodeID))
 			}
 		}
 	}
@@ -320,23 +325,32 @@ func (w *Workflow) Validate() error {
 		switch n := node.(type) {
 		case *ConditionNode:
 			if err := w.validateConditionExpression(n); err != nil {
-				return fmt.Errorf("node %s: %w", n.GetID(), err)
+				validationErrors = append(validationErrors, fmt.Sprintf("node %s: %v", n.GetID(), err))
 			}
 		case *TransformNode:
 			if err := w.validateTransformConfig(n); err != nil {
-				return fmt.Errorf("node %s: %w", n.GetID(), err)
+				validationErrors = append(validationErrors, fmt.Sprintf("node %s: %v", n.GetID(), err))
+			}
+		case *MCPToolNode:
+			if err := w.validateMCPToolNode(n); err != nil {
+				validationErrors = append(validationErrors, fmt.Sprintf("node %s: %v", n.GetID(), err))
 			}
 		}
 	}
 
 	// Invariant 3: No circular dependencies (DAG property)
 	if err := w.checkForCycles(); err != nil {
-		return err
+		validationErrors = append(validationErrors, err.Error())
 	}
 
 	// Invariant 7: No orphaned nodes (all nodes reachable from Start)
 	if err := w.checkForOrphanedNodes(); err != nil {
-		return err
+		validationErrors = append(validationErrors, err.Error())
+	}
+
+	// Return combined errors if any
+	if len(validationErrors) > 0 {
+		return errors.New(strings.Join(validationErrors, "; "))
 	}
 
 	return nil
@@ -494,8 +508,20 @@ func (w *Workflow) validateTransformConfig(node *TransformNode) error {
 	}
 
 	// Validate that input variable is defined
-	if !w.hasVariable(node.InputVariable) {
-		return fmt.Errorf("undefined input variable: %s", node.InputVariable)
+	// Input can be either a template "${var}" or a plain variable name "var"
+	if containsTemplate(node.InputVariable) {
+		// Extract variable names from template
+		inputVars := extractTemplateVariables(node.InputVariable)
+		for _, varName := range inputVars {
+			if !w.hasVariable(varName) && !w.hasNodeOutput(varName) {
+				return fmt.Errorf("undefined input variable: %s", node.InputVariable)
+			}
+		}
+	} else {
+		// Plain variable name - validate directly
+		if !w.hasVariable(node.InputVariable) && !w.hasNodeOutput(node.InputVariable) {
+			return fmt.Errorf("undefined input variable: %s", node.InputVariable)
+		}
 	}
 
 	// Validate the expression syntax based on its type
@@ -516,8 +542,50 @@ func (w *Workflow) validateTransformConfig(node *TransformNode) error {
 		// Extract variables from template and validate
 		varRefs := extractTemplateVariables(expr)
 		for _, varName := range varRefs {
-			if !w.hasVariable(varName) {
+			// Skip special transform variables like "input" which are provided at runtime
+			if varName == "input" {
+				continue
+			}
+			if !w.hasVariable(varName) && !w.hasNodeOutput(varName) {
 				return fmt.Errorf("undefined variable in template: %s", varName)
+			}
+		}
+	}
+
+	return nil
+}
+
+// validateMCPToolNode validates MCP tool node configuration
+func (w *Workflow) validateMCPToolNode(node *MCPToolNode) error {
+	// Validate server reference
+	if node.ServerID != "" {
+		serverExists := false
+		for _, server := range w.ServerConfigs {
+			if server.ID == node.ServerID {
+				serverExists = true
+				break
+			}
+		}
+		if !serverExists {
+			return fmt.Errorf("undefined server: %s", node.ServerID)
+		}
+	}
+
+	// Validate variables in parameters
+	if node.Parameters != nil {
+		for key, value := range node.Parameters {
+			// Check if it's a template string
+			if containsTemplate(value) {
+				if err := validateTemplateSyntax(value); err != nil {
+					return fmt.Errorf("invalid template syntax in parameter %s: %w", key, err)
+				}
+				// Extract and validate variables
+				varRefs := extractTemplateVariables(value)
+				for _, varName := range varRefs {
+					if !w.hasVariable(varName) && !w.hasNodeOutput(varName) {
+						return fmt.Errorf("undefined variable: %s", varName)
+					}
+				}
 			}
 		}
 	}
@@ -530,6 +598,23 @@ func (w *Workflow) hasVariable(name string) bool {
 	for _, v := range w.Variables {
 		if v.Name == name {
 			return true
+		}
+	}
+	return false
+}
+
+// hasNodeOutput checks if a variable is an output from any node
+func (w *Workflow) hasNodeOutput(name string) bool {
+	for _, node := range w.Nodes {
+		switch n := node.(type) {
+		case *MCPToolNode:
+			if n.OutputVariable == name {
+				return true
+			}
+		case *TransformNode:
+			if n.OutputVariable == name {
+				return true
+			}
 		}
 	}
 	return false

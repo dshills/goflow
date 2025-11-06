@@ -12,6 +12,7 @@ nodes:
     tool: "echo"
     parameters:
       message: "A"
+    output: "result_a"
 
   - id: "node_b"
     type: "mcp_tool"
@@ -19,6 +20,7 @@ nodes:
     tool: "echo"
     parameters:
       message: "B"
+    output: "result_b"
 
   - id: "node_c"
     type: "mcp_tool"
@@ -26,6 +28,7 @@ nodes:
     tool: "echo"
     parameters:
       message: "C"
+    output: "result_c"
 
   - id: "end"
     type: "end"

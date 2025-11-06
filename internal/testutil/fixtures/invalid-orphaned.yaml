@@ -12,6 +12,7 @@ nodes:
     tool: "echo"
     parameters:
       message: "A"
+    output: "result_a"
 
   - id: "node_b"
     type: "mcp_tool"
@@ -19,6 +20,7 @@ nodes:
     tool: "echo"
     parameters:
       message: "B"
+    output: "result_b"
 
   - id: "orphaned_node"
     type: "mcp_tool"
@@ -26,6 +28,7 @@ nodes:
     tool: "echo"
     parameters:
       message: "I'm alone"
+    output: "orphaned_result"
 
   - id: "end"
     type: "end"

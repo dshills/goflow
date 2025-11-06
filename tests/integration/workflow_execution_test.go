@@ -91,6 +91,7 @@ servers:
     name: "test"
     command: "go"
     args: ["run", "../../internal/testutil/mocks/mock_mcp_server.go", "--mode=server"]
+    transport: "stdio"
 nodes:
   - id: "start"
     type: "start"
@@ -195,6 +196,7 @@ servers:
     name: "test"
     command: "go"
     args: ["run", "../../internal/testutil/mocks/mock_mcp_server.go", "--mode=server"]
+    transport: "stdio"
 nodes:
   - id: "start"
     type: "start"
@@ -264,6 +266,7 @@ servers:
     name: "test"
     command: "go"
     args: ["run", "../../internal/testutil/mocks/mock_mcp_server.go", "--mode=server"]
+    transport: "stdio"
 nodes:
   - id: "start"
     type: "start"
@@ -317,6 +320,7 @@ servers:
     name: "test"
     command: "go"
     args: ["run", "../../internal/testutil/mocks/mock_mcp_server.go", "--mode=server"]
+    transport: "stdio"
 nodes:
   - id: "start"
     type: "start"
@@ -326,6 +330,7 @@ nodes:
     tool: "echo"
     parameters:
       message: "Message 1"
+    output: "result"
   - id: "end"
     type: "end"
 edges:
@@ -375,6 +380,7 @@ servers:
     name: "test"
     command: "go"
     args: ["run", "../../internal/testutil/mocks/mock_mcp_server.go", "--mode=server"]
+    transport: "stdio"
 nodes:
   - id: "start"
     type: "start"
@@ -384,6 +390,7 @@ nodes:
     tool: "echo"
     parameters:
       message: "${required_var}"
+    output: "result"
   - id: "end"
     type: "end"
 edges:

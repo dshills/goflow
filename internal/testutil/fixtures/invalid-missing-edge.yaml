@@ -12,6 +12,7 @@ nodes:
     tool: "echo"
     parameters:
       message: "A"
+    output: "result_a"
 
   - id: "end"
     type: "end"
