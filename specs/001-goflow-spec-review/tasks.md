@@ -252,24 +252,24 @@
 
 ### Enhanced Transformation Support
 
-- [ ] T117 [P] [US3] Add advanced JSONPath operators (filters, recursive descent) in pkg/transform/jsonpath.go
-- [ ] T118 [P] [US3] Add template helper functions (upper, lower, format) in pkg/transform/template.go
-- [ ] T119 [P] [US3] Add type conversion utilities in pkg/transform/type_conversion.go
-- [ ] T120 [US3] Implement expression validation at workflow load time in pkg/workflow/validator.go (depends on T117-T119)
+- [X] T117 [P] [US3] Add advanced JSONPath operators (filters, recursive descent) in pkg/transform/jsonpath.go
+- [X] T118 [P] [US3] Add template helper functions (upper, lower, format) in pkg/transform/template.go
+- [X] T119 [P] [US3] Add type conversion utilities in pkg/transform/type_conversion.go
+- [X] T120 [US3] Implement expression validation at workflow load time in pkg/workflow/validator.go (depends on T117-T119)
 
 ### TUI Integration
 
-- [ ] T121 [US3] Add condition node to TUI node palette in pkg/tui/workflow_builder.go
-- [ ] T122 [US3] Implement condition expression editor in TUI property panel in pkg/tui/workflow_builder.go
-- [ ] T123 [US3] Add conditional edge labels ("true"/"false") in TUI in pkg/tui/workflow_builder.go
-- [ ] T124 [US3] Implement transform expression validator in TUI in pkg/tui/validation.go
+- [X] T121 [US3] Add condition node to TUI node palette in pkg/tui/workflow_builder.go
+- [X] T122 [US3] Implement condition expression editor in TUI property panel in pkg/tui/workflow_builder.go
+- [X] T123 [US3] Add conditional edge labels ("true"/"false") in TUI in pkg/tui/workflow_builder.go
+- [X] T124 [US3] Implement transform expression validator in TUI in pkg/tui/validation.go
 
 ### Documentation and Examples
 
-- [ ] T125 [P] [US3] Create example workflow with conditional logic in examples/conditional-workflow.yaml
-- [ ] T126 [P] [US3] Create example workflow with transformations in examples/data-transformation.yaml
+- [X] T125 [P] [US3] Create example workflow with conditional logic in examples/conditional-workflow.yaml
+- [X] T126 [P] [US3] Create example workflow with transformations in examples/data-transformation.yaml
 
-**Checkpoint**: At this point, User Stories 1, 2, AND 3 should work - workflows support branching and transformations
+**Checkpoint**: ✅ User Story 3 COMPLETE - workflows support branching and transformations
 
 ---
 

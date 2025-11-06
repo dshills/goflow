@@ -1,0 +1,130 @@
+{
+  "customers": [
+    {
+      "id": "CUST-001",
+      "profile": {
+        "fullName": "John Doe",
+        "email": "john.doe@example.com"
+      },
+      "membershipTier": "premium",
+      "totalSpent": 1200,
+      "createdAt": "2024-01-15T10:30:00Z"
+    },
+    {
+      "id": "CUST-002",
+      "profile": {
+        "fullName": "Jane Smith",
+        "email": "jane.smith@example.com"
+      },
+      "membershipTier": "vip",
+      "totalSpent": 5500,
+      "createdAt": "2023-06-20T14:45:00Z"
+    },
+    {
+      "id": "CUST-003",
+      "profile": {
+        "fullName": "Bob Johnson",
+        "email": "bob.johnson@example.com"
+      },
+      "membershipTier": "standard",
+      "totalSpent": 450,
+      "createdAt": "2024-10-01T09:15:00Z"
+    }
+  ],
+  "orders": [
+    {
+      "id": "ORD-001",
+      "customerId": "CUST-001",
+      "status": "active",
+      "createdAt": "2025-10-28T12:00:00Z",
+      "totalAmount": 350.00,
+      "items": [
+        {
+          "productName": "Laptop",
+          "quantity": 1,
+          "price": 300.00
+        },
+        {
+          "productName": "Mouse Pad",
+          "quantity": 2,
+          "price": 25.00
+        }
+      ]
+    },
+    {
+      "id": "ORD-002",
+      "customerId": "CUST-001",
+      "status": "completed",
+      "createdAt": "2025-09-15T10:30:00Z",
+      "totalAmount": 850.00,
+      "items": [
+        {
+          "productName": "Monitor",
+          "quantity": 1,
+          "price": 850.00
+        }
+      ]
+    },
+    {
+      "id": "ORD-003",
+      "customerId": "CUST-002",
+      "status": "active",
+      "createdAt": "2025-11-01T15:45:00Z",
+      "totalAmount": 2100.00,
+      "items": [
+        {
+          "productName": "Server",
+          "quantity": 1,
+          "price": 2000.00
+        },
+        {
+          "productName": "Network Cable",
+          "quantity": 5,
+          "price": 20.00
+        }
+      ]
+    },
+    {
+      "id": "ORD-004",
+      "customerId": "CUST-002",
+      "status": "active",
+      "createdAt": "2025-10-20T11:20:00Z",
+      "totalAmount": 450.00,
+      "items": [
+        {
+          "productName": "Keyboard",
+          "quantity": 3,
+          "price": 150.00
+        }
+      ]
+    },
+    {
+      "id": "ORD-005",
+      "customerId": "CUST-002",
+      "status": "completed",
+      "createdAt": "2025-08-10T08:00:00Z",
+      "totalAmount": 600.00,
+      "items": [
+        {
+          "productName": "Desk Lamp",
+          "quantity": 2,
+          "price": 300.00
+        }
+      ]
+    },
+    {
+      "id": "ORD-006",
+      "customerId": "CUST-003",
+      "status": "active",
+      "createdAt": "2025-11-03T16:30:00Z",
+      "totalAmount": 99.99,
+      "items": [
+        {
+          "productName": "USB Hub",
+          "quantity": 1,
+          "price": 99.99
+        }
+      ]
+    }
+  ]
+}

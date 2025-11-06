@@ -1,0 +1,203 @@
+# GoFlow Data Transformation Example
+# This workflow demonstrates advanced data transformation features including:
+#   - JSONPath queries with filters and recursive descent
+#   - Template strings with variable substitution
+#   - Helper functions for string/number/date manipulation
+#   - Array operations and object transformations
+#   - Chaining multiple transformations
+#
+# Use Case: Extract and format customer data from API response for reporting
+#
+# Prerequisites:
+#   1. Register a data API MCP server (example):
+#      goflow server add data-api npx -y @example/data-api-server
+
+version: "1.0"
+name: "customer-data-transformation"
+description: "Extract, filter, and format customer data using JSONPath and templates"
+
+metadata:
+  author: "goflow-examples"
+  created: "2025-11-05T12:00:00Z"
+  tags: ["transformation", "data-processing", "jsonpath", "templates"]
+
+variables:
+  - name: "api_response"
+    type: "object"
+    description: "Raw API response containing customer and order data"
+
+  - name: "customer_name"
+    type: "string"
+    description: "Extracted customer full name"
+
+  - name: "customer_email"
+    type: "string"
+    description: "Extracted customer email address"
+
+  - name: "order_count"
+    type: "number"
+    description: "Count of active orders for the customer"
+
+  - name: "formatted_report"
+    type: "string"
+    description: "Customer report formatted with template"
+
+  - name: "premium_customers"
+    type: "array"
+    description: "Filtered list of premium customers with high spending"
+
+  - name: "all_products"
+    type: "array"
+    description: "Flat list of all product names from all orders"
+
+servers:
+  - id: "data-api"
+    command: "npx"
+    args: ["-y", "@example/data-api-server"]
+
+nodes:
+  - id: "start"
+    type: "start"
+
+  # Fetch customer and order data from API
+  - id: "fetch_customers"
+    type: "mcp_tool"
+    server: "data-api"
+    tool: "get_customers"
+    parameters:
+      limit: 100
+      include_orders: true
+    output: "api_response"
+    description: "Fetch all customers with their orders"
+
+  # JSONPath: Extract customer name using simple path
+  - id: "extract_name"
+    type: "transform"
+    input: "${api_response}"
+    expression: "$.customers[0].profile.fullName"
+    output: "customer_name"
+    description: "Extract first customer's full name using JSONPath"
+
+  # JSONPath: Extract email using recursive descent
+  - id: "extract_email"
+    type: "transform"
+    input: "${api_response}"
+    expression: "$..email"
+    output: "customer_email"
+    description: "Find any email in the response using recursive descent (..)"
+
+  # JSONPath: Filter and count active orders using filter expression
+  - id: "count_active_orders"
+    type: "transform"
+    input: "${api_response}"
+    expression: "length($.orders[?(@.status == 'active')])"
+    output: "order_count"
+    description: "Count orders where status equals 'active' using filter"
+
+  # Template: Format customer report with helper functions
+  # Available helpers: upper(), lower(), trim(), capitalize(), length(), default()
+  - id: "format_customer_report"
+    type: "transform"
+    input: "${api_response}"
+    template: |
+      CUSTOMER REPORT
+      ===============
+      Name: ${upper(customer_name)}
+      Email: ${lower(customer_email)}
+      Active Orders: ${order_count}
+      
+      Status Summary: ${if(order_count > 5, "High Activity Customer", "Normal Activity")}
+      Membership: ${default(api_response.customers[0].membershipTier, "Standard")}
+      
+      Account Status: Active
+      Report Generated: ${now()}
+    output: "formatted_report"
+    description: "Format customer report using template string with helper functions"
+
+  # Template: Create summary with multiple operations
+  - id: "create_summary"
+    type: "transform"
+    input: "${api_response}"
+    template: |
+      ${capitalize(trim(customer_name))} <${lower(customer_email)}>
+      Orders: ${join(api_response.orders[*].id, ", ")}
+      Total Value: $${formatNumber(sum(api_response.orders[*].totalAmount), 2)}
+    output: "customer_summary"
+    description: "Create compact summary with join() and sum() operations"
+
+  # JSONPath: Filter premium customers with high spending
+  - id: "filter_premium_customers"
+    type: "transform"
+    input: "${api_response}"
+    expression: "$.customers[?(@.membershipTier == 'premium' && @.totalSpent > 1000)]"
+    output: "premium_customers"
+    description: "Filter customers with AND condition: premium tier AND spent >$1000"
+
+  # JSONPath: Extract all product names from nested orders
+  - id: "extract_all_products"
+    type: "transform"
+    input: "${api_response}"
+    expression: "$.orders[*].items[*].productName"
+    output: "all_products"
+    description: "Extract all product names using wildcard at multiple levels"
+
+  # Template: Generate detailed analysis
+  - id: "generate_analysis"
+    type: "transform"
+    input: "${api_response}"
+    template: |
+      DETAILED CUSTOMER ANALYSIS
+      ==========================
+      
+      Customer: ${capitalize(customer_name)}
+      Email: ${lower(customer_email)}
+      Member Type: ${default(api_response.customers[0].membershipTier, "Standard")}
+      
+      Order Statistics:
+      - Total Orders: ${length(api_response.orders)}
+      - Active Orders: ${order_count}
+      - Total Spent: $${formatNumber(sum(api_response.orders[*].totalAmount), 2)}
+      
+      Top Products:
+      ${join(map(api_response.orders[*].items[*], "productName"), ", ")}
+      
+      Last Order Date: ${formatDate(api_response.orders[0].createdAt, "2006-01-02")}
+      
+      Recommendation: ${if(api_response.customers[0].totalSpent > 5000, "VIP Tier Eligible", "Keep Monitoring")}
+    output: "detailed_analysis"
+    description: "Create comprehensive customer analysis report"
+
+  - id: "end"
+    type: "end"
+    return: "${formatted_report}"
+
+edges:
+  - from: "start"
+    to: "fetch_customers"
+
+  - from: "fetch_customers"
+    to: "extract_name"
+
+  - from: "extract_name"
+    to: "extract_email"
+
+  - from: "extract_email"
+    to: "count_active_orders"
+
+  - from: "count_active_orders"
+    to: "format_customer_report"
+
+  - from: "format_customer_report"
+    to: "create_summary"
+
+  - from: "create_summary"
+    to: "filter_premium_customers"
+
+  - from: "filter_premium_customers"
+    to: "extract_all_products"
+
+  - from: "extract_all_products"
+    to: "generate_analysis"
+
+  - from: "generate_analysis"
+    to: "end"

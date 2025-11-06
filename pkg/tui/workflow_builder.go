@@ -74,19 +74,22 @@ type NodePalette struct {
 
 // PropertyPanel represents the node property editor
 type PropertyPanel struct {
-	node      workflow.Node
-	fields    []propertyField
-	editIndex int
-	editMode  bool
-	visible   bool
+	node              workflow.Node
+	fields            []propertyField
+	editIndex         int
+	editMode          bool
+	visible           bool
+	validationMessage string
 }
 
 // propertyField represents an editable property
 type propertyField struct {
-	label    string
-	value    string
-	required bool
-	valid    bool
+	label        string
+	value        string
+	required     bool
+	valid        bool
+	fieldType    string // "text", "expression", "condition", "jsonpath", "template"
+	validationFn func(string) error
 }
 
 // HelpPanel represents the help display
@@ -782,6 +785,321 @@ func (b *WorkflowBuilder) updateKeyStates() {
 	}
 }
 
+// ShowPropertyPanel shows the property panel for a node
+func (b *WorkflowBuilder) ShowPropertyPanel(nodeID string) error {
+	// Find the node
+	var node workflow.Node
+	for _, n := range b.workflow.Nodes {
+		if n.GetID() == nodeID {
+			node = n
+			break
+		}
+	}
+
+	if node == nil {
+		return fmt.Errorf("node not found: %s", nodeID)
+	}
+
+	// Build property fields based on node type
+	b.propertyPanel.node = node
+	b.propertyPanel.fields = b.buildPropertyFields(node)
+	b.propertyPanel.visible = true
+	b.propertyPanel.editIndex = 0
+	b.propertyPanel.validationMessage = ""
+
+	return nil
+}
+
+// buildPropertyFields creates property fields for a node
+func (b *WorkflowBuilder) buildPropertyFields(node workflow.Node) []propertyField {
+	fields := []propertyField{
+		{
+			label:     "ID",
+			value:     node.GetID(),
+			required:  true,
+			valid:     true,
+			fieldType: "text",
+		},
+	}
+
+	switch n := node.(type) {
+	case *workflow.ConditionNode:
+		fields = append(fields, propertyField{
+			label:     "Condition Expression",
+			value:     n.Condition,
+			required:  true,
+			valid:     true,
+			fieldType: "condition",
+			validationFn: func(expr string) error {
+				return workflow.ValidateExpressionSyntax(expr)
+			},
+		})
+
+	case *workflow.TransformNode:
+		fields = append(fields,
+			propertyField{
+				label:     "Input Variable",
+				value:     n.InputVariable,
+				required:  true,
+				valid:     true,
+				fieldType: "text",
+			},
+			propertyField{
+				label:     "Expression",
+				value:     n.Expression,
+				required:  true,
+				valid:     true,
+				fieldType: "expression",
+				validationFn: func(expr string) error {
+					// Detect expression type and validate accordingly
+					if len(expr) > 0 && expr[0] == '$' {
+						return workflow.ValidateJSONPathSyntax(expr)
+					}
+					if strings.Contains(expr, "${") {
+						return workflow.ValidateTemplateSyntax(expr)
+					}
+					return workflow.ValidateExpressionSyntax(expr)
+				},
+			},
+			propertyField{
+				label:     "Output Variable",
+				value:     n.OutputVariable,
+				required:  true,
+				valid:     true,
+				fieldType: "text",
+			},
+		)
+
+	case *workflow.MCPToolNode:
+		fields = append(fields,
+			propertyField{
+				label:     "Server ID",
+				value:     n.ServerID,
+				required:  true,
+				valid:     true,
+				fieldType: "text",
+			},
+			propertyField{
+				label:     "Tool Name",
+				value:     n.ToolName,
+				required:  true,
+				valid:     true,
+				fieldType: "text",
+			},
+			propertyField{
+				label:     "Output Variable",
+				value:     n.OutputVariable,
+				required:  true,
+				valid:     true,
+				fieldType: "text",
+			},
+		)
+
+	case *workflow.LoopNode:
+		fields = append(fields,
+			propertyField{
+				label:     "Collection",
+				value:     n.Collection,
+				required:  true,
+				valid:     true,
+				fieldType: "text",
+			},
+			propertyField{
+				label:     "Item Variable",
+				value:     n.ItemVariable,
+				required:  true,
+				valid:     true,
+				fieldType: "text",
+			},
+		)
+
+	case *workflow.ParallelNode:
+		fields = append(fields,
+			propertyField{
+				label:     "Merge Strategy",
+				value:     n.MergeStrategy,
+				required:  true,
+				valid:     true,
+				fieldType: "text",
+			},
+		)
+	}
+
+	return fields
+}
+
+// UpdatePropertyField updates a property field value
+func (b *WorkflowBuilder) UpdatePropertyField(index int, value string) error {
+	if !b.propertyPanel.visible {
+		return errors.New("property panel not visible")
+	}
+
+	if index < 0 || index >= len(b.propertyPanel.fields) {
+		return fmt.Errorf("invalid field index: %d", index)
+	}
+
+	field := &b.propertyPanel.fields[index]
+	field.value = value
+
+	// Validate if validation function exists
+	if field.validationFn != nil {
+		if err := field.validationFn(value); err != nil {
+			field.valid = false
+			b.propertyPanel.validationMessage = fmt.Sprintf("Validation error: %s", err.Error())
+			return err
+		}
+		field.valid = true
+		b.propertyPanel.validationMessage = ""
+	}
+
+	// Apply changes to the node
+	return b.applyPropertyChanges()
+}
+
+// applyPropertyChanges applies property field changes to the actual node
+func (b *WorkflowBuilder) applyPropertyChanges() error {
+	node := b.propertyPanel.node
+	fields := b.propertyPanel.fields
+
+	switch n := node.(type) {
+	case *workflow.ConditionNode:
+		for _, field := range fields {
+			if field.label == "Condition Expression" {
+				n.Condition = field.value
+			}
+		}
+
+	case *workflow.TransformNode:
+		for _, field := range fields {
+			switch field.label {
+			case "Input Variable":
+				n.InputVariable = field.value
+			case "Expression":
+				n.Expression = field.value
+			case "Output Variable":
+				n.OutputVariable = field.value
+			}
+		}
+
+	case *workflow.MCPToolNode:
+		for _, field := range fields {
+			switch field.label {
+			case "Server ID":
+				n.ServerID = field.value
+			case "Tool Name":
+				n.ToolName = field.value
+			case "Output Variable":
+				n.OutputVariable = field.value
+			}
+		}
+
+	case *workflow.LoopNode:
+		for _, field := range fields {
+			switch field.label {
+			case "Collection":
+				n.Collection = field.value
+			case "Item Variable":
+				n.ItemVariable = field.value
+			}
+		}
+
+	case *workflow.ParallelNode:
+		for _, field := range fields {
+			if field.label == "Merge Strategy" {
+				n.MergeStrategy = field.value
+			}
+		}
+	}
+
+	b.modified = true
+	b.validateWorkflow()
+	return nil
+}
+
+// GetPropertyPanel returns the property panel
+func (b *WorkflowBuilder) GetPropertyPanel() *PropertyPanel {
+	return b.propertyPanel
+}
+
+// GetVariableList returns a list of variable names in the workflow
+func (b *WorkflowBuilder) GetVariableList() []string {
+	vars := make([]string, 0, len(b.workflow.Variables))
+	for _, v := range b.workflow.Variables {
+		vars = append(vars, v.Name)
+	}
+	return vars
+}
+
+// GetEdgeLabel returns the label for an edge (e.g., "true"/"false" for condition edges)
+func (b *WorkflowBuilder) GetEdgeLabel(edge *workflow.Edge) string {
+	if edge.Condition != "" {
+		return edge.Condition
+	}
+	return ""
+}
+
+// GetEdgeStyle returns style information for an edge
+func (b *WorkflowBuilder) GetEdgeStyle(edge *workflow.Edge) string {
+	// Check if this edge is from a condition node
+	for _, node := range b.workflow.Nodes {
+		if node.GetID() == edge.FromNodeID && node.Type() == "condition" {
+			if edge.Condition == "true" {
+				return "solid"
+			} else if edge.Condition == "false" {
+				return "dashed"
+			}
+		}
+	}
+	return "solid"
+}
+
+// CreateConditionalEdge creates an edge with a condition label
+func (b *WorkflowBuilder) CreateConditionalEdge(fromID, toID, condition string) error {
+	// Verify source is a condition node
+	var isConditionNode bool
+	for _, node := range b.workflow.Nodes {
+		if node.GetID() == fromID && node.Type() == "condition" {
+			isConditionNode = true
+			break
+		}
+	}
+
+	if !isConditionNode {
+		return fmt.Errorf("source node %s is not a condition node", fromID)
+	}
+
+	// Verify condition value
+	if condition != "true" && condition != "false" {
+		return fmt.Errorf("condition must be 'true' or 'false', got: %s", condition)
+	}
+
+	// Check if this condition already has an edge
+	for _, edge := range b.workflow.Edges {
+		if edge.FromNodeID == fromID && edge.Condition == condition {
+			return fmt.Errorf("condition node already has a %s edge", condition)
+		}
+	}
+
+	b.pushUndo()
+
+	edge := &workflow.Edge{
+		FromNodeID: fromID,
+		ToNodeID:   toID,
+		Condition:  condition,
+	}
+
+	if err := b.workflow.AddEdge(edge); err != nil {
+		return err
+	}
+
+	b.layoutNodes()
+	b.validateWorkflow()
+	b.modified = true
+	b.redoStack = make([]workflowSnapshot, 0)
+
+	return nil
+}
+
 // Canvas methods
 
 // GetNodeCount returns the number of nodes on the canvas
@@ -830,6 +1148,77 @@ func (p *NodePalette) GetSelectedNodeType() string {
 		return p.nodeTypes[p.selectedIndex]
 	}
 	return ""
+}
+
+// PropertyPanel methods
+
+// IsVisible returns whether the property panel is visible
+func (p *PropertyPanel) IsVisible() bool {
+	return p.visible
+}
+
+// GetFields returns the property fields
+func (p *PropertyPanel) GetFields() []propertyField {
+	return p.fields
+}
+
+// GetEditIndex returns the currently edited field index
+func (p *PropertyPanel) GetEditIndex() int {
+	return p.editIndex
+}
+
+// GetValidationMessage returns the current validation message
+func (p *PropertyPanel) GetValidationMessage() string {
+	return p.validationMessage
+}
+
+// GetNodeType returns the type of node being edited
+func (p *PropertyPanel) GetNodeType() string {
+	if p.node == nil {
+		return ""
+	}
+	return p.node.Type()
+}
+
+// RenderPropertyPanel returns a formatted string for displaying the property panel
+func (p *PropertyPanel) RenderPropertyPanel() string {
+	if !p.visible || p.node == nil {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("=== %s Node Properties ===\n", strings.Title(p.node.Type())))
+	sb.WriteString("\n")
+
+	for i, field := range p.fields {
+		marker := " "
+		if i == p.editIndex {
+			marker = ">"
+		}
+
+		validMarker := "✓"
+		if !field.valid {
+			validMarker = "✗"
+		}
+
+		sb.WriteString(fmt.Sprintf("%s [%s] %s: %s\n", marker, validMarker, field.label, field.value))
+
+		// Show field type hint for special fields
+		if field.fieldType == "condition" {
+			sb.WriteString("     (Boolean expression, e.g., price > 100)\n")
+		} else if field.fieldType == "expression" {
+			sb.WriteString("     (JSONPath: $.field, Template: ${var}, or expression)\n")
+		}
+	}
+
+	if p.validationMessage != "" {
+		sb.WriteString("\n")
+		sb.WriteString(fmt.Sprintf("⚠ %s\n", p.validationMessage))
+	}
+
+	sb.WriteString("\nKeys: [↑↓] Navigate [Enter] Edit [Esc] Close\n")
+
+	return sb.String()
 }
 
 // HelpPanel methods

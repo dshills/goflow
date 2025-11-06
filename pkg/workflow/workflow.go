@@ -315,6 +315,20 @@ func (w *Workflow) Validate() error {
 		}
 	}
 
+	// Validate expressions in nodes
+	for _, node := range w.Nodes {
+		switch n := node.(type) {
+		case *ConditionNode:
+			if err := w.validateConditionExpression(n); err != nil {
+				return fmt.Errorf("node %s: %w", n.GetID(), err)
+			}
+		case *TransformNode:
+			if err := w.validateTransformConfig(n); err != nil {
+				return fmt.Errorf("node %s: %w", n.GetID(), err)
+			}
+		}
+	}
+
 	// Invariant 3: No circular dependencies (DAG property)
 	if err := w.checkForCycles(); err != nil {
 		return err
@@ -437,6 +451,88 @@ func (w *Workflow) checkForOrphanedNodes() error {
 	}
 
 	return nil
+}
+
+// validateConditionExpression validates the condition expression in a ConditionNode
+func (w *Workflow) validateConditionExpression(node *ConditionNode) error {
+	if node.Condition == "" {
+		return errors.New("condition expression cannot be empty")
+	}
+
+	// Try to compile the expression to validate syntax (this also checks for unsafe operations)
+	// Note: We use a minimal context for validation - actual values will be provided at runtime
+	// This validates syntax without requiring actual data
+	if err := validateExpressionSyntax(node.Condition); err != nil {
+		return fmt.Errorf("invalid condition expression: %w", err)
+	}
+
+	// Extract variable references from the expression
+	varRefs := extractVariableReferences(node.Condition)
+
+	// Check that all referenced variables are defined in the workflow
+	for _, varName := range varRefs {
+		if !w.hasVariable(varName) {
+			return fmt.Errorf("undefined variable in condition: %s", varName)
+		}
+	}
+
+	return nil
+}
+
+// validateTransformConfig validates the transformation configuration in a TransformNode
+func (w *Workflow) validateTransformConfig(node *TransformNode) error {
+	if node.Expression == "" {
+		return errors.New("transform expression cannot be empty")
+	}
+
+	if node.InputVariable == "" {
+		return errors.New("transform input variable cannot be empty")
+	}
+
+	if node.OutputVariable == "" {
+		return errors.New("transform output variable cannot be empty")
+	}
+
+	// Validate that input variable is defined
+	if !w.hasVariable(node.InputVariable) {
+		return fmt.Errorf("undefined input variable: %s", node.InputVariable)
+	}
+
+	// Validate the expression syntax based on its type
+	expr := node.Expression
+
+	// Check if it's a JSONPath expression (starts with $)
+	if len(expr) > 0 && expr[0] == '$' {
+		if err := validateJSONPathSyntax(expr); err != nil {
+			return fmt.Errorf("invalid JSONPath expression: %w", err)
+		}
+	}
+
+	// Check if it's a template (contains ${...})
+	if containsTemplate(expr) {
+		if err := validateTemplateSyntax(expr); err != nil {
+			return fmt.Errorf("invalid template syntax: %w", err)
+		}
+		// Extract variables from template and validate
+		varRefs := extractTemplateVariables(expr)
+		for _, varName := range varRefs {
+			if !w.hasVariable(varName) {
+				return fmt.Errorf("undefined variable in template: %s", varName)
+			}
+		}
+	}
+
+	return nil
+}
+
+// hasVariable checks if a variable with the given name exists in the workflow
+func (w *Workflow) hasVariable(name string) bool {
+	for _, v := range w.Variables {
+		if v.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 // MarshalJSON implements custom JSON marshaling for Workflow
