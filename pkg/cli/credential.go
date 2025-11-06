@@ -19,17 +19,25 @@ import (
 const maxCredentialSize = 1 << 20 // 1MB limit for all credential inputs
 
 // isOnlyWhitespace checks if a byte slice contains only Unicode whitespace characters
-// without allocating strings. Returns true if empty or whitespace-only.
+// without allocating strings. Returns true if empty or whitespace-only, false otherwise.
+// Invalid UTF-8 sequences are treated as non-whitespace (returns false), allowing binary
+// credentials while rejecting malformed whitespace-only inputs.
 func isOnlyWhitespace(data []byte) bool {
 	if len(data) == 0 {
 		return true
 	}
+
+	// Iterate through runes, checking both for whitespace and UTF-8 validity
 	for i := 0; i < len(data); {
 		r, size := utf8.DecodeRune(data[i:])
+
+		// Invalid UTF-8 (RuneError with size 1) is treated as non-whitespace.
+		// This allows binary credentials while rejecting credentials that are
+		// only whitespace bytes (which would be valid UTF-8).
 		if r == utf8.RuneError && size == 1 {
-			// Invalid UTF-8 is treated as non-whitespace
 			return false
 		}
+
 		if !unicode.IsSpace(r) {
 			return false
 		}
