@@ -374,9 +374,11 @@ cat /run/secrets/api_key | goflow credential add api-server --key API_KEY --stdi
 
 **⚠️ Security Notes**:
 - Never use `--value` flag in automation. Always use stdin or environment variables that are injected securely by your CI/CD system.
-- The `--stdin` flag reads until EOF (Ctrl-D) with a maximum size limit of 1MB
-- Leading and trailing spaces in credentials are preserved; only trailing newlines are stripped
+- The `--stdin` flag reads until EOF with a maximum size limit of 1MB
+  - EOF: Press Ctrl-D on Unix/Linux/macOS, or Ctrl-Z then Enter on Windows
+- Leading and trailing spaces in credentials are preserved; only trailing CR/LF characters are removed
 - Use `printf '%s'` instead of `echo` to avoid adding unwanted newlines to secrets
+- Whitespace-only credentials are rejected as invalid
 
 ### Credential Setup After Import
 

@@ -63,8 +63,9 @@ Security:
 
 Note:
   - --stdin reads until EOF and preserves leading/trailing spaces
-  - Trailing newlines from printf/echo are automatically stripped
-  - To use interactively with --stdin, type value and press Ctrl-D (EOF)`,
+  - Only trailing CR/LF characters are removed; other whitespace is preserved
+  - Use printf '%s' to avoid adding a trailing newline
+  - To send EOF: Ctrl-D on Unix/Linux/macOS, Ctrl-Z then Enter on Windows`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			serverID := args[0]
@@ -121,15 +122,23 @@ Note:
 
 				// Check if credential exceeded size limit
 				if len(inputBytes) > maxCredentialSize {
-					return fmt.Errorf("credential value exceeds maximum size of 1MB")
+					return fmt.Errorf("credential value exceeds maximum size of 1MB - if you need larger credentials, consider using a secret file reference or increase the limit")
 				}
 
 				// Trim only trailing newline characters (preserve intentional spaces)
 				credValue = strings.TrimRight(string(inputBytes), "\r\n")
 
-				// Validate non-empty
+				// Zero out the input buffer (best-effort security)
+				for i := range inputBytes {
+					inputBytes[i] = 0
+				}
+
+				// Validate non-empty and not whitespace-only
 				if credValue == "" {
 					return fmt.Errorf("credential value cannot be empty")
+				}
+				if strings.Trim(credValue, " \t") == "" {
+					return fmt.Errorf("credential cannot contain only whitespace characters")
 				}
 			} else if value != "" {
 				// Value provided via flag (warn about security)
