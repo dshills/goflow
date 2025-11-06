@@ -51,9 +51,9 @@ servers:
     command: npx
     args: ["-y", "@modelcontextprotocol/server-github"]
     env:
-      GITHUB_TOKEN: ghp_abc123xyz789    # Sensitive - will be stripped
-      GITHUB_ORG: myorg                 # Non-sensitive - preserved
-      API_BASE_URL: https://api.github.com  # Non-sensitive - preserved
+      GITHUB_TOKEN: "<YOUR_GITHUB_TOKEN_HERE>"  # Sensitive - will be stripped
+      GITHUB_ORG: myorg                          # Non-sensitive - preserved
+      API_BASE_URL: https://api.github.com       # Non-sensitive - preserved
     credential_ref: keyring://github-token
 ```
 
@@ -70,7 +70,7 @@ servers:
     env:
       GITHUB_ORG: myorg
       API_BASE_URL: https://api.github.com
-    credential_ref: <CREDENTIAL_REF_REQUIRED>
+    credential_ref: "<CREDENTIAL_REF_REQUIRED>"
 ```
 
 ### What Stays in Exported Files
@@ -123,6 +123,17 @@ Non-sensitive configuration is preserved to ensure workflows remain functional:
    - Bad: `server1`, `api`, `db`
 
 ## Exporting Workflows
+
+The `goflow export` command prepares workflows for sharing by automatically stripping credentials.
+
+**Command Syntax**:
+```bash
+goflow export <workflow-name> [--output <file>] [--verbose]
+```
+
+- `<workflow-name>`: Name of the workflow (not file path) as stored in GoFlow
+- `--output, -o`: Output file path (optional, defaults to stdout)
+- `--verbose, -v`: Show detailed export information
 
 ### Basic Export Commands
 
@@ -215,6 +226,18 @@ echo "Import with: goflow import quick-task.yaml"
 ```
 
 ## Importing Workflows
+
+The `goflow import` command loads shared workflows and helps configure required servers.
+
+**Command Syntax**:
+```bash
+goflow import <file-path> [--name <workflow-name>] [--verbose] [--no-interact]
+```
+
+- `<file-path>`: Path to the workflow YAML file to import
+- `--name, -n`: Override workflow name (optional, uses name from file if not specified)
+- `--verbose, -v`: Show detailed import information
+- `--no-interact`: Skip interactive prompts (for automation/CI)
 
 ### Basic Import Commands
 
@@ -505,18 +528,28 @@ See [Template System Documentation](template-system.md) for complete template cr
 After importing a workflow, configure credentials for servers that need them:
 
 ```bash
-# Add credential with interactive prompt (recommended - secure)
+# Recommended: Interactive prompt (secure - not in shell history)
 goflow credential add github-api --key GITHUB_TOKEN
 # Prompts: Enter value for 'GITHUB_TOKEN': [hidden input]
 
-# Add credential with value in command (NOT recommended - visible in shell history)
-goflow credential add api-server --key API_KEY --value sk-abc123
-
 # Add multiple credentials for one server
-goflow credential add database-server --key DB_HOST --value localhost
-goflow credential add database-server --key DB_PORT --value 5432
+goflow credential add database-server --key DB_HOST
+# Prompts: Enter value for 'DB_HOST': [hidden input]
+
+goflow credential add database-server --key DB_PORT
+# Prompts: Enter value for 'DB_PORT': [hidden input]
+
 goflow credential add database-server --key DB_PASSWORD
 # Prompts: Enter value for 'DB_PASSWORD': [hidden input]
+```
+
+**⚠️ WARNING**: Avoid using `--value` flag as it exposes secrets in shell history and process tables:
+```bash
+# INSECURE - visible in shell history:
+goflow credential add api-server --key API_KEY --value sk-abc123  # DON'T DO THIS
+
+# Use interactive prompt instead:
+goflow credential add api-server --key API_KEY  # Secure - prompts for value
 ```
 
 ### Listing Credentials
@@ -545,40 +578,45 @@ goflow credential list github-api
 
 ### Credential Security
 
-Credentials are stored securely:
+Credentials are stored securely using OS-native keyrings:
 
-1. **System Keyring**: Uses OS native credential storage (future)
-   - macOS: Keychain
-   - Windows: Credential Manager
-   - Linux: Secret Service / libsecret
+1. **System Keyring Storage** (Current Implementation)
+   - macOS: Keychain (encrypted, system-level security)
+   - Windows: Credential Manager (Windows Credential Store)
+   - Linux: Secret Service API (GNOME Keyring, KWallet)
+   - Credentials persist across sessions
+   - Protected by OS security mechanisms
 
-2. **In-Memory Storage**: Current implementation (development)
-   - Secure in-memory storage
-   - Not persisted to disk
-   - Cleared on application exit
+2. **Never Exported**: Credentials never appear in exported workflows
 
-3. **Never Exported**: Credentials never appear in exported workflows
-
-4. **Access Control**: Only accessible by GoFlow and your user account
+3. **Access Control**: Only accessible by GoFlow and your user account (OS-enforced)
 
 ### Security Best Practices
 
 ```bash
-# ✓ GOOD: Use interactive prompt
+# ✓ RECOMMENDED: Interactive prompt (most secure)
 goflow credential add api-server --key API_KEY
-# (type password when prompted - not visible in shell history)
+# Prompts for value with hidden input - not stored in shell history
 
-# ✗ BAD: Value in command line
+# ✗ AVOID: Value in command line (insecure - visible in shell history)
 goflow credential add api-server --key API_KEY --value secret123
-# (visible in shell history with: history | grep credential)
 
-# ✓ GOOD: Use environment variables for CI/CD
-export API_KEY=$CI_SECRET_API_KEY
+# ✓ CI/CD: Use environment variables from secret manager
+# Example with GitHub Actions secrets:
+export API_KEY=${{ secrets.API_KEY }}
 goflow credential add api-server --key API_KEY --value "$API_KEY"
 
-# ✓ GOOD: Load from secure file
+# ✓ CI/CD: Load from secure file with restricted permissions
+# Ensure file has 0600 permissions and is not committed to VCS:
 goflow credential add api-server --key API_KEY --value "$(cat /secure/api-key.txt)"
 ```
+
+**CI/CD Best Practices**:
+- Store secrets in your CI provider's secret manager (GitHub Secrets, GitLab CI/CD Variables, etc.)
+- Inject secrets at runtime via environment variables
+- Never commit credential files to version control
+- Use `chmod 600` for any credential files on disk
+- Rotate credentials regularly
 
 ## Collaboration Workflows
 
@@ -1176,11 +1214,8 @@ goflow import workflow.yaml --no-interact
 
 ### Credential Commands
 ```bash
-# Add credential (interactive prompt)
+# Add credential (interactive prompt - RECOMMENDED)
 goflow credential add server-id --key KEY_NAME
-
-# Add credential (command line - not recommended)
-goflow credential add server-id --key KEY_NAME --value secret
 
 # List all credentials
 goflow credential list
