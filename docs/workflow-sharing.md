@@ -51,7 +51,7 @@ servers:
     command: npx
     args: ["-y", "@modelcontextprotocol/server-github"]
     env:
-      GITHUB_TOKEN: "<YOUR_GITHUB_TOKEN_HERE>"  # Sensitive - will be stripped
+      GITHUB_TOKEN: "ghp_YOUR_TOKEN_HERE"  # Sensitive - will be stripped
       GITHUB_ORG: myorg                          # Non-sensitive - preserved
       API_BASE_URL: https://api.github.com       # Non-sensitive - preserved
     credential_ref: keyring://github-token
@@ -329,6 +329,51 @@ goflow server add slack-notifier npx -y @modelcontextprotocol/server-slack --tra
 goflow import workflow.yaml
 ```
 
+### Secure Automation Patterns
+
+For automated workflows (CI/CD, scripts), use these secure patterns:
+
+**Environment Variable Pattern** (Recommended):
+```bash
+# Store secrets in CI/CD secret manager (GitHub Secrets, GitLab Variables, etc.)
+# Inject as environment variables, then use stdin for credential input
+
+# In GitHub Actions:
+- name: Setup credentials
+  env:
+    API_KEY: ${{ secrets.API_KEY }}
+  run: |
+    echo "$API_KEY" | goflow credential add api-server --key API_KEY --stdin
+
+# In shell script with environment variables:
+#!/bin/bash
+# Expects API_KEY environment variable to be set
+echo "$API_KEY" | goflow credential add api-server --key API_KEY --stdin
+```
+
+**File-Based Pattern** (For secure file storage):
+```bash
+# Read from secure file (with restricted permissions)
+# Assumes secret file is mounted/injected by CI system
+cat /run/secrets/api-key | goflow credential add api-server --key API_KEY --stdin
+
+# Or for multiple credentials:
+while IFS='=' read -r key value; do
+  echo "$value" | goflow credential add api-server --key "$key" --stdin
+done < /run/secrets/credentials.env
+```
+
+**Docker/Kubernetes Pattern**:
+```bash
+# Kubernetes secret mounted as file
+cat /var/secrets/api-key | goflow credential add api-server --key API_KEY --stdin
+
+# Docker secret
+cat /run/secrets/api_key | goflow credential add api-server --key API_KEY --stdin
+```
+
+**⚠️ Security Note**: Never use `--value` flag in automation. Always use stdin or environment variables that are injected securely by your CI/CD system.
+
 ### Credential Setup After Import
 
 When importing workflows with credential placeholders:
@@ -587,36 +632,59 @@ Credentials are stored securely using OS-native keyrings:
    - Credentials persist across sessions
    - Protected by OS security mechanisms
 
-2. **Never Exported**: Credentials never appear in exported workflows
+2. **Never Exported**: The following are automatically stripped from exported workflows:
+   - All environment variables matching sensitive patterns (KEY, SECRET, TOKEN, PASSWORD, etc.)
+   - `credential_ref` field values (replaced with placeholder)
+   - Any field containing credential data
 
 3. **Access Control**: Only accessible by GoFlow and your user account (OS-enforced)
 
 ### Security Best Practices
 
 ```bash
-# ✓ RECOMMENDED: Interactive prompt (most secure)
+# ✓ RECOMMENDED: Interactive prompt (most secure - for local use)
 goflow credential add api-server --key API_KEY
 # Prompts for value with hidden input - not stored in shell history
 
-# ✗ AVOID: Value in command line (insecure - visible in shell history)
-goflow credential add api-server --key API_KEY --value secret123
+# ✗ AVOID: Never pass secrets as command-line arguments
+goflow credential add api-server --key API_KEY --value secret123  # INSECURE
+```
 
-# ✓ CI/CD: Use environment variables from secret manager
-# Example with GitHub Actions secrets:
-export API_KEY=${{ secrets.API_KEY }}
-goflow credential add api-server --key API_KEY --value "$API_KEY"
+### CI/CD Automation (Non-Interactive)
 
-# ✓ CI/CD: Load from secure file with restricted permissions
-# Ensure file has 0600 permissions and is not committed to VCS:
-goflow credential add api-server --key API_KEY --value "$(cat /secure/api-key.txt)"
+For automation and CI/CD pipelines, use environment variables:
+
+**GitHub Actions Example**:
+```yaml
+# .github/workflows/deploy.yml
+- name: Configure workflow credentials
+  env:
+    API_KEY: ${{ secrets.API_KEY }}  # GitHub secret injected as env var
+    DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+  run: |
+    # Use stdin to avoid exposing secrets in process list
+    echo "$API_KEY" | goflow credential add api-server --key API_KEY --stdin
+    echo "$DB_PASSWORD" | goflow credential add db-server --key DB_PASSWORD --stdin
+```
+
+**GitLab CI Example**:
+```yaml
+# .gitlab-ci.yml
+deploy:
+  variables:
+    API_KEY: $CI_API_KEY  # GitLab secret variable
+  script:
+    - echo "$API_KEY" | goflow credential add api-server --key API_KEY --stdin
 ```
 
 **CI/CD Best Practices**:
-- Store secrets in your CI provider's secret manager (GitHub Secrets, GitLab CI/CD Variables, etc.)
-- Inject secrets at runtime via environment variables
-- Never commit credential files to version control
-- Use `chmod 600` for any credential files on disk
-- Rotate credentials regularly
+- ✓ Use CI provider's secret manager (GitHub Secrets, GitLab Variables, etc.)
+- ✓ Inject secrets via environment variables in CI workflows
+- ✓ Use stdin for non-interactive credential input: `echo "$SECRET" | goflow credential add --stdin`
+- ✗ Never pass secrets as CLI arguments (`--value` flag)
+- ✗ Never commit credential files to version control
+- ✗ Never hardcode secrets in CI configuration files
+- Note: File permission commands like `chmod 600` apply to Linux/macOS only
 
 ## Collaboration Workflows
 

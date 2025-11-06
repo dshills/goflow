@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"sort"
@@ -31,8 +32,9 @@ Credential Manager on Windows, Secret Service on Linux) and never in plain text 
 // newCredentialAddCommand creates the credential add subcommand
 func newCredentialAddCommand() *cobra.Command {
 	var (
-		key   string
-		value string
+		key      string
+		value    string
+		useStdin bool
 	)
 
 	cmd := &cobra.Command{
@@ -42,15 +44,21 @@ func newCredentialAddCommand() *cobra.Command {
 system keyring and referenced by the server configuration.
 
 Examples:
-  # Add credential with interactive password prompt (recommended)
+  # Add credential with interactive password prompt (recommended for local use)
   goflow credential add api-server --key api-key
+
+  # Add credential from stdin (recommended for automation/CI/CD)
+  echo "$API_KEY" | goflow credential add api-server --key api-key --stdin
+  cat /run/secrets/api-key | goflow credential add api-server --key api-key --stdin
 
   # Add credential with value in command (NOT recommended - visible in shell history)
   goflow credential add db-server --key password --value secret123
 
 Security:
   - Credentials are stored in your system keyring (never in plain text)
-  - Use interactive prompt (without --value) to avoid shell history exposure
+  - Use interactive prompt for local use (avoids shell history)
+  - Use --stdin for automation (avoids process list exposure)
+  - Avoid --value flag (visible in shell history and process list)
   - Credential values are never displayed by GoFlow commands`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -96,10 +104,25 @@ Security:
 
 			// Get credential value
 			var credValue string
-			if value != "" {
+			if useStdin {
+				// Read from stdin (for automation/CI/CD)
+				scanner := bufio.NewScanner(cmd.InOrStdin())
+				if !scanner.Scan() {
+					if err := scanner.Err(); err != nil {
+						return fmt.Errorf("failed to read from stdin: %w", err)
+					}
+					return fmt.Errorf("no input received from stdin")
+				}
+				credValue = scanner.Text()
+
+				// Validate non-empty
+				if strings.TrimSpace(credValue) == "" {
+					return fmt.Errorf("credential value cannot be empty")
+				}
+			} else if value != "" {
 				// Value provided via flag (warn about security)
 				_, _ = fmt.Fprintln(cmd.OutOrStderr(), "Warning: Using --value flag exposes credential in shell history.")
-				_, _ = fmt.Fprintln(cmd.OutOrStderr(), "Consider using interactive prompt (omit --value) for better security.")
+				_, _ = fmt.Fprintln(cmd.OutOrStderr(), "Consider using interactive prompt (omit --value) or --stdin for better security.")
 				credValue = value
 			} else {
 				// Prompt for value securely (no echo)
@@ -133,9 +156,13 @@ Security:
 
 	cmd.Flags().StringVarP(&key, "key", "k", "", "Credential key name (required, e.g., 'api-key', 'password', 'token')")
 	cmd.Flags().StringVarP(&value, "value", "v", "", "Credential value (optional - will prompt securely if omitted)")
+	cmd.Flags().BoolVar(&useStdin, "stdin", false, "Read credential value from stdin (recommended for automation/CI/CD)")
 
 	// Mark key as required
 	_ = cmd.MarkFlagRequired("key")
+
+	// Make --stdin and --value mutually exclusive
+	cmd.MarkFlagsMutuallyExclusive("stdin", "value")
 
 	return cmd
 }
