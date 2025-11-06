@@ -1,8 +1,8 @@
 package cli
 
 import (
-	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"sort"
 	"strings"
@@ -48,7 +48,7 @@ Examples:
   goflow credential add api-server --key api-key
 
   # Add credential from stdin (recommended for automation/CI/CD)
-  echo "$API_KEY" | goflow credential add api-server --key api-key --stdin
+  printf '%s' "$API_KEY" | goflow credential add api-server --key api-key --stdin
   cat /run/secrets/api-key | goflow credential add api-server --key api-key --stdin
 
   # Add credential with value in command (NOT recommended - visible in shell history)
@@ -106,17 +106,17 @@ Security:
 			var credValue string
 			if useStdin {
 				// Read from stdin (for automation/CI/CD)
-				scanner := bufio.NewScanner(cmd.InOrStdin())
-				if !scanner.Scan() {
-					if err := scanner.Err(); err != nil {
-						return fmt.Errorf("failed to read from stdin: %w", err)
-					}
-					return fmt.Errorf("no input received from stdin")
+				// Use io.ReadAll to support large secrets and multiline content
+				inputBytes, err := io.ReadAll(cmd.InOrStdin())
+				if err != nil {
+					return fmt.Errorf("failed to read from stdin: %w", err)
 				}
-				credValue = scanner.Text()
+
+				// Trim trailing newline/whitespace that may come from echo or printf
+				credValue = strings.TrimSpace(string(inputBytes))
 
 				// Validate non-empty
-				if strings.TrimSpace(credValue) == "" {
+				if credValue == "" {
 					return fmt.Errorf("credential value cannot be empty")
 				}
 			} else if value != "" {

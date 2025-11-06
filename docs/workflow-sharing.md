@@ -51,7 +51,7 @@ servers:
     command: npx
     args: ["-y", "@modelcontextprotocol/server-github"]
     env:
-      GITHUB_TOKEN: "ghp_YOUR_TOKEN_HERE"  # Sensitive - will be stripped
+      GITHUB_TOKEN: "<YOUR_GITHUB_TOKEN>"  # Sensitive - will be stripped
       GITHUB_ORG: myorg                          # Non-sensitive - preserved
       API_BASE_URL: https://api.github.com       # Non-sensitive - preserved
     credential_ref: keyring://github-token
@@ -343,12 +343,12 @@ For automated workflows (CI/CD, scripts), use these secure patterns:
   env:
     API_KEY: ${{ secrets.API_KEY }}
   run: |
-    echo "$API_KEY" | goflow credential add api-server --key API_KEY --stdin
+    printf '%s' "$API_KEY" | goflow credential add api-server --key API_KEY --stdin
 
 # In shell script with environment variables:
 #!/bin/bash
 # Expects API_KEY environment variable to be set
-echo "$API_KEY" | goflow credential add api-server --key API_KEY --stdin
+printf '%s' "$API_KEY" | goflow credential add api-server --key API_KEY --stdin
 ```
 
 **File-Based Pattern** (For secure file storage):
@@ -359,7 +359,7 @@ cat /run/secrets/api-key | goflow credential add api-server --key API_KEY --stdi
 
 # Or for multiple credentials:
 while IFS='=' read -r key value; do
-  echo "$value" | goflow credential add api-server --key "$key" --stdin
+  printf '%s' "$value" | goflow credential add api-server --key "$key" --stdin
 done < /run/secrets/credentials.env
 ```
 
@@ -663,8 +663,8 @@ For automation and CI/CD pipelines, use environment variables:
     DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
   run: |
     # Use stdin to avoid exposing secrets in process list
-    echo "$API_KEY" | goflow credential add api-server --key API_KEY --stdin
-    echo "$DB_PASSWORD" | goflow credential add db-server --key DB_PASSWORD --stdin
+    printf '%s' "$API_KEY" | goflow credential add api-server --key API_KEY --stdin
+    printf '%s' "$DB_PASSWORD" | goflow credential add db-server --key DB_PASSWORD --stdin
 ```
 
 **GitLab CI Example**:
@@ -674,13 +674,14 @@ deploy:
   variables:
     API_KEY: $CI_API_KEY  # GitLab secret variable
   script:
-    - echo "$API_KEY" | goflow credential add api-server --key API_KEY --stdin
+    - printf '%s' "$API_KEY" | goflow credential add api-server --key API_KEY --stdin
 ```
 
 **CI/CD Best Practices**:
 - ✓ Use CI provider's secret manager (GitHub Secrets, GitLab Variables, etc.)
 - ✓ Inject secrets via environment variables in CI workflows
-- ✓ Use stdin for non-interactive credential input: `echo "$SECRET" | goflow credential add --stdin`
+- ✓ Use stdin for non-interactive credential input: `printf '%s' "$SECRET" | goflow credential add --stdin`
+- ✓ Use `printf` instead of `echo` to avoid trailing newlines
 - ✗ Never pass secrets as CLI arguments (`--value` flag)
 - ✗ Never commit credential files to version control
 - ✗ Never hardcode secrets in CI configuration files
