@@ -73,7 +73,65 @@ Read File → Check Size → [Large File] → Compress → Upload
 
 ---
 
-### 3. Error Handling (`error-handling.yaml`)
+### 3. Data Transformation (`data-transformation.yaml`)
+
+**Demonstrates**: Advanced JSONPath queries, template strings, and helper functions
+
+**Use Case**: Extract and format customer data from API response for reporting and analytics
+
+**Key Features**:
+- JSONPath queries: simple paths, recursive descent, filters
+- Template strings with variable substitution
+- Helper functions: upper(), lower(), capitalize(), trim(), default()
+- Aggregate functions: length(), sum(), join()
+- Array operations: wildcards, filtering, flattening
+- Progressive transformation chains
+
+**Prerequisites**:
+```bash
+goflow server add data-api npx -y @example/data-api-server
+```
+
+**Pattern**:
+```
+Fetch Data → Extract Name → Extract Email → Count Orders → Format Report
+          → Create Summary → Filter Premium → Extract Products → Analyze
+```
+
+**JSONPath Examples**:
+```yaml
+# Simple path
+$.customers[0].profile.fullName
+
+# Recursive descent (find all emails)
+$..email
+
+# Filter expression (active orders only)
+$.orders[?(@.status == 'active')]
+
+# Array wildcard (all order IDs)
+$.orders[*].id
+```
+
+**Template Examples**:
+```yaml
+template: |
+  Name: ${upper(customer_name)}
+  Email: ${lower(customer_email)}
+  Orders: ${join(orders[*].id, ", ")}
+  Total: $${formatNumber(sum(orders[*].amount), 2)}
+```
+
+**When to Use**:
+- Extracting data from nested API responses
+- Formatting data for reports or display
+- Filtering and aggregating collections
+- Data validation and transformation
+- Complex data manipulation workflows
+
+---
+
+### 4. Error Handling (`error-handling.yaml`)
 
 **Demonstrates**: Retry policies and graceful degradation
 
@@ -110,7 +168,7 @@ retry:
 
 ---
 
-### 4. Parallel Batch Processing (`parallel-batch.yaml`)
+### 5. Parallel Batch Processing (`parallel-batch.yaml`)
 
 **Demonstrates**: Concurrent execution for processing multiple items
 
