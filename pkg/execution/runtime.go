@@ -363,6 +363,10 @@ func (e *Engine) executeNode(ctx context.Context, node workflow.Node, wf *workfl
 		err = e.executeTransformNode(ctx, n, exec, nodeExec)
 	case *workflow.ConditionNode:
 		err = e.executeConditionNode(ctx, n, exec, nodeExec)
+	case *workflow.ParallelNode:
+		err = e.executeParallelNode(ctx, n, wf, exec, nodeExec)
+	case *workflow.LoopNode:
+		err = e.executeLoopNode(ctx, n, wf, exec, nodeExec)
 	case *workflow.PassthroughNode:
 		// Passthrough nodes do nothing, just complete successfully
 		nodeExec.Complete(nil)

@@ -172,3 +172,96 @@ func (ctx *ExecutionContext) GetVariableSnapshot() map[string]interface{} {
 
 	return snapshot
 }
+
+// CopyVariablesTo copies all variables from this context to another context with deep copying.
+// This is used for parallel branch context isolation and merging.
+// Performs deep copy to prevent shared mutable state between contexts.
+func (ctx *ExecutionContext) CopyVariablesTo(target *ExecutionContext) {
+	// Nil checks
+	if ctx == nil || target == nil {
+		return
+	}
+
+	ctx.mu.RLock()
+	defer ctx.mu.RUnlock()
+
+	target.mu.Lock()
+	defer target.mu.Unlock()
+
+	// Initialize target Variables map if nil
+	if target.Variables == nil {
+		target.Variables = make(map[string]interface{})
+	}
+
+	// Deep copy all variables to prevent shared mutable state
+	for key, value := range ctx.Variables {
+		target.Variables[key] = deepCopyValue(value)
+	}
+}
+
+// deepCopyValue performs a deep copy of a value to prevent shared mutable state.
+// Handles common types: maps, slices, and primitives.
+func deepCopyValue(value interface{}) interface{} {
+	if value == nil {
+		return nil
+	}
+
+	switch v := value.(type) {
+	case map[string]interface{}:
+		// Deep copy map
+		copied := make(map[string]interface{}, len(v))
+		for k, val := range v {
+			copied[k] = deepCopyValue(val)
+		}
+		return copied
+
+	case []interface{}:
+		// Deep copy slice
+		copied := make([]interface{}, len(v))
+		for i, val := range v {
+			copied[i] = deepCopyValue(val)
+		}
+		return copied
+
+	case []string:
+		// Copy string slice
+		copied := make([]string, len(v))
+		copy(copied, v)
+		return copied
+
+	case []int:
+		// Copy int slice
+		copied := make([]int, len(v))
+		copy(copied, v)
+		return copied
+
+	case []float64:
+		// Copy float64 slice
+		copied := make([]float64, len(v))
+		copy(copied, v)
+		return copied
+
+	case []bool:
+		// Copy bool slice
+		copied := make([]bool, len(v))
+		copy(copied, v)
+		return copied
+
+	case []map[string]interface{}:
+		// Deep copy slice of maps
+		copied := make([]map[string]interface{}, len(v))
+		for i, m := range v {
+			if m == nil {
+				copied[i] = nil
+			} else {
+				copied[i] = deepCopyValue(m).(map[string]interface{})
+			}
+		}
+		return copied
+
+	default:
+		// For primitive types (string, int, float64, bool, etc.) and other types,
+		// return as-is since they are immutable or we can't deep copy them safely
+		return value
+	}
+}
