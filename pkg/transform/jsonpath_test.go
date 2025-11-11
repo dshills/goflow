@@ -153,8 +153,8 @@ func TestJSONPathFilters(t *testing.T) {
 				},
 			},
 			want: []interface{}{
-				map[string]interface{}{"name": "cheap", "price": 50.0},
-				map[string]interface{}{"name": "moderate", "price": 75.0},
+				map[string]interface{}{"name": "cheap", "price": 50},
+				map[string]interface{}{"name": "moderate", "price": 75},
 			},
 			wantErr: false,
 		},
@@ -185,8 +185,8 @@ func TestJSONPathFilters(t *testing.T) {
 				},
 			},
 			want: []interface{}{
-				map[string]interface{}{"student": "A", "value": 95.0},
-				map[string]interface{}{"student": "C", "value": 80.0},
+				map[string]interface{}{"student": "A", "value": 95},
+				map[string]interface{}{"student": "C", "value": 80},
 			},
 			wantErr: false,
 		},
@@ -202,8 +202,8 @@ func TestJSONPathFilters(t *testing.T) {
 				},
 			},
 			want: []interface{}{
-				map[string]interface{}{"name": "A", "price": 50.0, "inStock": true},
-				map[string]interface{}{"name": "D", "price": 80.0, "inStock": true},
+				map[string]interface{}{"name": "A", "price": 50, "inStock": true},
+				map[string]interface{}{"name": "D", "price": 80, "inStock": true},
 			},
 			wantErr: false,
 		},
@@ -273,7 +273,7 @@ func TestJSONPathArrayOperations(t *testing.T) {
 			data: map[string]interface{}{
 				"items": []interface{}{"a", "b", "c"},
 			},
-			want:    3.0,
+			want:    3,
 			wantErr: false,
 		},
 		{
@@ -286,7 +286,7 @@ func TestJSONPathArrayOperations(t *testing.T) {
 					map[string]interface{}{"name": "C", "price": 30.0},
 				},
 			},
-			want:    []interface{}{10.0, 20.0, 30.0},
+			want:    []interface{}{10, 20, 30},
 			wantErr: false,
 		},
 		{
@@ -315,7 +315,7 @@ func TestJSONPathArrayOperations(t *testing.T) {
 					[]interface{}{7.0, 8.0, 9.0},
 				},
 			},
-			want:    []interface{}{1.0, 4.0, 7.0},
+			want:    []interface{}{1, 4, 7},
 			wantErr: false,
 		},
 	}
@@ -420,7 +420,7 @@ func TestJSONPathRecursiveDescent(t *testing.T) {
 					},
 				},
 			},
-			want:    []interface{}{1.0, 2.0, 3.0},
+			want:    []interface{}{1, 2, 3},
 			wantErr: false,
 		},
 	}

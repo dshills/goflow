@@ -19,7 +19,7 @@ servers:
   - id: "test-server"
     name: "test-filesystem"
     command: "go"
-    args: ["run", "internal/testutil/testserver/main.go"]
+    args: ["run", "../../internal/testutil/testserver/main.go"]
     transport: "stdio"
 
 nodes:
