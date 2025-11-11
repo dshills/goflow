@@ -3,7 +3,7 @@ package transform_test
 import (
 	"context"
 	"errors"
-	"fmt"
+	"reflect"
 
 	"github.com/dshills/goflow/pkg/transform"
 
@@ -182,14 +182,14 @@ func TestJSONPathFilters(t *testing.T) {
 			jsonPath: "$.scores[?(@.value >= 80)]",
 			data: map[string]interface{}{
 				"scores": []interface{}{
-					map[string]interface{}{"student": "A", "value": 95},
-					map[string]interface{}{"student": "B", "value": 75},
-					map[string]interface{}{"student": "C", "value": 80},
+					map[string]interface{}{"student": "A", "value": 95.0},
+					map[string]interface{}{"student": "B", "value": 75.0},
+					map[string]interface{}{"student": "C", "value": 80.0},
 				},
 			},
 			want: []interface{}{
-				map[string]interface{}{"student": "A", "value": 95},
-				map[string]interface{}{"student": "C", "value": 80},
+				map[string]interface{}{"student": "A", "value": 95.0},
+				map[string]interface{}{"student": "C", "value": 80.0},
 			},
 			wantErr: false,
 		},
@@ -276,7 +276,7 @@ func TestJSONPathArrayOperations(t *testing.T) {
 			data: map[string]interface{}{
 				"items": []interface{}{"a", "b", "c"},
 			},
-			want:    3,
+			want:    3.0,
 			wantErr: false,
 		},
 		{
@@ -313,12 +313,12 @@ func TestJSONPathArrayOperations(t *testing.T) {
 			jsonPath: "$.data[*][0]",
 			data: map[string]interface{}{
 				"data": []interface{}{
-					[]interface{}{1, 2, 3},
-					[]interface{}{4, 5, 6},
-					[]interface{}{7, 8, 9},
+					[]interface{}{1.0, 2.0, 3.0},
+					[]interface{}{4.0, 5.0, 6.0},
+					[]interface{}{7.0, 8.0, 9.0},
 				},
 			},
-			want:    []interface{}{1, 4, 7},
+			want:    []interface{}{1.0, 4.0, 7.0},
 			wantErr: false,
 		},
 	}
@@ -413,17 +413,17 @@ func TestJSONPathRecursiveDescent(t *testing.T) {
 			data: map[string]interface{}{
 				"level1": map[string]interface{}{
 					"items": []interface{}{
-						map[string]interface{}{"id": 1},
-						map[string]interface{}{"id": 2},
+						map[string]interface{}{"id": 1.0},
+						map[string]interface{}{"id": 2.0},
 					},
 					"level2": map[string]interface{}{
 						"items": []interface{}{
-							map[string]interface{}{"id": 3},
+							map[string]interface{}{"id": 3.0},
 						},
 					},
 				},
 			},
-			want:    []interface{}{1, 2, 3},
+			want:    []interface{}{1.0, 2.0, 3.0},
 			wantErr: false,
 		},
 	}
@@ -438,7 +438,8 @@ func TestJSONPathRecursiveDescent(t *testing.T) {
 				return
 			}
 
-			if !tt.wantErr && !deepEqual(got, tt.want) {
+			// Use equalAsSet for recursive descent queries since map iteration order is non-deterministic
+			if !tt.wantErr && !equalAsSet(got, tt.want) {
 				t.Errorf("Query() = %v, want %v", got, tt.want)
 			}
 		})
@@ -606,5 +607,56 @@ func TestJSONPathErrorHandling(t *testing.T) {
 // deepEqual is a helper for comparing complex nested structures
 func deepEqual(a, b interface{}) bool {
 	// Use reflect.DeepEqual for proper comparison
-	return fmt.Sprintf("%#v", a) == fmt.Sprintf("%#v", b)
+	return reflect.DeepEqual(a, b)
+}
+
+// equalAsSet compares two slices as sets (ignoring order)
+func equalAsSet(a, b interface{}) bool {
+	// Handle nil values
+	if a == nil || b == nil {
+		return deepEqual(a, b)
+	}
+
+	aVal := reflect.ValueOf(a)
+	bVal := reflect.ValueOf(b)
+
+	// Check for invalid values
+	if !aVal.IsValid() || !bVal.IsValid() {
+		return deepEqual(a, b)
+	}
+
+	// If either is not a slice, fall back to regular equality
+	if aVal.Kind() != reflect.Slice || bVal.Kind() != reflect.Slice {
+		return deepEqual(a, b)
+	}
+
+	aLen := aVal.Len()
+	bLen := bVal.Len()
+
+	if aLen != bLen {
+		return false
+	}
+
+	// Use a matching algorithm: for each element in A, find and mark a match in B
+	bMatched := make([]bool, bLen)
+
+	for i := 0; i < aLen; i++ {
+		aElem := aVal.Index(i).Interface()
+		found := false
+		for j := 0; j < bLen; j++ {
+			if !bMatched[j] {
+				bElem := bVal.Index(j).Interface()
+				if reflect.DeepEqual(aElem, bElem) {
+					bMatched[j] = true
+					found = true
+					break
+				}
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+
+	return true
 }

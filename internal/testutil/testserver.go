@@ -3,6 +3,7 @@ package testutil
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 
@@ -10,10 +11,39 @@ import (
 	"github.com/dshills/goflow/pkg/mcpserver"
 )
 
-// TestServerConfig returns the configuration for the test MCP server
-func TestServerConfig(serverID string) mcp.ServerConfig {
-	_, filename, _, _ := runtime.Caller(0)
+// getTestServerPath returns the absolute path to the test server main.go file.
+// It uses multiple strategies to locate the file for maximum robustness:
+// 1. Uses runtime.Caller to find the path relative to this source file
+// 2. Validates the file exists before returning
+// 3. Provides clear error messages if the file cannot be found
+func getTestServerPath() (string, error) {
+	// Strategy 1: Use runtime.Caller to get path relative to this file
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		return "", fmt.Errorf("failed to determine source file location")
+	}
+
 	testServerPath := filepath.Join(filepath.Dir(filename), "testserver", "main.go")
+
+	// Validate the path exists
+	if _, err := os.Stat(testServerPath); err == nil {
+		return testServerPath, nil
+	}
+
+	// If not found, provide helpful error message
+	return "", fmt.Errorf("test server not found at %s (expected at internal/testutil/testserver/main.go)", testServerPath)
+}
+
+// TestServerConfig returns the configuration for the test MCP server.
+// It automatically locates the test server executable using robust path resolution.
+// Panics if the test server cannot be found (fail-fast for test setup issues).
+func TestServerConfig(serverID string) mcp.ServerConfig {
+	testServerPath, err := getTestServerPath()
+	if err != nil {
+		// Panic in test utility code is acceptable - we want tests to fail fast
+		// if the test infrastructure is misconfigured
+		panic(fmt.Sprintf("test setup error: %v", err))
+	}
 
 	return mcp.ServerConfig{
 		ID:      serverID,
@@ -46,8 +76,10 @@ func StartTestServer(ctx context.Context, serverID string) (*mcp.StdioClient, fu
 
 // CreateTestMCPServer creates an MCPServer instance configured with the test server
 func CreateTestMCPServer(ctx context.Context, serverID string) (*mcpserver.MCPServer, func(), error) {
-	_, filename, _, _ := runtime.Caller(0)
-	testServerPath := filepath.Join(filepath.Dir(filename), "testserver", "main.go")
+	testServerPath, err := getTestServerPath()
+	if err != nil {
+		return nil, nil, fmt.Errorf("test setup error: %w", err)
+	}
 
 	// Create MCP server instance
 	server, err := mcpserver.NewMCPServer(serverID, "go", []string{"run", testServerPath}, mcpserver.TransportStdio)

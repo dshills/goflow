@@ -179,14 +179,14 @@ func TestJSONPathFilters(t *testing.T) {
 			jsonPath: "$.scores[?(@.value >= 80)]",
 			data: map[string]interface{}{
 				"scores": []interface{}{
-					map[string]interface{}{"student": "A", "value": 95},
-					map[string]interface{}{"student": "B", "value": 75},
-					map[string]interface{}{"student": "C", "value": 80},
+					map[string]interface{}{"student": "A", "value": 95.0},
+					map[string]interface{}{"student": "B", "value": 75.0},
+					map[string]interface{}{"student": "C", "value": 80.0},
 				},
 			},
 			want: []interface{}{
-				map[string]interface{}{"student": "A", "value": 95},
-				map[string]interface{}{"student": "C", "value": 80},
+				map[string]interface{}{"student": "A", "value": 95.0},
+				map[string]interface{}{"student": "C", "value": 80.0},
 			},
 			wantErr: false,
 		},
@@ -273,7 +273,7 @@ func TestJSONPathArrayOperations(t *testing.T) {
 			data: map[string]interface{}{
 				"items": []interface{}{"a", "b", "c"},
 			},
-			want:    3,
+			want:    3.0,
 			wantErr: false,
 		},
 		{
@@ -310,12 +310,12 @@ func TestJSONPathArrayOperations(t *testing.T) {
 			jsonPath: "$.data[*][0]",
 			data: map[string]interface{}{
 				"data": []interface{}{
-					[]interface{}{1, 2, 3},
-					[]interface{}{4, 5, 6},
-					[]interface{}{7, 8, 9},
+					[]interface{}{1.0, 2.0, 3.0},
+					[]interface{}{4.0, 5.0, 6.0},
+					[]interface{}{7.0, 8.0, 9.0},
 				},
 			},
-			want:    []interface{}{1, 4, 7},
+			want:    []interface{}{1.0, 4.0, 7.0},
 			wantErr: false,
 		},
 	}
@@ -410,17 +410,17 @@ func TestJSONPathRecursiveDescent(t *testing.T) {
 			data: map[string]interface{}{
 				"level1": map[string]interface{}{
 					"items": []interface{}{
-						map[string]interface{}{"id": 1},
-						map[string]interface{}{"id": 2},
+						map[string]interface{}{"id": 1.0},
+						map[string]interface{}{"id": 2.0},
 					},
 					"level2": map[string]interface{}{
 						"items": []interface{}{
-							map[string]interface{}{"id": 3},
+							map[string]interface{}{"id": 3.0},
 						},
 					},
 				},
 			},
-			want:    []interface{}{1, 2, 3},
+			want:    []interface{}{1.0, 2.0, 3.0},
 			wantErr: false,
 		},
 	}
