@@ -597,6 +597,17 @@ func (p *WorkflowGraphPanel) renderNodeTree(screen *goterm.Screen, node workflow
 	screen.DrawText(p.x+1, y, line, fg, bg, style)
 	y++
 
+	// Show additional details for parallel and loop nodes
+	if parallelNode, ok := node.(*workflow.ParallelNode); ok && y < p.y+p.height-1 {
+		details := fmt.Sprintf("%s  Strategy: %s", prefix, parallelNode.MergeStrategy)
+		screen.DrawText(p.x+1, y, details, fg, bg, goterm.StyleDim)
+		y++
+	} else if loopNode, ok := node.(*workflow.LoopNode); ok && y < p.y+p.height-1 {
+		details := fmt.Sprintf("%s  Over: %s → %s", prefix, loopNode.Collection, loopNode.ItemVariable)
+		screen.DrawText(p.x+1, y, details, fg, bg, goterm.StyleDim)
+		y++
+	}
+
 	// Find children via edges (convert back to NodeID for lookup)
 	children := p.findChildren(types.NodeID(nodeID))
 	for _, child := range children {
@@ -632,7 +643,7 @@ func (p *WorkflowGraphPanel) getNodeSymbol(nodeID types.NodeID) (string, goterm.
 }
 
 func (p *WorkflowGraphPanel) getNodeType(node workflow.Node) string {
-	switch node.(type) {
+	switch n := node.(type) {
 	case *workflow.StartNode:
 		return "start"
 	case *workflow.EndNode:
@@ -643,6 +654,10 @@ func (p *WorkflowGraphPanel) getNodeType(node workflow.Node) string {
 		return "transform"
 	case *workflow.ConditionNode:
 		return "condition"
+	case *workflow.LoopNode:
+		return fmt.Sprintf("loop[%d nodes]", len(n.Body))
+	case *workflow.ParallelNode:
+		return fmt.Sprintf("parallel[%d branches]", len(n.Branches))
 	default:
 		return "unknown"
 	}

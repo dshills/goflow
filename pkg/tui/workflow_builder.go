@@ -906,6 +906,9 @@ func (b *WorkflowBuilder) buildPropertyFields(node workflow.Node) []propertyFiel
 		)
 
 	case *workflow.LoopNode:
+		// Format body nodes for display
+		bodyStr := strings.Join(n.Body, ", ")
+
 		fields = append(fields,
 			propertyField{
 				label:     "Collection",
@@ -921,16 +924,58 @@ func (b *WorkflowBuilder) buildPropertyFields(node workflow.Node) []propertyFiel
 				valid:     true,
 				fieldType: "text",
 			},
+			propertyField{
+				label:     "Body Nodes",
+				value:     bodyStr,
+				required:  true,
+				valid:     true,
+				fieldType: "node_list",
+			},
+			propertyField{
+				label:     "Break Condition",
+				value:     n.BreakCondition,
+				required:  false,
+				valid:     true,
+				fieldType: "condition",
+				validationFn: func(expr string) error {
+					if expr == "" {
+						return nil // Break condition is optional
+					}
+					return workflow.ValidateExpressionSyntax(expr)
+				},
+			},
 		)
 
 	case *workflow.ParallelNode:
+		// Format branches for display
+		branchesStr := ""
+		for i, branch := range n.Branches {
+			if i > 0 {
+				branchesStr += "; "
+			}
+			branchesStr += fmt.Sprintf("[%s]", strings.Join(branch, ","))
+		}
+
 		fields = append(fields,
+			propertyField{
+				label:     "Branches",
+				value:     branchesStr,
+				required:  true,
+				valid:     true,
+				fieldType: "branches",
+			},
 			propertyField{
 				label:     "Merge Strategy",
 				value:     n.MergeStrategy,
 				required:  true,
 				valid:     true,
-				fieldType: "text",
+				fieldType: "select",
+				validationFn: func(strategy string) error {
+					if strategy != "wait_all" && strategy != "wait_any" && strategy != "wait_first" {
+						return fmt.Errorf("invalid merge strategy: %s (use wait_all, wait_any, or wait_first)", strategy)
+					}
+					return nil
+				},
 			},
 		)
 	}
@@ -1010,12 +1055,57 @@ func (b *WorkflowBuilder) applyPropertyChanges() error {
 				n.Collection = field.value
 			case "Item Variable":
 				n.ItemVariable = field.value
+			case "Body Nodes":
+				// Parse comma-separated node IDs
+				if field.value != "" {
+					nodeIDs := strings.Split(field.value, ",")
+					cleanedIDs := make([]string, 0, len(nodeIDs))
+					for _, id := range nodeIDs {
+						id = strings.TrimSpace(id)
+						if id != "" {
+							cleanedIDs = append(cleanedIDs, id)
+						}
+					}
+					n.Body = cleanedIDs
+				} else {
+					n.Body = []string{}
+				}
+			case "Break Condition":
+				n.BreakCondition = field.value
 			}
 		}
 
 	case *workflow.ParallelNode:
 		for _, field := range fields {
-			if field.label == "Merge Strategy" {
+			switch field.label {
+			case "Branches":
+				// Parse branches string format: [node1,node2];[node3,node4]
+				if field.value != "" {
+					branches := [][]string{}
+					branchGroups := strings.Split(field.value, ";")
+					for _, group := range branchGroups {
+						group = strings.TrimSpace(group)
+						if group == "" {
+							continue
+						}
+						// Remove brackets
+						group = strings.Trim(group, "[]")
+						nodeIDs := strings.Split(group, ",")
+						// Trim whitespace from each node ID
+						cleanedIDs := make([]string, 0, len(nodeIDs))
+						for _, id := range nodeIDs {
+							id = strings.TrimSpace(id)
+							if id != "" {
+								cleanedIDs = append(cleanedIDs, id)
+							}
+						}
+						if len(cleanedIDs) > 0 {
+							branches = append(branches, cleanedIDs)
+						}
+					}
+					n.Branches = branches
+				}
+			case "Merge Strategy":
 				n.MergeStrategy = field.value
 			}
 		}
@@ -1215,9 +1305,19 @@ func (p *PropertyPanel) RenderPropertyPanel() string {
 
 		// Show field type hint for special fields
 		if field.fieldType == "condition" {
-			sb.WriteString("     (Boolean expression, e.g., price > 100)\n")
+			if field.label == "Break Condition" {
+				sb.WriteString("     (Optional: Boolean expression to break loop early)\n")
+			} else {
+				sb.WriteString("     (Boolean expression, e.g., price > 100)\n")
+			}
 		} else if field.fieldType == "expression" {
 			sb.WriteString("     (JSONPath: $.field, Template: ${var}, or expression)\n")
+		} else if field.fieldType == "branches" {
+			sb.WriteString("     (Format: [node1,node2];[node3,node4] for parallel branches)\n")
+		} else if field.fieldType == "select" && field.label == "Merge Strategy" {
+			sb.WriteString("     (Options: wait_all, wait_any, wait_first)\n")
+		} else if field.fieldType == "node_list" {
+			sb.WriteString("     (Comma-separated node IDs to execute in loop)\n")
 		}
 	}
 

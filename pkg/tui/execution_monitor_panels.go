@@ -59,10 +59,32 @@ func (p *LogViewerPanel) AddEvent(event execpkg.ExecutionEvent) {
 		entry.Message = "Execution failed"
 	case execpkg.EventNodeStarted:
 		entry.Level = "info"
-		entry.Message = fmt.Sprintf("Node '%s' started", event.NodeID)
+		// Check if this is a loop or parallel node for special formatting
+		if event.Metadata != nil {
+			if iteration, ok := event.Metadata["iteration"]; ok {
+				entry.Message = fmt.Sprintf("Node '%s' started (iteration %v)", event.NodeID, iteration)
+			} else if branch, ok := event.Metadata["branch"]; ok {
+				entry.Message = fmt.Sprintf("Node '%s' started (branch %v)", event.NodeID, branch)
+			} else {
+				entry.Message = fmt.Sprintf("Node '%s' started", event.NodeID)
+			}
+		} else {
+			entry.Message = fmt.Sprintf("Node '%s' started", event.NodeID)
+		}
 	case execpkg.EventNodeCompleted:
 		entry.Level = "info"
-		entry.Message = fmt.Sprintf("Node '%s' completed", event.NodeID)
+		// Check for iteration/branch metadata
+		if event.Metadata != nil {
+			if iteration, ok := event.Metadata["iteration"]; ok {
+				entry.Message = fmt.Sprintf("Node '%s' completed (iteration %v)", event.NodeID, iteration)
+			} else if branch, ok := event.Metadata["branch"]; ok {
+				entry.Message = fmt.Sprintf("Node '%s' completed (branch %v)", event.NodeID, branch)
+			} else {
+				entry.Message = fmt.Sprintf("Node '%s' completed", event.NodeID)
+			}
+		} else {
+			entry.Message = fmt.Sprintf("Node '%s' completed", event.NodeID)
+		}
 	case execpkg.EventNodeFailed:
 		entry.Level = "error"
 		entry.Message = fmt.Sprintf("Node '%s' failed", event.NodeID)
@@ -439,6 +461,46 @@ func (p *MetricsPanel) Render(screen *goterm.Screen, active bool) {
 		failedStatus := fmt.Sprintf("  Failed: %d", p.progress.FailedNodes)
 		screen.DrawText(p.x+1, y, failedStatus, fg, bg, goterm.StyleBold)
 		y++
+	}
+
+	// Show concurrent branches if available
+	if val, ok := p.metrics["Active Branches"]; ok {
+		var activeBranches int
+		switch v := val.(type) {
+		case int:
+			activeBranches = v
+		case int32:
+			activeBranches = int(v)
+		case int64:
+			activeBranches = int(v)
+		case float64:
+			activeBranches = int(v)
+		}
+		if activeBranches > 0 {
+			branchStatus := fmt.Sprintf("  Parallel: %d branches active", activeBranches)
+			screen.DrawText(p.x+1, y, branchStatus, fg, bg, goterm.StyleNone)
+			y++
+		}
+	}
+
+	// Show loop iteration if available
+	if val, ok := p.metrics["Loop Iteration"]; ok {
+		var iteration int
+		switch v := val.(type) {
+		case int:
+			iteration = v
+		case int32:
+			iteration = int(v)
+		case int64:
+			iteration = int(v)
+		case float64:
+			iteration = int(v)
+		}
+		if iteration > 0 {
+			iterStatus := fmt.Sprintf("  Loop: iteration %d", iteration)
+			screen.DrawText(p.x+1, y, iterStatus, fg, bg, goterm.StyleNone)
+			y++
+		}
 	}
 
 	// Duration
