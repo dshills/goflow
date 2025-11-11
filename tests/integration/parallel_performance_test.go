@@ -171,7 +171,7 @@ servers:
   - id: "test-server"
     name: "test"
     command: "go"
-    args: ["run", "../../internal/testutil/mocks/mock_mcp_server.go", "--mode=server"]
+    args: ["run", "../../internal/testutil/testserver/main.go"]
     transport: "stdio"
 nodes:
   - id: "start"

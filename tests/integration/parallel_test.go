@@ -326,7 +326,7 @@ servers:
   - id: "test-server"
     name: "test"
     command: "go"
-    args: ["run", "../../internal/testutil/mocks/mock_mcp_server.go", "--mode=server"]
+    args: ["run", "../../internal/testutil/testserver/main.go"]
     transport: "stdio"
 variables:
   - name: "result"
@@ -413,7 +413,7 @@ servers:
   - id: "test-server"
     name: "test"
     command: "go"
-    args: ["run", "../../internal/testutil/mocks/mock_mcp_server.go", "--mode=server", "--delay=100ms"]
+    args: ["run", "../../internal/testutil/testserver/main.go", "--delay=100ms"]
     transport: "stdio"
 nodes:
   - id: "start"

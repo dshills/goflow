@@ -9,6 +9,7 @@ import (
 
 	"github.com/dshills/goflow/pkg/domain/execution"
 	"github.com/dshills/goflow/pkg/domain/types"
+	"github.com/dshills/goflow/pkg/mcp"
 	"github.com/dshills/goflow/pkg/mcpserver"
 	"github.com/dshills/goflow/pkg/storage"
 	"github.com/dshills/goflow/pkg/workflow"
@@ -20,7 +21,9 @@ type Engine struct {
 	execRepository *storage.SQLiteExecutionRepository
 	logger         *Logger
 	monitorMu      sync.RWMutex
-	monitor        *monitor // Current execution monitor (set during Execute)
+	monitor        *monitor                    // Current execution monitor (set during Execute)
+	activeClients  map[string]*mcp.StdioClient // Track active clients for cleanup
+	clientsMu      sync.RWMutex
 }
 
 // NewEngine creates a new execution engine with default configuration.
@@ -39,6 +42,7 @@ func NewEngine() *Engine {
 		serverRegistry: mcpserver.NewRegistry(),
 		execRepository: repo,
 		logger:         logger,
+		activeClients:  make(map[string]*mcp.StdioClient),
 	}
 }
 
@@ -50,6 +54,7 @@ func NewEngineWithRepository(repo *storage.SQLiteExecutionRepository) *Engine {
 		serverRegistry: mcpserver.NewRegistry(),
 		execRepository: repo,
 		logger:         logger,
+		activeClients:  make(map[string]*mcp.StdioClient),
 	}
 }
 
@@ -528,19 +533,65 @@ func (e *Engine) connectServers(ctx context.Context, wf *workflow.Workflow) erro
 			return fmt.Errorf("failed to register server %s: %w", serverConfig.ID, err)
 		}
 
+		// Create and connect MCP client for stdio transport
+		var client *mcp.StdioClient
+		if serverConfig.Transport == "stdio" {
+			// Create MCP client configuration
+			clientConfig := mcp.ServerConfig{
+				ID:      serverConfig.ID,
+				Command: serverConfig.Command,
+				Args:    serverConfig.Args,
+			}
+
+			// Create stdio client
+			var err error
+			client, err = mcp.NewStdioClient(clientConfig)
+			if err != nil {
+				return fmt.Errorf("failed to create MCP client for server %s: %w", serverConfig.ID, err)
+			}
+
+			// Connect the client
+			if err := client.Connect(ctx); err != nil {
+				return fmt.Errorf("failed to connect MCP client for server %s: %w", serverConfig.ID, err)
+			}
+
+			// Create adapter and set it on the server
+			adapter := mcpserver.NewClientAdapter(client)
+			server.SetClient(adapter)
+		}
+
 		// Connect to server
 		if err := server.Connect(); err != nil {
+			// Cleanup client on error
+			if client != nil {
+				_ = client.Close()
+			}
 			return fmt.Errorf("failed to connect to server %s: %w", serverConfig.ID, err)
 		}
 
 		// Complete connection
 		if err := server.CompleteConnection(); err != nil {
+			// Cleanup client on error
+			if client != nil {
+				_ = client.Close()
+			}
 			return fmt.Errorf("failed to complete connection to server %s: %w", serverConfig.ID, err)
 		}
 
 		// Discover available tools
 		if err := server.DiscoverTools(); err != nil {
+			// Cleanup client on error
+			if client != nil {
+				_ = client.Close()
+			}
 			return fmt.Errorf("failed to discover tools on server %s: %w", serverConfig.ID, err)
+		}
+
+		// Track the client for cleanup
+		if client != nil {
+			e.clientsMu.Lock()
+			e.activeClients[serverConfig.ID] = client
+			e.clientsMu.Unlock()
 		}
 	}
 
@@ -553,11 +604,28 @@ func (e *Engine) disconnectServers(wf *workflow.Workflow) {
 		if server, err := e.serverRegistry.Get(serverConfig.ID); err == nil {
 			_ = server.Disconnect()
 		}
+
+		// Close the MCP client if it exists
+		e.clientsMu.Lock()
+		if client, exists := e.activeClients[serverConfig.ID]; exists {
+			_ = client.Close()
+			delete(e.activeClients, serverConfig.ID)
+		}
+		e.clientsMu.Unlock()
 	}
 }
 
 // Close cleans up engine resources.
 func (e *Engine) Close() error {
+	// Close all active MCP clients
+	e.clientsMu.Lock()
+	for serverID, client := range e.activeClients {
+		_ = client.Close()
+		delete(e.activeClients, serverID)
+	}
+	e.clientsMu.Unlock()
+
+	// Close the repository
 	if e.execRepository != nil {
 		return e.execRepository.Close()
 	}

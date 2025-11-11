@@ -272,8 +272,8 @@ func TestServerTestCommand_ValidServer(t *testing.T) {
 
 	// Add a server that should work (echo command)
 	addCmd := cli.NewServerCommand()
-	mockServerPath := filepath.Join("..", "..", "..", "internal", "testutil", "mocks", "mock_mcp_server.go")
-	addCmd.SetArgs([]string{"add", "test-server", "go", "run", mockServerPath, "--mode=server"})
+	mockServerPath := filepath.Join("..", "..", "..", "internal", "testutil", "testserver", "main.go")
+	addCmd.SetArgs([]string{"add", "test-server", "go", "run", mockServerPath})
 	_ = addCmd.Execute()
 
 	// This should fail because cli.NewServerCommand doesn't exist yet
