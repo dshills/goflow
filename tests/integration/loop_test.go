@@ -144,7 +144,7 @@ servers:
   - id: "test-server"
     name: "test"
     command: "go"
-    args: ["run", "../../internal/testutil/mocks/mock_mcp_server.go", "--mode=server"]
+    args: ["run", "../../internal/testutil/mocks/cmd/mock_server/main.go"]
     transport: "stdio"
 nodes:
   - id: "start"
@@ -228,7 +228,7 @@ func TestLoopNode_BreakCondition(t *testing.T) {
 		{
 			name:               "break on first item",
 			items:              []interface{}{"stop", "continue", "continue"},
-			breakCondition:     "item == \"stop\"",
+			breakCondition:     "item == 'stop'",
 			expectedIterations: 0, // Should break immediately
 		},
 		{
@@ -328,7 +328,7 @@ servers:
   - id: "test-server"
     name: "test"
     command: "go"
-    args: ["run", "../../internal/testutil/mocks/mock_mcp_server.go", "--mode=server"]
+    args: ["run", "../../internal/testutil/mocks/cmd/mock_server/main.go"]
     transport: "stdio"
 nodes:
   - id: "start"
@@ -480,7 +480,7 @@ servers:
   - id: "test-server"
     name: "test"
     command: "go"
-    args: ["run", "../../internal/testutil/mocks/mock_mcp_server.go", "--mode=server"]
+    args: ["run", "../../internal/testutil/mocks/cmd/mock_server/main.go"]
     transport: "stdio"
 nodes:
   - id: "start"
@@ -554,7 +554,7 @@ servers:
   - id: "test-server"
     name: "test"
     command: "go"
-    args: ["run", "../../internal/testutil/mocks/mock_mcp_server.go", "--mode=server"]
+    args: ["run", "../../internal/testutil/mocks/cmd/mock_server/main.go"]
     transport: "stdio"
 nodes:
   - id: "start"

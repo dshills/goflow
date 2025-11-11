@@ -82,6 +82,15 @@ func (ctx *ExecutionContext) SetVariableWithNode(name string, value interface{},
 	return nil
 }
 
+// DeleteVariable removes a variable from the context.
+// This is used for variable scoping (e.g., loop variables that should not leak).
+func (ctx *ExecutionContext) DeleteVariable(name string) {
+	ctx.mu.Lock()
+	defer ctx.mu.Unlock()
+
+	delete(ctx.Variables, name)
+}
+
 // GetVariableHistory returns the complete variable change history.
 // Returns a copy to prevent external modification.
 func (ctx *ExecutionContext) GetVariableHistory() []VariableSnapshot {

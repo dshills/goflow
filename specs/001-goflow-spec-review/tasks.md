@@ -384,17 +384,17 @@
 
 ### Parallel Execution Implementation
 
-- [ ] T168 [US6] Implement ParallelNode executor using errgroup in pkg/execution/node_executor.go
-- [ ] T169 [US6] Implement merge strategies (wait_all, wait_any, wait_first) in pkg/execution/parallel.go
-- [ ] T170 [US6] Implement parallel branch context isolation in pkg/execution/context.go
-- [ ] T171 [US6] Implement parallel error handling and propagation in pkg/execution/error.go
+- [X] T168 [US6] Implement ParallelNode executor using errgroup in pkg/execution/node_executor.go
+- [X] T169 [US6] Implement merge strategies (wait_all, wait_any, wait_first) in pkg/execution/parallel.go
+- [X] T170 [US6] Implement parallel branch context isolation in pkg/execution/context.go
+- [X] T171 [US6] Implement parallel error handling and propagation in pkg/execution/error.go
 
 ### Loop Implementation
 
-- [ ] T172 [US6] Implement LoopNode executor in pkg/execution/node_executor.go
-- [ ] T173 [US6] Implement break condition evaluation in pkg/execution/loop.go
-- [ ] T174 [US6] Implement loop result collection in pkg/execution/loop.go
-- [ ] T175 [US6] Implement loop variable scoping (item variable per iteration) in pkg/execution/context.go
+- [X] T172 [US6] Implement LoopNode executor in pkg/execution/node_executor.go
+- [X] T173 [US6] Implement break condition evaluation in pkg/execution/loop.go
+- [X] T174 [US6] Implement loop result collection in pkg/execution/loop.go
+- [X] T175 [US6] Implement loop variable scoping (item variable per iteration) in pkg/execution/context.go
 
 ### TUI Integration
 
