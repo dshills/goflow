@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/dshills/goflow/pkg/workflow"
 )
 
 func TestIsValidWorkflowName(t *testing.T) {
@@ -121,6 +123,17 @@ func TestCreateETLTemplate(t *testing.T) {
 		t.Errorf("Edges count = %d, want 4", len(wf.Edges))
 	}
 
+	// Add mock server for validation (since auto-config was removed for security)
+	wf.ServerConfigs = []*workflow.ServerConfig{
+		{
+			ID:        "data-server",
+			Name:      "Mock Data Server",
+			Command:   "echo",
+			Args:      []string{"mock"},
+			Transport: "stdio",
+		},
+	}
+
 	// Validate workflow
 	if err := wf.Validate(); err != nil {
 		t.Errorf("Workflow validation failed: %v", err)
@@ -139,6 +152,17 @@ func TestCreateAPIIntegrationTemplate(t *testing.T) {
 		t.Errorf("Nodes count = %d, want %d", len(wf.Nodes), len(expectedNodes))
 	}
 
+	// Add mock server for validation (since auto-config was removed for security)
+	wf.ServerConfigs = []*workflow.ServerConfig{
+		{
+			ID:        "http-server",
+			Name:      "Mock HTTP Server",
+			Command:   "echo",
+			Args:      []string{"mock"},
+			Transport: "stdio",
+		},
+	}
+
 	// Validate workflow
 	if err := wf.Validate(); err != nil {
 		t.Errorf("Workflow validation failed: %v", err)
@@ -155,6 +179,17 @@ func TestCreateBatchProcessingTemplate(t *testing.T) {
 	expectedNodes := []string{"start", "process_batch", "end"}
 	if len(wf.Nodes) != len(expectedNodes) {
 		t.Errorf("Nodes count = %d, want %d", len(wf.Nodes), len(expectedNodes))
+	}
+
+	// Add mock server for validation (since auto-config was removed for security)
+	wf.ServerConfigs = []*workflow.ServerConfig{
+		{
+			ID:        "batch-server",
+			Name:      "Mock Batch Server",
+			Command:   "echo",
+			Args:      []string{"mock"},
+			Transport: "stdio",
+		},
 	}
 
 	// Validate workflow

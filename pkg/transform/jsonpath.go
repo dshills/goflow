@@ -86,12 +86,9 @@ func (q *gjsonQuerier) Query(ctx context.Context, path string, data interface{})
 	}
 
 	// Special case: root object access
+	// Return the original data directly to preserve types (avoid int -> float64 conversion)
 	if queryPath == "" || queryPath == "." || path == "$" {
-		var result interface{}
-		if err := json.Unmarshal(jsonBytes, &result); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal data: %w", err)
-		}
-		return result, nil
+		return data, nil
 	}
 
 	// Check if we have a filter followed by wildcard operations

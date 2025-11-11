@@ -503,7 +503,7 @@ func (w *Workflow) validateConditionExpression(node *ConditionNode) error {
 
 	// Check that all referenced variables are defined in the workflow
 	for _, varName := range varRefs {
-		if !w.hasVariable(varName) {
+		if !w.hasVariable(varName) && !w.hasNodeOutput(varName) && !w.isLoopItemVariable(varName) {
 			return fmt.Errorf("undefined variable in condition: %s", varName)
 		}
 	}
@@ -531,13 +531,13 @@ func (w *Workflow) validateTransformConfig(node *TransformNode) error {
 		// Extract variable names from template
 		inputVars := extractTemplateVariables(node.InputVariable)
 		for _, varName := range inputVars {
-			if !w.hasVariable(varName) && !w.hasNodeOutput(varName) {
+			if !w.hasVariable(varName) && !w.hasNodeOutput(varName) && !w.isLoopItemVariable(varName) {
 				return fmt.Errorf("undefined input variable: %s", node.InputVariable)
 			}
 		}
 	} else {
 		// Plain variable name - validate directly
-		if !w.hasVariable(node.InputVariable) && !w.hasNodeOutput(node.InputVariable) {
+		if !w.hasVariable(node.InputVariable) && !w.hasNodeOutput(node.InputVariable) && !w.isLoopItemVariable(node.InputVariable) {
 			return fmt.Errorf("undefined input variable: %s", node.InputVariable)
 		}
 	}
@@ -564,7 +564,7 @@ func (w *Workflow) validateTransformConfig(node *TransformNode) error {
 			if varName == "input" {
 				continue
 			}
-			if !w.hasVariable(varName) && !w.hasNodeOutput(varName) {
+			if !w.hasVariable(varName) && !w.hasNodeOutput(varName) && !w.isLoopItemVariable(varName) {
 				return fmt.Errorf("undefined variable in template: %s", varName)
 			}
 		}
@@ -600,7 +600,7 @@ func (w *Workflow) validateMCPToolNode(node *MCPToolNode) error {
 				// Extract and validate variables
 				varRefs := extractTemplateVariables(value)
 				for _, varName := range varRefs {
-					if !w.hasVariable(varName) && !w.hasNodeOutput(varName) {
+					if !w.hasVariable(varName) && !w.hasNodeOutput(varName) && !w.isLoopItemVariable(varName) {
 						return fmt.Errorf("undefined variable: %s", varName)
 					}
 				}
@@ -616,6 +616,18 @@ func (w *Workflow) hasVariable(name string) bool {
 	for _, v := range w.Variables {
 		if v.Name == name {
 			return true
+		}
+	}
+	return false
+}
+
+// isLoopItemVariable checks if a variable name is a loop item variable
+func (w *Workflow) isLoopItemVariable(name string) bool {
+	for _, node := range w.Nodes {
+		if loopNode, ok := node.(*LoopNode); ok {
+			if loopNode.ItemVariable == name {
+				return true
+			}
 		}
 	}
 	return false
