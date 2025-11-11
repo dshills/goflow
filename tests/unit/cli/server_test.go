@@ -16,6 +16,16 @@ func TestServerAddCommand_Basic(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "servers.yaml")
 
+	// Set config path via environment or flag
+	os.Setenv("GOFLOW_CONFIG_DIR", tmpDir)
+	defer func() {
+		os.Unsetenv("GOFLOW_CONFIG_DIR")
+		cli.GlobalConfig.ConfigDir = ""
+	}()
+
+	// Reset global config AFTER setting env var to force re-read
+	cli.GlobalConfig.ConfigDir = ""
+
 	// This should fail because cli.NewServerCommand doesn't exist yet
 	cmd := cli.NewServerCommand()
 
@@ -23,11 +33,7 @@ func TestServerAddCommand_Basic(t *testing.T) {
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
 
-	// Set config path via environment or flag
-	os.Setenv("GOFLOW_CONFIG_DIR", tmpDir)
-	defer os.Unsetenv("GOFLOW_CONFIG_DIR")
-
-	cmd.SetArgs([]string{"add", "test-server", "npx", "-y", "@modelcontextprotocol/server-filesystem", "/tmp"})
+	cmd.SetArgs([]string{"add", "test-server", "echo", "test"})
 
 	err := cmd.Execute()
 	if err != nil {
@@ -49,6 +55,10 @@ func TestServerAddCommand_Basic(t *testing.T) {
 // TestServerAddCommand_WithDescription tests server add with description
 func TestServerAddCommand_WithDescription(t *testing.T) {
 	tmpDir := t.TempDir()
+
+	// Reset global config to ensure clean state
+	cli.GlobalConfig.ConfigDir = ""
+
 	os.Setenv("GOFLOW_CONFIG_DIR", tmpDir)
 	defer os.Unsetenv("GOFLOW_CONFIG_DIR")
 
@@ -62,12 +72,12 @@ func TestServerAddCommand_WithDescription(t *testing.T) {
 	cmd.SetArgs([]string{
 		"add",
 		"test-server",
+		"--description",
+		"Test filesystem server",
 		"npx",
 		"-y",
 		"@modelcontextprotocol/server-filesystem",
 		"/tmp",
-		"--description",
-		"Test filesystem server",
 	})
 
 	err := cmd.Execute()
@@ -79,6 +89,10 @@ func TestServerAddCommand_WithDescription(t *testing.T) {
 // TestServerAddCommand_DuplicateID tests error handling for duplicate server ID
 func TestServerAddCommand_DuplicateID(t *testing.T) {
 	tmpDir := t.TempDir()
+
+	// Reset global config to ensure clean state
+	cli.GlobalConfig.ConfigDir = ""
+
 	os.Setenv("GOFLOW_CONFIG_DIR", tmpDir)
 	defer os.Unsetenv("GOFLOW_CONFIG_DIR")
 
@@ -116,6 +130,10 @@ func TestServerAddCommand_DuplicateID(t *testing.T) {
 // TestServerAddCommand_InvalidServerID tests error for invalid server ID format
 func TestServerAddCommand_InvalidServerID(t *testing.T) {
 	tmpDir := t.TempDir()
+
+	// Reset global config to ensure clean state
+	cli.GlobalConfig.ConfigDir = ""
+
 	os.Setenv("GOFLOW_CONFIG_DIR", tmpDir)
 	defer os.Unsetenv("GOFLOW_CONFIG_DIR")
 
@@ -138,6 +156,10 @@ func TestServerAddCommand_InvalidServerID(t *testing.T) {
 // TestServerListCommand_Empty tests listing servers when none exist
 func TestServerListCommand_Empty(t *testing.T) {
 	tmpDir := t.TempDir()
+
+	// Reset global config to ensure clean state
+	cli.GlobalConfig.ConfigDir = ""
+
 	os.Setenv("GOFLOW_CONFIG_DIR", tmpDir)
 	defer os.Unsetenv("GOFLOW_CONFIG_DIR")
 
@@ -164,6 +186,10 @@ func TestServerListCommand_Empty(t *testing.T) {
 // TestServerListCommand_WithServers tests listing configured servers
 func TestServerListCommand_WithServers(t *testing.T) {
 	tmpDir := t.TempDir()
+
+	// Reset global config to ensure clean state
+	cli.GlobalConfig.ConfigDir = ""
+
 	os.Setenv("GOFLOW_CONFIG_DIR", tmpDir)
 	defer os.Unsetenv("GOFLOW_CONFIG_DIR")
 
@@ -202,6 +228,10 @@ func TestServerListCommand_WithServers(t *testing.T) {
 // TestServerListCommand_JSONFormat tests listing servers in JSON format
 func TestServerListCommand_JSONFormat(t *testing.T) {
 	tmpDir := t.TempDir()
+
+	// Reset global config to ensure clean state
+	cli.GlobalConfig.ConfigDir = ""
+
 	os.Setenv("GOFLOW_CONFIG_DIR", tmpDir)
 	defer os.Unsetenv("GOFLOW_CONFIG_DIR")
 
@@ -233,6 +263,10 @@ func TestServerListCommand_JSONFormat(t *testing.T) {
 // TestServerTestCommand_ValidServer tests testing a valid server connection
 func TestServerTestCommand_ValidServer(t *testing.T) {
 	tmpDir := t.TempDir()
+
+	// Reset global config to ensure clean state
+	cli.GlobalConfig.ConfigDir = ""
+
 	os.Setenv("GOFLOW_CONFIG_DIR", tmpDir)
 	defer os.Unsetenv("GOFLOW_CONFIG_DIR")
 
@@ -265,6 +299,10 @@ func TestServerTestCommand_ValidServer(t *testing.T) {
 // TestServerTestCommand_InvalidServer tests testing with non-existent server
 func TestServerTestCommand_InvalidServer(t *testing.T) {
 	tmpDir := t.TempDir()
+
+	// Reset global config to ensure clean state
+	cli.GlobalConfig.ConfigDir = ""
+
 	os.Setenv("GOFLOW_CONFIG_DIR", tmpDir)
 	defer os.Unsetenv("GOFLOW_CONFIG_DIR")
 
@@ -291,6 +329,10 @@ func TestServerTestCommand_InvalidServer(t *testing.T) {
 // TestServerTestCommand_FailedConnection tests testing server with failed connection
 func TestServerTestCommand_FailedConnection(t *testing.T) {
 	tmpDir := t.TempDir()
+
+	// Reset global config to ensure clean state
+	cli.GlobalConfig.ConfigDir = ""
+
 	os.Setenv("GOFLOW_CONFIG_DIR", tmpDir)
 	defer os.Unsetenv("GOFLOW_CONFIG_DIR")
 
@@ -322,6 +364,10 @@ func TestServerTestCommand_FailedConnection(t *testing.T) {
 // TestServerRemoveCommand_Basic tests removing a server
 func TestServerRemoveCommand_Basic(t *testing.T) {
 	tmpDir := t.TempDir()
+
+	// Reset global config to ensure clean state
+	cli.GlobalConfig.ConfigDir = ""
+
 	os.Setenv("GOFLOW_CONFIG_DIR", tmpDir)
 	defer os.Unsetenv("GOFLOW_CONFIG_DIR")
 
@@ -364,6 +410,10 @@ func TestServerRemoveCommand_Basic(t *testing.T) {
 // TestServerRemoveCommand_NonExistent tests removing non-existent server
 func TestServerRemoveCommand_NonExistent(t *testing.T) {
 	tmpDir := t.TempDir()
+
+	// Reset global config to ensure clean state
+	cli.GlobalConfig.ConfigDir = ""
+
 	os.Setenv("GOFLOW_CONFIG_DIR", tmpDir)
 	defer os.Unsetenv("GOFLOW_CONFIG_DIR")
 
@@ -390,6 +440,10 @@ func TestServerRemoveCommand_NonExistent(t *testing.T) {
 // TestServerUpdateCommand_Basic tests updating server configuration
 func TestServerUpdateCommand_Basic(t *testing.T) {
 	tmpDir := t.TempDir()
+
+	// Reset global config to ensure clean state
+	cli.GlobalConfig.ConfigDir = ""
+
 	os.Setenv("GOFLOW_CONFIG_DIR", tmpDir)
 	defer os.Unsetenv("GOFLOW_CONFIG_DIR")
 
@@ -426,12 +480,16 @@ func TestServerUpdateCommand_Basic(t *testing.T) {
 // TestServerShowCommand_Basic tests showing server details
 func TestServerShowCommand_Basic(t *testing.T) {
 	tmpDir := t.TempDir()
+
+	// Reset global config to ensure clean state
+	cli.GlobalConfig.ConfigDir = ""
+
 	os.Setenv("GOFLOW_CONFIG_DIR", tmpDir)
 	defer os.Unsetenv("GOFLOW_CONFIG_DIR")
 
 	// Add a server first
 	addCmd := cli.NewServerCommand()
-	addCmd.SetArgs([]string{"add", "test-server", "echo", "test", "--description", "Test server"})
+	addCmd.SetArgs([]string{"add", "test-server", "--description", "Test server", "echo", "test"})
 	_ = addCmd.Execute()
 
 	// This should fail because cli.NewServerCommand doesn't exist yet

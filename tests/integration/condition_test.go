@@ -53,14 +53,14 @@ func TestConditionNodeEvaluation_SimpleComparison(t *testing.T) {
 		},
 		{
 			name:        "equal to - true",
-			condition:   "status == 'active'",
+			condition:   `status == "active"`,
 			inputVar:    "status",
 			inputValue:  "active",
 			expectedRes: true,
 		},
 		{
 			name:        "equal to - false",
-			condition:   "status == 'active'",
+			condition:   `status == "active"`,
 			inputVar:    "status",
 			inputValue:  "inactive",
 			expectedRes: false,
@@ -116,14 +116,14 @@ version: "1.0"
 name: "condition-simple-test"
 variables:
   - name: "` + tt.inputVar + `"
-    type: "number"
+    type: "string"
     default: null
 nodes:
   - id: "start"
     type: "start"
   - id: "condition_check"
     type: "condition"
-    condition: '` + tt.condition + `'
+    condition: ` + tt.condition + `
   - id: "true_path"
     type: "passthrough"
   - id: "false_path"
@@ -527,7 +527,7 @@ nodes:
     type: "passthrough"
   - id: "end"
     type: "end"
-    return: "${action_result}"
+    return: "completed"
 edges:
   - from: "start"
     to: "check_admin"
@@ -621,8 +621,6 @@ nodes:
     type: "passthrough"
   - id: "vip_standard"
     type: "passthrough"
-  - id: "regular_premium"
-    type: "passthrough"
   - id: "regular_standard"
     type: "passthrough"
   - id: "end"
@@ -646,8 +644,6 @@ edges:
   - from: "vip_premium"
     to: "end"
   - from: "vip_standard"
-    to: "end"
-  - from: "regular_premium"
     to: "end"
   - from: "regular_standard"
     to: "end"

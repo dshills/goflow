@@ -3,7 +3,7 @@ package transform
 import (
 	"context"
 	"errors"
-	"fmt"
+	"reflect"
 	"testing"
 )
 
@@ -435,7 +435,8 @@ func TestJSONPathRecursiveDescent(t *testing.T) {
 				return
 			}
 
-			if !tt.wantErr && !deepEqual(got, tt.want) {
+			// Use equalAsSet for recursive descent queries since map iteration order is non-deterministic
+			if !tt.wantErr && !equalAsSet(got, tt.want) {
 				t.Errorf("Query() = %v, want %v", got, tt.want)
 			}
 		})
@@ -535,7 +536,8 @@ func TestJSONPathComplexScenarios(t *testing.T) {
 				return
 			}
 
-			if !tt.wantErr && !deepEqual(got, tt.want) {
+			// Use equalAsSet for queries that may have non-deterministic order
+			if !tt.wantErr && !equalAsSet(got, tt.want) {
 				t.Errorf("Query() = %v, want %v", got, tt.want)
 			}
 		})
@@ -603,5 +605,38 @@ func TestJSONPathErrorHandling(t *testing.T) {
 // deepEqual is a helper for comparing complex nested structures
 func deepEqual(a, b interface{}) bool {
 	// Use reflect.DeepEqual for proper comparison
-	return fmt.Sprintf("%#v", a) == fmt.Sprintf("%#v", b)
+	return reflect.DeepEqual(a, b)
+}
+
+// equalAsSet compares two slices as sets (ignoring order)
+func equalAsSet(a, b interface{}) bool {
+	aSlice, aOk := a.([]interface{})
+	bSlice, bOk := b.([]interface{})
+
+	if !aOk || !bOk {
+		return deepEqual(a, b)
+	}
+
+	if len(aSlice) != len(bSlice) {
+		return false
+	}
+
+	// Use a matching algorithm: for each element in A, find and mark a match in B
+	bMatched := make([]bool, len(bSlice))
+
+	for _, aVal := range aSlice {
+		found := false
+		for j, bVal := range bSlice {
+			if !bMatched[j] && reflect.DeepEqual(aVal, bVal) {
+				bMatched[j] = true
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+
+	return true
 }

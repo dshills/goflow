@@ -791,7 +791,7 @@ workflow_spec:
       type: loop
       config:
         collection: "{{webhook_urls}}"
-        item_variable: webhook_url
+        item: webhook_url
         body:
           - notify_single_webhook
 
@@ -1289,7 +1289,7 @@ workflow_spec:
       type: loop
       config:
         collection: "{{webhook_urls}}"
-        item_variable: webhook_url
+        item: webhook_url
         body:
           - send_webhook
 

@@ -75,6 +75,18 @@ edges:
   - from: "start"
     to: "tool1"
   - from: "tool1"
+    to: "transform1"
+  - from: "transform1"
+    to: "condition1"
+  - from: "condition1"
+    to: "parallel1"
+    condition: "true"
+  - from: "condition1"
+    to: "loop1"
+    condition: "false"
+  - from: "parallel1"
+    to: "end"
+  - from: "loop1"
     to: "end"
 `
 	wf, err := Parse([]byte(yaml))
