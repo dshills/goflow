@@ -48,8 +48,8 @@ func TestWorkflowParse_ValidSimpleWorkflow(t *testing.T) {
 		t.Errorf("Expected %d edges, got %d", expectedEdgeCount, len(wf.Edges))
 	}
 
-	// Check variables
-	expectedVarCount := 4
+	// Check variables (defined in variables section, not node outputs)
+	expectedVarCount := 2 // input_path and output_path
 	if len(wf.Variables) != expectedVarCount {
 		t.Errorf("Expected %d variables, got %d", expectedVarCount, len(wf.Variables))
 	}
