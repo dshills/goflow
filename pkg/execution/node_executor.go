@@ -136,8 +136,21 @@ func (e *Engine) executeTransformNode(ctx context.Context, node *workflow.Transf
 	// Create transformer
 	transformer := transform.NewTransformer()
 
+	// Determine what to pass to the transformer based on expression type
+	// JSONPath queries operate on the input value directly
+	// Expression/Template evaluations need the full variable context
+	var transformData interface{}
+	if e.isJSONPathExpression(node.Expression) {
+		// For JSONPath: pass the input value (data to query)
+		transformData = inputValue
+	} else {
+		// For Expression/Template: pass the full context snapshot
+		// This allows expressions to reference any variable
+		transformData = exec.Context.CreateSnapshot()
+	}
+
 	// Apply transformation
-	result, err := transformer.Transform(ctx, node.Expression, inputValue)
+	result, err := transformer.Transform(ctx, node.Expression, transformData)
 	if err != nil {
 		return &TransformError{
 			InputVariable: node.InputVariable,
@@ -169,6 +182,34 @@ func (e *Engine) executeTransformNode(ctx context.Context, node *workflow.Transf
 	}
 
 	return nil
+}
+
+// isJSONPathExpression determines if an expression is a JSONPath query
+// This duplicates the detection logic from transform.detectTransformType for JSONPath
+func (e *Engine) isJSONPathExpression(expr string) bool {
+	trimmed := strings.TrimSpace(expr)
+
+	// Check for JSONPath patterns
+	if strings.HasPrefix(trimmed, "$.") || trimmed == "$" {
+		return true
+	}
+
+	// Check for recursive descent
+	if strings.Contains(trimmed, "..") {
+		return true
+	}
+
+	// Check for filter expressions
+	if strings.Contains(trimmed, "[?(") {
+		return true
+	}
+
+	// Check for array wildcard
+	if strings.Contains(trimmed, "[*]") {
+		return true
+	}
+
+	return false
 }
 
 // substituteVariables replaces variable placeholders (${var_name}) with actual values from context.
@@ -302,6 +343,97 @@ func (e *Engine) processConditionExpression(ctx context.Context, expression stri
 	return result, nil
 }
 
+// executeParallelNode executes a Parallel node with concurrent branch execution.
+func (e *Engine) executeParallelNode(ctx context.Context, node *workflow.ParallelNode, wf *workflow.Workflow, exec *execution.Execution, nodeExec *execution.NodeExecution) error {
+	// Create node map for quick lookup
+	nodeMap := make(map[string]workflow.Node)
+	for _, n := range wf.Nodes {
+		nodeMap[n.GetID()] = n
+	}
+
+	// Record inputs
+	nodeExec.Inputs = map[string]interface{}{
+		"branches":       node.Branches,
+		"merge_strategy": node.MergeStrategy,
+	}
+
+	// Execute parallel branches
+	results, err := e.executeParallelBranches(ctx, node, wf, exec, nodeMap)
+	if err != nil {
+		return &ParallelExecutionError{
+			NodeID:        node.ID,
+			MergeStrategy: node.MergeStrategy,
+			Message:       fmt.Sprintf("parallel execution failed: %v", err),
+			BranchErrors:  collectBranchErrors(results),
+		}
+	}
+
+	// Collect outputs from all branches
+	branchOutputs := make([]map[string]interface{}, len(results))
+	for i, result := range results {
+		branchOutputs[i] = result.Outputs
+	}
+
+	nodeExec.Outputs = map[string]interface{}{
+		"branches":     branchOutputs,
+		"branch_count": len(results),
+	}
+
+	return nil
+}
+
+// executeLoopNode executes a Loop node with iteration over a collection.
+func (e *Engine) executeLoopNode(ctx context.Context, node *workflow.LoopNode, wf *workflow.Workflow, exec *execution.Execution, nodeExec *execution.NodeExecution) error {
+	// Create node map for quick lookup
+	nodeMap := make(map[string]workflow.Node)
+	for _, n := range wf.Nodes {
+		nodeMap[n.GetID()] = n
+	}
+
+	// Get collection value for recording
+	collection, exists := exec.Context.GetVariable(node.Collection)
+	if !exists {
+		return fmt.Errorf("collection variable '%s' not found", node.Collection)
+	}
+
+	// Record inputs
+	nodeExec.Inputs = map[string]interface{}{
+		"collection":      collection,
+		"item_variable":   node.ItemVariable,
+		"body":            node.Body,
+		"break_condition": node.BreakCondition,
+	}
+
+	// Execute loop iterations
+	iterations, err := e.executeLoopIterations(ctx, node, wf, exec, nodeMap)
+	if err != nil {
+		return &LoopExecutionError{
+			NodeID:         node.ID,
+			Collection:     node.Collection,
+			Message:        fmt.Sprintf("loop execution failed: %v", err),
+			IterationIndex: len(iterations) - 1,
+			IterationError: err,
+		}
+	}
+
+	// Collect and record results
+	loopResults := e.collectLoopResults(iterations)
+	nodeExec.Outputs = loopResults
+
+	return nil
+}
+
+// collectBranchErrors extracts errors from branch results for error reporting
+func collectBranchErrors(results []BranchResult) map[int]error {
+	errors := make(map[int]error)
+	for _, result := range results {
+		if result.Error != nil {
+			errors[result.BranchIndex] = result.Error
+		}
+	}
+	return errors
+}
+
 // TransformError represents an error during data transformation.
 type TransformError struct {
 	InputVariable string
@@ -325,4 +457,32 @@ type ConditionError struct {
 // Error implements the error interface.
 func (e *ConditionError) Error() string {
 	return fmt.Sprintf("condition error [%s]: %s", e.Expression, e.Message)
+}
+
+// ParallelExecutionError represents an error during parallel execution.
+type ParallelExecutionError struct {
+	NodeID        string
+	MergeStrategy string
+	Message       string
+	BranchErrors  map[int]error
+}
+
+// Error implements the error interface.
+func (e *ParallelExecutionError) Error() string {
+	return fmt.Sprintf("parallel execution error [node=%s, strategy=%s]: %s", e.NodeID, e.MergeStrategy, e.Message)
+}
+
+// LoopExecutionError represents an error during loop execution.
+type LoopExecutionError struct {
+	NodeID         string
+	Collection     string
+	Message        string
+	IterationIndex int
+	IterationError error
+}
+
+// Error implements the error interface.
+func (e *LoopExecutionError) Error() string {
+	return fmt.Sprintf("loop execution error [node=%s, collection=%s, iteration=%d]: %s",
+		e.NodeID, e.Collection, e.IterationIndex, e.Message)
 }

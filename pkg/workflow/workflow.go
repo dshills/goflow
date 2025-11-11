@@ -439,6 +439,24 @@ func (w *Workflow) checkForOrphanedNodes() error {
 		adjacency[edge.FromNodeID] = append(adjacency[edge.FromNodeID], edge.ToNodeID)
 	}
 
+	// Add implicit connections from parallel and loop nodes to their branch/body nodes
+	for _, node := range w.Nodes {
+		switch n := node.(type) {
+		case *ParallelNode:
+			// Parallel nodes connect to all branch nodes
+			for _, branch := range n.Branches {
+				for _, branchNodeID := range branch {
+					adjacency[n.ID] = append(adjacency[n.ID], branchNodeID)
+				}
+			}
+		case *LoopNode:
+			// Loop nodes connect to all body nodes
+			for _, bodyNodeID := range n.Body {
+				adjacency[n.ID] = append(adjacency[n.ID], bodyNodeID)
+			}
+		}
+	}
+
 	// BFS from start node to find all reachable nodes
 	reachable := make(map[string]bool)
 	queue := []string{startNodeID}

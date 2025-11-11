@@ -378,9 +378,9 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T165 [P] [US6] Integration test for parallel execution in tests/integration/parallel_test.go
-- [ ] T166 [P] [US6] Integration test for loop execution in tests/integration/loop_test.go
-- [ ] T167 [P] [US6] Performance test for 50+ parallel branches in tests/integration/parallel_performance_test.go
+- [X] T165 [P] [US6] Integration test for parallel execution in tests/integration/parallel_test.go
+- [X] T166 [P] [US6] Integration test for loop execution in tests/integration/loop_test.go
+- [X] T167 [P] [US6] Performance test for 50+ parallel branches in tests/integration/parallel_performance_test.go
 
 ### Parallel Execution Implementation
 
