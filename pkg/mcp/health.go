@@ -175,7 +175,7 @@ func (hm *HealthMonitor) performHealthCheck(ctx context.Context, serverID string
 		hm.recordFailure(health, err)
 		return err
 	}
-	defer func() { _ = hm.pool.Release(serverID, client) }()
+	defer func() { _ = hm.pool.Release(serverID) }()
 
 	// Perform ping
 	err = client.Ping(ctx)

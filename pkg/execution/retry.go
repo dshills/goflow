@@ -2,6 +2,7 @@ package execution
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"math/rand"
@@ -192,19 +193,25 @@ func matchesErrorPatterns(err error, patterns []string) bool {
 
 // extractErrorType determines the error type from an error
 func extractErrorType(err error) execution.ErrorType {
-	// Check if it's an ExecutionError
-	if execErr, ok := err.(*execution.ExecutionError); ok {
+	// Check if it's an ExecutionError using errors.As (handles wrapped errors)
+	var execErr *execution.ExecutionError
+	if errors.As(err, &execErr) {
 		return execErr.Type
 	}
 
-	// Check specific error types from node_executor.go
-	if _, ok := err.(*MCPToolError); ok {
+	// Check specific error types from node_executor.go using errors.As
+	var mcpErr *MCPToolError
+	if errors.As(err, &mcpErr) {
 		return execution.ErrorTypeConnection
 	}
-	if _, ok := err.(*TransformError); ok {
+
+	var transformErr *TransformError
+	if errors.As(err, &transformErr) {
 		return execution.ErrorTypeData
 	}
-	if _, ok := err.(*ConditionError); ok {
+
+	var condErr *ConditionError
+	if errors.As(err, &condErr) {
 		return execution.ErrorTypeData
 	}
 

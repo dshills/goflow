@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"sync"
@@ -267,33 +268,35 @@ func (a *App) render() error {
 
 // readKeyboardInput reads keyboard input in a background goroutine
 func (a *App) readKeyboardInput() {
-	// Read from stdin in raw mode
+	// Read from stdin in raw mode (blocking)
 	buf := make([]byte, 32)
 
 	for {
+		// Check for context cancellation before each read
 		select {
 		case <-a.ctx.Done():
 			return
 		default:
-			// Set read deadline to avoid blocking indefinitely
-			os.Stdin.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+		}
 
-			n, err := os.Stdin.Read(buf)
-			if err != nil {
-				// Timeout is expected, just continue
-				continue
+		// Blocking read - terminal is already in raw mode from goterm
+		n, err := os.Stdin.Read(buf)
+		if err != nil {
+			// Handle EOF gracefully (stdin closed)
+			if err == io.EOF {
+				return
 			}
+			// On other errors, continue to next iteration
+			continue
+		}
 
-			if n > 0 {
-				// Parse input and send to input channel
-				event := a.parseKeyInput(buf[:n])
-				select {
-				case a.inputChan <- event:
-				case <-a.ctx.Done():
-					return
-				default:
-					// Channel full, drop input
-				}
+		if n > 0 {
+			// Parse input and send to input channel
+			event := a.parseKeyInput(buf[:n])
+			select {
+			case a.inputChan <- event:
+			case <-a.ctx.Done():
+				return
 			}
 		}
 	}

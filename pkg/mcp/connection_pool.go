@@ -3,7 +3,9 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"log"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -45,11 +47,24 @@ const (
 
 // PooledConnection wraps a client with connection metadata
 type PooledConnection struct {
-	Client   Client
-	ServerID string
-	LastUsed time.Time
-	InUse    bool
-	mu       sync.Mutex
+	Client     Client
+	ServerID   string
+	LastUsed   time.Time
+	AcquiredAt time.Time
+	InUse      bool
+	mu         sync.Mutex
+
+	// Lifecycle tracking
+	closed   bool  // Whether connection is closed
+	closeErr error // Error from close operation
+	refCount int32 // Reference count for leak detection
+}
+
+// IsClosed returns whether the connection has been closed.
+func (c *PooledConnection) IsClosed() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.closed
 }
 
 // ConnectionPool manages a pool of MCP client connections
@@ -58,18 +73,33 @@ type ConnectionPool struct {
 	configs      map[string]ServerConfig        // serverID -> config
 	mu           sync.RWMutex
 	maxPerServer int
+
+	// Shutdown coordination
+	closing chan struct{}  // Signals shutdown in progress
+	wg      sync.WaitGroup // Tracks active operations
+	closed  bool           // Whether pool is closed
+
+	// Leak detection metrics
+	leaksDetected atomic.Uint64 // Count of connection leaks detected
 }
 
 // NewConnectionPool creates a new connection pool
 func NewConnectionPool() *ConnectionPool {
+	return newConnectionPoolWithInterval(1 * time.Minute)
+}
+
+// newConnectionPoolWithInterval creates a connection pool with custom cleanup interval (for testing)
+func newConnectionPoolWithInterval(cleanupInterval time.Duration) *ConnectionPool {
 	pool := &ConnectionPool{
 		connections:  make(map[string][]*PooledConnection),
 		configs:      make(map[string]ServerConfig),
 		maxPerServer: MaxConnectionsPerServer,
+		closing:      make(chan struct{}),
+		closed:       false,
 	}
 
 	// Start background cleanup goroutine
-	go pool.cleanupIdleConnections()
+	go pool.cleanupIdleConnectionsWithInterval(cleanupInterval)
 
 	return pool
 }
@@ -96,9 +126,18 @@ func (p *ConnectionPool) Get(ctx context.Context, serverID string) (Client, erro
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	// Check if pool is closed
+	if p.closed {
+		return nil, fmt.Errorf("connection pool is closed")
+	}
+
+	// Track active operation
+	p.wg.Add(1)
+
 	// Check if server is registered
 	config, exists := p.configs[serverID]
 	if !exists {
+		p.wg.Done()
 		return nil, fmt.Errorf("server %s not registered", serverID)
 	}
 
@@ -106,9 +145,11 @@ func (p *ConnectionPool) Get(ctx context.Context, serverID string) (Client, erro
 	connections := p.connections[serverID]
 	for _, conn := range connections {
 		conn.mu.Lock()
-		if !conn.InUse && conn.Client.IsConnected() {
+		if !conn.InUse && !conn.closed && conn.Client.IsConnected() {
 			conn.InUse = true
 			conn.LastUsed = time.Now()
+			conn.AcquiredAt = time.Now()
+			conn.refCount++
 			conn.mu.Unlock()
 			return conn.Client, nil
 		}
@@ -117,26 +158,31 @@ func (p *ConnectionPool) Get(ctx context.Context, serverID string) (Client, erro
 
 	// Check if we can create a new connection
 	if len(connections) >= p.maxPerServer {
+		p.wg.Done()
 		return nil, fmt.Errorf("connection pool exhausted for server %s (max: %d)", serverID, p.maxPerServer)
 	}
 
 	// Create new connection based on transport type
 	client, err := createClient(config)
 	if err != nil {
+		p.wg.Done()
 		return nil, fmt.Errorf("failed to create client: %w", err)
 	}
 
 	// Connect to server
 	if err := client.Connect(ctx); err != nil {
+		p.wg.Done()
 		return nil, fmt.Errorf("failed to connect: %w", err)
 	}
 
 	// Add to pool
 	pooledConn := &PooledConnection{
-		Client:   client,
-		ServerID: serverID,
-		LastUsed: time.Now(),
-		InUse:    true,
+		Client:     client,
+		ServerID:   serverID,
+		LastUsed:   time.Now(),
+		AcquiredAt: time.Now(),
+		InUse:      true,
+		refCount:   1,
 	}
 
 	p.connections[serverID] = append(p.connections[serverID], pooledConn)
@@ -145,44 +191,99 @@ func (p *ConnectionPool) Get(ctx context.Context, serverID string) (Client, erro
 }
 
 // Release marks a connection as no longer in use
-func (p *ConnectionPool) Release(serverID string, client Client) error {
+func (p *ConnectionPool) Release(serverID string) error {
 	p.mu.RLock()
 	connections, exists := p.connections[serverID]
 	p.mu.RUnlock()
 
 	if !exists {
+		p.wg.Done()
 		return fmt.Errorf("server %s not found in pool", serverID)
 	}
 
+	// Find the in-use connection for this server
+	var found bool
 	for _, conn := range connections {
-		if conn.Client == client {
-			conn.mu.Lock()
+		conn.mu.Lock()
+		if conn.InUse {
 			conn.InUse = false
 			conn.LastUsed = time.Now()
+			conn.refCount--
 			conn.mu.Unlock()
-			return nil
+			found = true
+			break
 		}
+		conn.mu.Unlock()
 	}
 
-	return fmt.Errorf("connection not found in pool for server %s", serverID)
+	// Mark operation complete
+	p.wg.Done()
+
+	if !found {
+		return fmt.Errorf("no active connection found for server %s", serverID)
+	}
+
+	return nil
 }
 
-// Close closes all connections in the pool
+// Close closes all connections in the pool with graceful shutdown
 func (p *ConnectionPool) Close() error {
+	p.mu.Lock()
+
+	// Check if already closed
+	if p.closed {
+		p.mu.Unlock()
+		return nil
+	}
+
+	// Mark as closing
+	p.closed = true
+	close(p.closing)
+	p.mu.Unlock()
+
+	// Wait for active operations with 30s grace period
+	gracePeriodDone := make(chan struct{})
+	go func() {
+		p.wg.Wait()
+		close(gracePeriodDone)
+	}()
+
+	var forceCloseRequired bool
+	select {
+	case <-gracePeriodDone:
+		// Graceful shutdown completed
+	case <-time.After(30 * time.Second):
+		// Grace period expired, force-close
+		forceCloseRequired = true
+	}
+
+	// Close all connections
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	var firstErr error
 	for serverID, connections := range p.connections {
 		for _, conn := range connections {
+			conn.mu.Lock()
+			conn.closed = true
 			if err := conn.Client.Close(); err != nil && firstErr == nil {
 				firstErr = fmt.Errorf("failed to close connection for server %s: %w", serverID, err)
+				conn.closeErr = err
 			}
+			conn.mu.Unlock()
 		}
 		p.connections[serverID] = nil
 	}
 
 	p.connections = make(map[string][]*PooledConnection)
+
+	if forceCloseRequired {
+		if firstErr != nil {
+			return fmt.Errorf("force-close required after grace period: %w", firstErr)
+		}
+		return fmt.Errorf("force-close required after grace period")
+	}
+
 	return firstErr
 }
 
@@ -198,9 +299,13 @@ func (p *ConnectionPool) CloseServer(serverID string) error {
 
 	var firstErr error
 	for _, conn := range connections {
+		conn.mu.Lock()
+		conn.closed = true
 		if err := conn.Client.Close(); err != nil && firstErr == nil {
 			firstErr = fmt.Errorf("failed to close connection: %w", err)
+			conn.closeErr = err
 		}
+		conn.mu.Unlock()
 	}
 
 	p.connections[serverID] = make([]*PooledConnection, 0)
@@ -242,35 +347,57 @@ type PoolStats struct {
 	Idle   int
 }
 
+// LeakStats returns leak detection metrics
+func (p *ConnectionPool) LeakStats() uint64 {
+	return p.leaksDetected.Load()
+}
+
 // cleanupIdleConnections periodically closes idle connections
 func (p *ConnectionPool) cleanupIdleConnections() {
-	ticker := time.NewTicker(1 * time.Minute)
+	p.cleanupIdleConnectionsWithInterval(1 * time.Minute)
+}
+
+// cleanupIdleConnectionsWithInterval periodically closes idle connections at the specified interval
+func (p *ConnectionPool) cleanupIdleConnectionsWithInterval(interval time.Duration) {
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		p.mu.Lock()
+	for {
+		select {
+		case <-p.closing:
+			// Pool is closing, stop cleanup
+			return
+		case <-ticker.C:
+			p.mu.Lock()
 
-		for serverID, connections := range p.connections {
-			newConnections := make([]*PooledConnection, 0, len(connections))
+			for serverID, connections := range p.connections {
+				newConnections := make([]*PooledConnection, 0, len(connections))
 
-			for _, conn := range connections {
-				conn.mu.Lock()
-				shouldClose := !conn.InUse && time.Since(conn.LastUsed) > ConnectionIdleTimeout
-				conn.mu.Unlock()
+				for _, conn := range connections {
+					conn.mu.Lock()
+					shouldClose := !conn.InUse && time.Since(conn.LastUsed) > ConnectionIdleTimeout
+					if shouldClose {
+						// Check for connection leaks before closing
+						if conn.refCount != 0 {
+							log.Printf("WARNING: Connection leak detected for server %s: refCount=%d (expected 0)", serverID, conn.refCount)
+							p.leaksDetected.Add(1)
+						}
 
-				if shouldClose {
-					// Close idle connection
-					_ = conn.Client.Close()
-				} else {
-					// Keep connection
-					newConnections = append(newConnections, conn)
+						conn.closed = true
+						conn.closeErr = conn.Client.Close()
+						conn.mu.Unlock()
+					} else {
+						conn.mu.Unlock()
+						// Keep connection
+						newConnections = append(newConnections, conn)
+					}
 				}
+
+				p.connections[serverID] = newConnections
 			}
 
-			p.connections[serverID] = newConnections
+			p.mu.Unlock()
 		}
-
-		p.mu.Unlock()
 	}
 }
 

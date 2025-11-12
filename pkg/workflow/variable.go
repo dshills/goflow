@@ -78,30 +78,25 @@ func (v *Variable) validateDefaultValueType() error {
 
 	switch v.Type {
 	case "string":
-		if _, ok := v.DefaultValue.(string); !ok {
-			return fmt.Errorf("variable: default value type mismatch for %s: expected string, got %T", v.Name, v.DefaultValue)
+		if _, err := validateType[string](v.DefaultValue, v.Name); err != nil {
+			return err
 		}
 	case "number":
-		// Accept both int and float types as numbers
-		switch v.DefaultValue.(type) {
-		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
-			// Valid number type
-		default:
+		// Accept both int and float types as numbers using helper function
+		if !isNumericType(v.DefaultValue) {
 			return fmt.Errorf("variable: default value type mismatch for %s: expected number, got %T", v.Name, v.DefaultValue)
 		}
 	case "boolean":
-		if _, ok := v.DefaultValue.(bool); !ok {
-			return fmt.Errorf("variable: default value type mismatch for %s: expected boolean, got %T", v.Name, v.DefaultValue)
+		if _, err := validateType[bool](v.DefaultValue, v.Name); err != nil {
+			return err
 		}
 	case "object":
-		if _, ok := v.DefaultValue.(map[string]interface{}); !ok {
-			return fmt.Errorf("variable: default value type mismatch for %s: expected object (map), got %T", v.Name, v.DefaultValue)
+		if _, err := validateType[map[string]interface{}](v.DefaultValue, v.Name); err != nil {
+			return err
 		}
 	case "array":
-		switch v.DefaultValue.(type) {
-		case []interface{}, []string, []int, []float64, []bool, []map[string]interface{}:
-			// Valid array types
-		default:
+		// Check for array types using helper function
+		if !isArrayType(v.DefaultValue) {
 			return fmt.Errorf("variable: default value type mismatch for %s: expected array (slice), got %T", v.Name, v.DefaultValue)
 		}
 	}

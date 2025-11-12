@@ -112,6 +112,25 @@ func (e *Execution) Cancel() error {
 	return nil
 }
 
+// Timeout marks the execution as timed out with error details.
+// Returns an error if the execution is not in Running status.
+func (e *Execution) Timeout(timeoutNode string, err *ExecutionError) error {
+	if e.Status != StatusRunning {
+		return fmt.Errorf("cannot timeout execution: expected status Running, got %s", e.Status)
+	}
+
+	if err != nil {
+		err.Timestamp = time.Now()
+	}
+
+	e.Status = StatusTimedOut
+	e.CompletedAt = time.Now()
+	e.Error = err
+	e.Context.TimedOut = true
+	e.Context.TimeoutNode = timeoutNode
+	return nil
+}
+
 // AddNodeExecution appends a node execution to the history.
 // Node executions maintain topological order.
 func (e *Execution) AddNodeExecution(nodeExec *NodeExecution) error {

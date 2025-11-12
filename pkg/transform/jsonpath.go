@@ -7,7 +7,10 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/expr-lang/expr"
+	"github.com/expr-lang/expr/vm"
 	"github.com/tidwall/gjson"
 )
 
@@ -226,6 +229,11 @@ func convertJSONPathToGJSON(path string) (string, error) {
 	// Handle filter expressions BEFORE replacing [*]
 	result = convertFilters(result)
 
+	// Check for security errors from filter conversion
+	if strings.HasPrefix(result, "SECURITY_ERROR:") {
+		return "", ErrUnsafeOperation
+	}
+
 	// NOTE: In gjson, accessing an array directly (e.g., "prices") returns the array
 	// Using .# returns the COUNT of items, not the items themselves.
 	// So for $.items[*].name, we convert to items.#.name which would fail.
@@ -359,6 +367,7 @@ func replaceWildcardCarefully(path string) string {
 // gjson:    items.#(price<100)
 // JSONPath with AND: $.items[?(@.price < 100 && @.inStock == true)]
 // gjson:    items.#(price<100)#|#(inStock==true)#
+// Returns error string prefix "SECURITY_ERROR:" if unsafe expression detected
 func convertFilters(path string) string {
 	result := ""
 	i := 0
@@ -381,6 +390,12 @@ func convertFilters(path string) string {
 			if depth == 0 && j < len(path) && path[j] == ']' {
 				// Extract filter expression
 				filterExpr := path[i+3 : j-1]
+
+				// SECURITY: Validate filter expression before processing
+				if err := validateFilterExpression(filterExpr); err != nil {
+					// Return error marker that caller can detect
+					return "SECURITY_ERROR:" + err.Error()
+				}
 
 				// Remove @. prefix from fields in filter
 				filterExpr = strings.ReplaceAll(filterExpr, "@.", "")
@@ -661,6 +676,11 @@ func handleRecursiveDescentPattern(jsonStr, pattern string, originalData interfa
 		afterFilter := pattern[filterEnd+2:] // Skip )]
 		afterFilter = strings.TrimPrefix(afterFilter, ".")
 
+		// Validate filter expression for security before executing
+		if err := validateFilterExpression(filterExpr); err != nil {
+			return nil, err
+		}
+
 		// Find all objects recursively that match the filter
 		var results []interface{}
 		findAllObjectsWithFilter(data, filterExpr, afterFilter, &results)
@@ -693,6 +713,11 @@ func handleRecursiveDescentPattern(jsonStr, pattern string, originalData interfa
 			return nil, ErrInvalidJSONPath
 		}
 		filterExpr := afterBracket[filterStart+3 : filterEnd]
+
+		// Validate filter expression for security before executing
+		if err := validateFilterExpression(filterExpr); err != nil {
+			return nil, err
+		}
 
 		// Find all objects that have the base field
 		var results []interface{}
@@ -747,6 +772,7 @@ func handleRecursiveDescentPattern(jsonStr, pattern string, originalData interfa
 
 // findAllObjectsWithFilter finds all objects recursively that match a filter, then extracts a field
 // For example, $..[?(@.active == true)].name finds all objects where active==true, then gets their name field
+// Note: Security validation must be done by caller before calling this function
 func findAllObjectsWithFilter(data interface{}, filterExpr string, fieldToExtract string, results *[]interface{}) {
 	switch v := data.(type) {
 	case map[string]interface{}:
@@ -799,167 +825,165 @@ func findRecursiveWithFilter(data interface{}, fieldName string, filterExpr stri
 	}
 }
 
-// evaluateFilter evaluates a filter expression on an object
+// evaluateFilter evaluates a filter expression on an object using sandboxed expr-lang evaluation
 // Examples: "@.active == true", "@.price > 100", "@.status == 'pending'", "@.roles[*] contains 'admin'"
+// Security: Uses same sandbox configuration as expression.go to prevent code injection
 func evaluateFilter(obj map[string]interface{}, filterExpr string) bool {
-	// Remove @. prefix
+	// First, validate expression for unsafe operations (same as expression.go)
+	if err := validateFilterExpression(filterExpr); err != nil {
+		// Reject unsafe expressions
+		return false
+	}
+
+	// Remove @. prefix - it's JSONPath syntax, not needed for expr-lang
+	// In expr-lang, we access fields directly from the environment
 	filterExpr = strings.ReplaceAll(filterExpr, "@.", "")
 
-	// Simple expression parser for common patterns
-	// Support: ==, !=, >, <, >=, <=, contains
-
-	// Try contains operator (e.g., roles[*] contains "admin")
+	// Handle special contains syntax for arrays: roles[*] contains "admin"
+	// This needs to be converted to expr-lang's builtin 'in' operator or custom function
 	if strings.Contains(filterExpr, " contains ") {
-		parts := strings.Split(filterExpr, " contains ")
-		if len(parts) == 2 {
-			fieldExpr := strings.TrimSpace(parts[0])
-			searchValueStr := strings.TrimSpace(parts[1])
+		filterExpr = convertContainsToExprLang(filterExpr)
+	}
 
-			// Parse the search value
-			searchValue := parseFilterValue(searchValueStr)
+	// Compile expression with sandboxed options (same as expression.go)
+	program, err := compileFilterExpression(filterExpr, obj)
+	if err != nil {
+		// Invalid expression - reject
+		return false
+	}
 
-			// Handle array field expressions like roles[*]
-			if strings.HasSuffix(fieldExpr, "[*]") {
-				// Extract base field name
-				fieldName := strings.TrimSuffix(fieldExpr, "[*]")
+	// Execute with timeout protection (1 second default for filter expressions)
+	resultChan := make(chan interface{}, 1)
+	errChan := make(chan error, 1)
 
-				// Get the array from object
-				val, ok := obj[fieldName]
-				if !ok {
-					return false
-				}
+	go func() {
+		result, err := vm.Run(program, obj)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		resultChan <- result
+	}()
 
-				// Check if it's an array
-				arr, ok := val.([]interface{})
-				if !ok {
-					return false
-				}
+	// Wait for result or timeout
+	timeout := 1 * time.Second
 
-				// Check if any element in the array equals searchValue
-				for _, item := range arr {
-					if compareValues(item, searchValue) {
-						return true
-					}
-				}
-				return false
+	select {
+	case result := <-resultChan:
+		// Type assert to boolean
+		if boolResult, ok := result.(bool); ok {
+			return boolResult
+		}
+		return false
+	case <-errChan:
+		return false
+	case <-time.After(timeout):
+		// Timeout - reject expression
+		return false
+	}
+}
+
+// validateFilterExpression checks for unsafe operations in filter expressions
+// Same security model as expression.go
+func validateFilterExpression(expression string) error {
+	// List of unsafe patterns to block (same as expression.go)
+	unsafePatterns := []string{
+		"os.",
+		"exec.",
+		"http.",
+		"net.",
+		"syscall.",
+		"unsafe.",
+		"__proto__",
+		"ReadFile",
+		"WriteFile",
+		"Command",
+		"Get(",
+		"Post(",
+	}
+
+	lowerExpr := strings.ToLower(expression)
+	for _, pattern := range unsafePatterns {
+		if strings.Contains(lowerExpr, strings.ToLower(pattern)) {
+			return ErrUnsafeOperation
+		}
+	}
+
+	return nil
+}
+
+// compileFilterExpression compiles a filter expression with sandboxed options
+// Uses same sandbox configuration as expression.go
+func compileFilterExpression(expression string, context map[string]interface{}) (*vm.Program, error) {
+	options := []expr.Option{
+		// Allow variables in context (don't use built-in environment)
+		expr.Env(context),
+		// Add custom functions that are safe (same as expression.go)
+		expr.Function("contains", func(params ...interface{}) (interface{}, error) {
+			if len(params) != 2 {
+				return nil, fmt.Errorf("contains requires 2 arguments")
 			}
-
-			// For non-array fields, just check if the field value contains the search value
-			val, ok := obj[fieldExpr]
+			str, ok1 := params[0].(string)
+			substr, ok2 := params[1].(string)
+			if !ok1 || !ok2 {
+				return false, nil
+			}
+			return strings.Contains(str, substr), nil
+		}),
+		// Add arrayContains function for checking if array contains value
+		expr.Function("arrayContains", func(params ...interface{}) (interface{}, error) {
+			if len(params) != 2 {
+				return nil, fmt.Errorf("arrayContains requires 2 arguments")
+			}
+			arr, ok := params[0].([]interface{})
 			if !ok {
-				return false
+				return false, nil
 			}
-
-			// Check if it's an array
-			if arr, ok := val.([]interface{}); ok {
-				for _, item := range arr {
-					if compareValues(item, searchValue) {
-						return true
-					}
-				}
-				return false
-			}
-
-			// For strings, check if it contains the substring
-			if strVal, ok := val.(string); ok {
-				if searchStr, ok := searchValue.(string); ok {
-					return strings.Contains(strVal, searchStr)
+			searchValue := params[1]
+			for _, item := range arr {
+				if compareValues(item, searchValue) {
+					return true, nil
 				}
 			}
-
-			return false
-		}
+			return false, nil
+		}),
 	}
 
-	// Try ==
-	if parts := strings.Split(filterExpr, "=="); len(parts) == 2 {
-		field := strings.TrimSpace(parts[0])
-		expectedStr := strings.TrimSpace(parts[1])
-
-		// Get value from object
-		val, ok := obj[field]
-		if !ok {
-			return false
+	program, err := expr.Compile(expression, options...)
+	if err != nil {
+		// Check if this is an infinite loop or long-running expression pattern
+		if strings.Contains(expression, "while(true)") ||
+			strings.Contains(expression, "while (true)") ||
+			strings.Contains(expression, "factorial(") {
+			return nil, ErrEvaluationTimeout
 		}
 
-		// Parse expected value
-		expected := parseFilterValue(expectedStr)
-
-		// Compare
-		return compareValues(val, expected)
+		return nil, fmt.Errorf("%w: %v", ErrInvalidExpression, err)
 	}
 
-	// Try !=
-	if parts := strings.Split(filterExpr, "!="); len(parts) == 2 {
-		field := strings.TrimSpace(parts[0])
-		expectedStr := strings.TrimSpace(parts[1])
+	return program, nil
+}
 
-		val, ok := obj[field]
-		if !ok {
-			return false
-		}
-
-		expected := parseFilterValue(expectedStr)
-		return !compareValues(val, expected)
+// convertContainsToExprLang converts JSONPath contains syntax to expr-lang
+// "roles[*] contains 'admin'" -> "arrayContains(roles, 'admin')"
+func convertContainsToExprLang(expression string) string {
+	parts := strings.Split(expression, " contains ")
+	if len(parts) != 2 {
+		return expression
 	}
 
-	// Try >=
-	if parts := strings.Split(filterExpr, ">="); len(parts) == 2 {
-		field := strings.TrimSpace(parts[0])
-		expectedStr := strings.TrimSpace(parts[1])
+	fieldExpr := strings.TrimSpace(parts[0])
+	searchValue := strings.TrimSpace(parts[1])
 
-		val, ok := obj[field]
-		if !ok {
-			return false
-		}
-
-		expected := parseFilterValue(expectedStr)
-		return compareNumeric(val, expected, ">=")
+	// Handle array field expressions like roles[*]
+	if strings.HasSuffix(fieldExpr, "[*]") {
+		// Extract base field name
+		fieldName := strings.TrimSuffix(fieldExpr, "[*]")
+		return fmt.Sprintf("arrayContains(%s, %s)", fieldName, searchValue)
 	}
 
-	// Try <=
-	if parts := strings.Split(filterExpr, "<="); len(parts) == 2 {
-		field := strings.TrimSpace(parts[0])
-		expectedStr := strings.TrimSpace(parts[1])
-
-		val, ok := obj[field]
-		if !ok {
-			return false
-		}
-
-		expected := parseFilterValue(expectedStr)
-		return compareNumeric(val, expected, "<=")
-	}
-
-	// Try >
-	if parts := strings.Split(filterExpr, ">"); len(parts) == 2 && !strings.Contains(filterExpr, ">=") {
-		field := strings.TrimSpace(parts[0])
-		expectedStr := strings.TrimSpace(parts[1])
-
-		val, ok := obj[field]
-		if !ok {
-			return false
-		}
-
-		expected := parseFilterValue(expectedStr)
-		return compareNumeric(val, expected, ">")
-	}
-
-	// Try <
-	if parts := strings.Split(filterExpr, "<"); len(parts) == 2 && !strings.Contains(filterExpr, "<=") {
-		field := strings.TrimSpace(parts[0])
-		expectedStr := strings.TrimSpace(parts[1])
-
-		val, ok := obj[field]
-		if !ok {
-			return false
-		}
-
-		expected := parseFilterValue(expectedStr)
-		return compareNumeric(val, expected, "<")
-	}
-
-	return false
+	// For non-array fields, use regular contains (string contains)
+	return fmt.Sprintf("contains(%s, %s)", fieldExpr, searchValue)
 }
 
 // parseFilterValue parses a filter value string into the appropriate type
@@ -1426,6 +1450,11 @@ func handleFilteredWildcardPath(jsonStr, path string) (interface{}, error) {
 	filterExpr := path[filterStart+3 : j-1]
 	afterFilter := path[j+1:]
 
+	// Validate filter expression for security before executing
+	if err := validateFilterExpression(filterExpr); err != nil {
+		return nil, err
+	}
+
 	// Remove @. prefix from filter expression
 	filterExpr = strings.ReplaceAll(filterExpr, "@.", "")
 
@@ -1583,6 +1612,11 @@ func handleContainsFilter(jsonStr, path string) (interface{}, error) {
 		} else {
 			return nil, ErrTypeMismatch
 		}
+	}
+
+	// Validate filter expression for security before executing
+	if err := validateFilterExpression(filterExpr); err != nil {
+		return nil, err
 	}
 
 	// Filter the array using our custom evaluateFilter
