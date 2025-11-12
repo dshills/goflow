@@ -384,10 +384,7 @@ goflow export <workflow-name> [--output file.yaml]
 # Import workflow
 goflow import <file.yaml>
 
-# List all workflows
-goflow list
-
-# Delete workflow
+# Delete workflow (workflow listing is done through the TUI)
 goflow delete <workflow-name>
 
 # Open visual editor

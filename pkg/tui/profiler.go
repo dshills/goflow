@@ -281,7 +281,14 @@ func (p *Profiler) GetStats() ProfileStats {
 	stats.AllocatedBytes = p.lastMemStats.Alloc
 	stats.TotalAllocations = p.lastMemStats.Mallocs - p.memStatsStart.Mallocs
 	stats.NumGC = p.lastMemStats.NumGC - p.memStatsStart.NumGC
-	stats.GCPauses = time.Duration(p.lastMemStats.PauseTotalNs - p.memStatsStart.PauseTotalNs)
+	// Safely convert uint64 to int64 to avoid overflow
+	pauseDiff := p.lastMemStats.PauseTotalNs - p.memStatsStart.PauseTotalNs
+	if pauseDiff > uint64(1<<63-1) {
+		// Cap at max int64 if overflow would occur
+		stats.GCPauses = time.Duration(1<<63 - 1)
+	} else {
+		stats.GCPauses = time.Duration(int64(pauseDiff))
+	}
 
 	// Component metrics
 	stats.ComponentMetrics = make([]ComponentMetrics, 0, len(p.componentMetrics))

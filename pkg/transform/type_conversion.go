@@ -134,6 +134,9 @@ func ToInt(v interface{}) (int64, error) {
 	case int64:
 		return val, nil
 	case uint:
+		if val > 9223372036854775807 { // max int64
+			return 0, fmt.Errorf("uint value %d exceeds max int64: %w", val, ErrTypeMismatch)
+		}
 		return int64(val), nil
 	case uint8:
 		return int64(val), nil

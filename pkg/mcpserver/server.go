@@ -160,8 +160,16 @@ func (s *MCPServer) FailConnection(errorMsg string) error {
 	s.Connection.ErrorCount++
 	s.Connection.LastError = errorMsg
 
-	// Calculate exponential backoff
-	backoff := time.Duration(1<<uint(s.Connection.ErrorCount)) * time.Second
+	// Calculate exponential backoff with safe conversion
+	errorCount := s.Connection.ErrorCount
+	if errorCount < 0 {
+		errorCount = 0
+	}
+	// Cap error count to prevent overflow in bit shift (max 30 = ~17 minutes)
+	if errorCount > 30 {
+		errorCount = 30
+	}
+	backoff := time.Duration(1<<uint(errorCount)) * time.Second
 	if backoff > 60*time.Second {
 		backoff = 60 * time.Second // Cap at 60 seconds
 	}
@@ -204,7 +212,15 @@ func (s *MCPServer) Reconnect() error {
 
 	// Calculate backoff if there were previous errors
 	if s.Connection.ErrorCount > 0 {
-		backoff := time.Duration(1<<uint(s.Connection.ErrorCount)) * time.Second
+		errorCount := s.Connection.ErrorCount
+		if errorCount < 0 {
+			errorCount = 0
+		}
+		// Cap error count to prevent overflow in bit shift (max 30 = ~17 minutes)
+		if errorCount > 30 {
+			errorCount = 30
+		}
+		backoff := time.Duration(1<<uint(errorCount)) * time.Second
 		if backoff > 60*time.Second {
 			backoff = 60 * time.Second // Cap at 60 seconds
 		}

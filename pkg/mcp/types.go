@@ -29,8 +29,11 @@ type Client interface {
 
 // ServerConfig holds configuration for connecting to an MCP server
 type ServerConfig struct {
-	ID      string
-	Command string
-	Args    []string
-	Env     map[string]string
+	ID        string
+	Command   string
+	Args      []string
+	Env       map[string]string
+	Transport string            // "stdio", "sse", or "http"
+	URL       string            // For SSE and HTTP transports
+	Headers   map[string]string // For SSE and HTTP transports
 }
