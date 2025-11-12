@@ -381,6 +381,7 @@ defer pool.Release(serverID)
 - `pkg/validation`: File path security validation (6-layer defense-in-depth) (002-pr-review-remediation)
 - `pkg/errors`: Operational error context for debugging (002-pr-review-remediation)
 - ✅ No changes to storage layer (002-pr-review-remediation)
+- Filesystem (YAML workflow definitions via existing workflow.Repository interface) (003-visual-editor)
 
 ## Recent Changes
 - 002-pr-review-remediation: Comprehensive code review remediation addressing 8 critical and 45 high-priority issues

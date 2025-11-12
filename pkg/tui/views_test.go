@@ -502,7 +502,7 @@ func (e *viewSwitchError) Error() string {
 }
 
 // contains is a helper to check substring
-func contains(s, substr string) bool {
+func viewContains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
 		(len(s) > 0 && len(substr) > 0 && indexOf(s, substr) >= 0))
 }
