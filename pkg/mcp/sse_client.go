@@ -198,7 +198,12 @@ func (c *SSEClient) sendRequest(ctx context.Context, method string, params inter
 			sendDone <- fmt.Errorf("failed to send POST request: %w", err)
 			return
 		}
-		defer httpResp.Body.Close()
+		defer func() {
+			if err := httpResp.Body.Close(); err != nil {
+				// Log error but don't fail - POST was already sent
+				_ = err
+			}
+		}()
 
 		if httpResp.StatusCode != http.StatusOK && httpResp.StatusCode != http.StatusAccepted && httpResp.StatusCode != http.StatusNoContent {
 			body, _ := io.ReadAll(httpResp.Body)
@@ -255,7 +260,12 @@ func (c *SSEClient) sendNotification(ctx context.Context, notification interface
 	if err != nil {
 		return fmt.Errorf("failed to send notification: %w", err)
 	}
-	defer httpResp.Body.Close()
+	defer func() {
+		if err := httpResp.Body.Close(); err != nil {
+			// Log error but don't fail - notification was already sent
+			_ = err
+		}
+	}()
 
 	if httpResp.StatusCode != http.StatusOK && httpResp.StatusCode != http.StatusAccepted {
 		return fmt.Errorf("notification failed with status %d: %s", httpResp.StatusCode, httpResp.Status)

@@ -192,16 +192,20 @@ func createETLTemplate(name, description string) (*workflow.Workflow, error) {
 	// by automatically downloading and executing remote code via npx.
 
 	// Add workflow variables
-	wf.AddVariable(&workflow.Variable{
+	if err := wf.AddVariable(&workflow.Variable{
 		Name:        "raw_data",
 		Type:        "string",
 		Description: "Raw extracted data",
-	})
-	wf.AddVariable(&workflow.Variable{
+	}); err != nil {
+		return nil, fmt.Errorf("failed to add raw_data variable: %w", err)
+	}
+	if err := wf.AddVariable(&workflow.Variable{
 		Name:        "processed_data",
 		Type:        "string",
 		Description: "Processed/transformed data",
-	})
+	}); err != nil {
+		return nil, fmt.Errorf("failed to add processed_data variable: %w", err)
+	}
 
 	// Add nodes
 	startNode := &workflow.StartNode{ID: "start"}
@@ -215,17 +219,35 @@ func createETLTemplate(name, description string) (*workflow.Workflow, error) {
 	loadNode := &workflow.MCPToolNode{ID: "load", ServerID: "data-server", ToolName: "load_data"}
 	endNode := &workflow.EndNode{ID: "end"}
 
-	wf.AddNode(startNode)
-	wf.AddNode(extractNode)
-	wf.AddNode(transformNode)
-	wf.AddNode(loadNode)
-	wf.AddNode(endNode)
+	if err := wf.AddNode(startNode); err != nil {
+		return nil, fmt.Errorf("failed to add start node: %w", err)
+	}
+	if err := wf.AddNode(extractNode); err != nil {
+		return nil, fmt.Errorf("failed to add extract node: %w", err)
+	}
+	if err := wf.AddNode(transformNode); err != nil {
+		return nil, fmt.Errorf("failed to add transform node: %w", err)
+	}
+	if err := wf.AddNode(loadNode); err != nil {
+		return nil, fmt.Errorf("failed to add load node: %w", err)
+	}
+	if err := wf.AddNode(endNode); err != nil {
+		return nil, fmt.Errorf("failed to add end node: %w", err)
+	}
 
 	// Add edges
-	wf.AddEdge(&workflow.Edge{FromNodeID: "start", ToNodeID: "extract"})
-	wf.AddEdge(&workflow.Edge{FromNodeID: "extract", ToNodeID: "transform"})
-	wf.AddEdge(&workflow.Edge{FromNodeID: "transform", ToNodeID: "load"})
-	wf.AddEdge(&workflow.Edge{FromNodeID: "load", ToNodeID: "end"})
+	if err := wf.AddEdge(&workflow.Edge{FromNodeID: "start", ToNodeID: "extract"}); err != nil {
+		return nil, fmt.Errorf("failed to add edge start->extract: %w", err)
+	}
+	if err := wf.AddEdge(&workflow.Edge{FromNodeID: "extract", ToNodeID: "transform"}); err != nil {
+		return nil, fmt.Errorf("failed to add edge extract->transform: %w", err)
+	}
+	if err := wf.AddEdge(&workflow.Edge{FromNodeID: "transform", ToNodeID: "load"}); err != nil {
+		return nil, fmt.Errorf("failed to add edge transform->load: %w", err)
+	}
+	if err := wf.AddEdge(&workflow.Edge{FromNodeID: "load", ToNodeID: "end"}); err != nil {
+		return nil, fmt.Errorf("failed to add edge load->end: %w", err)
+	}
 
 	return wf, nil
 }
@@ -250,16 +272,20 @@ func createAPIIntegrationTemplate(name, description string) (*workflow.Workflow,
 	// by automatically downloading and executing remote code via npx.
 
 	// Add workflow variables
-	wf.AddVariable(&workflow.Variable{
+	if err := wf.AddVariable(&workflow.Variable{
 		Name:        "api_response",
 		Type:        "string",
 		Description: "API response data",
-	})
-	wf.AddVariable(&workflow.Variable{
+	}); err != nil {
+		return nil, fmt.Errorf("failed to add api_response variable: %w", err)
+	}
+	if err := wf.AddVariable(&workflow.Variable{
 		Name:        "result",
 		Type:        "string",
 		Description: "Processed result",
-	})
+	}); err != nil {
+		return nil, fmt.Errorf("failed to add result variable: %w", err)
+	}
 
 	// Add nodes
 	startNode := &workflow.StartNode{ID: "start"}
@@ -272,15 +298,29 @@ func createAPIIntegrationTemplate(name, description string) (*workflow.Workflow,
 	}
 	endNode := &workflow.EndNode{ID: "end"}
 
-	wf.AddNode(startNode)
-	wf.AddNode(fetchNode)
-	wf.AddNode(processNode)
-	wf.AddNode(endNode)
+	if err := wf.AddNode(startNode); err != nil {
+		return nil, fmt.Errorf("failed to add start node: %w", err)
+	}
+	if err := wf.AddNode(fetchNode); err != nil {
+		return nil, fmt.Errorf("failed to add fetch node: %w", err)
+	}
+	if err := wf.AddNode(processNode); err != nil {
+		return nil, fmt.Errorf("failed to add process node: %w", err)
+	}
+	if err := wf.AddNode(endNode); err != nil {
+		return nil, fmt.Errorf("failed to add end node: %w", err)
+	}
 
 	// Add edges
-	wf.AddEdge(&workflow.Edge{FromNodeID: "start", ToNodeID: "fetch_api"})
-	wf.AddEdge(&workflow.Edge{FromNodeID: "fetch_api", ToNodeID: "process_response"})
-	wf.AddEdge(&workflow.Edge{FromNodeID: "process_response", ToNodeID: "end"})
+	if err := wf.AddEdge(&workflow.Edge{FromNodeID: "start", ToNodeID: "fetch_api"}); err != nil {
+		return nil, fmt.Errorf("failed to add edge start->fetch_api: %w", err)
+	}
+	if err := wf.AddEdge(&workflow.Edge{FromNodeID: "fetch_api", ToNodeID: "process_response"}); err != nil {
+		return nil, fmt.Errorf("failed to add edge fetch_api->process_response: %w", err)
+	}
+	if err := wf.AddEdge(&workflow.Edge{FromNodeID: "process_response", ToNodeID: "end"}); err != nil {
+		return nil, fmt.Errorf("failed to add edge process_response->end: %w", err)
+	}
 
 	return wf, nil
 }
@@ -309,13 +349,23 @@ func createBatchProcessingTemplate(name, description string) (*workflow.Workflow
 	processNode := &workflow.MCPToolNode{ID: "process_batch", ServerID: "batch-server", ToolName: "process_items"}
 	endNode := &workflow.EndNode{ID: "end"}
 
-	wf.AddNode(startNode)
-	wf.AddNode(processNode)
-	wf.AddNode(endNode)
+	if err := wf.AddNode(startNode); err != nil {
+		return nil, fmt.Errorf("failed to add start node: %w", err)
+	}
+	if err := wf.AddNode(processNode); err != nil {
+		return nil, fmt.Errorf("failed to add process node: %w", err)
+	}
+	if err := wf.AddNode(endNode); err != nil {
+		return nil, fmt.Errorf("failed to add end node: %w", err)
+	}
 
 	// Add edges
-	wf.AddEdge(&workflow.Edge{FromNodeID: "start", ToNodeID: "process_batch"})
-	wf.AddEdge(&workflow.Edge{FromNodeID: "process_batch", ToNodeID: "end"})
+	if err := wf.AddEdge(&workflow.Edge{FromNodeID: "start", ToNodeID: "process_batch"}); err != nil {
+		return nil, fmt.Errorf("failed to add edge start->process_batch: %w", err)
+	}
+	if err := wf.AddEdge(&workflow.Edge{FromNodeID: "process_batch", ToNodeID: "end"}); err != nil {
+		return nil, fmt.Errorf("failed to add edge process_batch->end: %w", err)
+	}
 
 	return wf, nil
 }
@@ -402,7 +452,12 @@ func launchTUIForWorkflow(workflowName string) error {
 	if err != nil {
 		return fmt.Errorf("failed to initialize TUI: %w", err)
 	}
-	defer app.Close()
+	defer func() {
+		if closeErr := app.Close(); closeErr != nil {
+			// Log the error but don't override the return value
+			fmt.Fprintf(os.Stderr, "Warning: failed to close TUI: %v\n", closeErr)
+		}
+	}()
 
 	// Get the builder view and set the workflow
 	view, err := app.GetViewManager().GetView("builder")

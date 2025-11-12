@@ -134,20 +134,20 @@ Event Types:
 // displayHistoricalLogs displays logs for completed executions
 func displayHistoricalLogs(cmd *cobra.Command, trail *pkgexec.AuditTrail, noColor bool) error {
 	// Header
-	fmt.Fprintf(cmd.OutOrStdout(), "Execution Logs: %s\n", trail.ExecutionID)
-	fmt.Fprintf(cmd.OutOrStdout(), "Workflow: %s (version %s)\n", trail.WorkflowID, trail.WorkflowVersion)
-	fmt.Fprintf(cmd.OutOrStdout(), "Status: %s\n", formatStatus(trail.Status, noColor))
-	fmt.Fprintf(cmd.OutOrStdout(), "\n")
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Execution Logs: %s\n", trail.ExecutionID)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Workflow: %s (version %s)\n", trail.WorkflowID, trail.WorkflowVersion)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Status: %s\n", formatStatus(trail.Status, noColor))
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\n")
 
 	// Summary
 	if trail.ErrorCount > 0 {
-		fmt.Fprintf(cmd.OutOrStdout(), "Summary: %d events, %d nodes, %d errors\n",
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Summary: %d events, %d nodes, %d errors\n",
 			len(trail.Events), trail.NodeCount, trail.ErrorCount)
 	} else {
-		fmt.Fprintf(cmd.OutOrStdout(), "Summary: %d events, %d nodes\n",
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Summary: %d events, %d nodes\n",
 			len(trail.Events), trail.NodeCount)
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "\n")
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\n")
 
 	// Events
 	for _, event := range trail.Events {
@@ -156,7 +156,7 @@ func displayHistoricalLogs(cmd *cobra.Command, trail *pkgexec.AuditTrail, noColo
 
 	// Footer
 	if !trail.CompletedAt.IsZero() {
-		fmt.Fprintf(cmd.OutOrStdout(), "\nCompleted in %s\n", trail.Duration.Round(time.Millisecond))
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nCompleted in %s\n", trail.Duration.Round(time.Millisecond))
 	}
 
 	return nil
@@ -165,10 +165,10 @@ func displayHistoricalLogs(cmd *cobra.Command, trail *pkgexec.AuditTrail, noColo
 // displayFollowLogs displays real-time logs for running executions
 func displayFollowLogs(cmd *cobra.Command, exec *execution.Execution, trail *pkgexec.AuditTrail, filter pkgexec.AuditTrailFilter, noColor bool) error {
 	// Header
-	fmt.Fprintf(cmd.OutOrStdout(), "Execution Logs: %s (following...)\n", trail.ExecutionID)
-	fmt.Fprintf(cmd.OutOrStdout(), "Workflow: %s\n", trail.WorkflowID)
-	fmt.Fprintf(cmd.OutOrStdout(), "Status: %s\n", formatStatus(trail.Status, noColor))
-	fmt.Fprintf(cmd.OutOrStdout(), "\n")
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Execution Logs: %s (following...)\n", trail.ExecutionID)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Workflow: %s\n", trail.WorkflowID)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Status: %s\n", formatStatus(trail.Status, noColor))
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\n")
 
 	// Display historical events first
 	for _, event := range trail.Events {
@@ -195,7 +195,7 @@ func displayFollowLogs(cmd *cobra.Command, exec *execution.Execution, trail *pkg
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-sigCh
-		fmt.Fprintf(cmd.OutOrStderr(), "\n%sReceived interrupt signal, stopping...%s\n",
+		_, _ = fmt.Fprintf(cmd.OutOrStderr(), "\n%sReceived interrupt signal, stopping...%s\n",
 			yellow, reset)
 		cancel()
 	}()
@@ -207,7 +207,7 @@ func displayFollowLogs(cmd *cobra.Command, exec *execution.Execution, trail *pkg
 	defer ticker.Stop()
 
 	lastEventCount := len(trail.Events)
-	fmt.Fprintf(cmd.OutOrStdout(), "\n%s[waiting for more events...]%s\n", gray, reset)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\n%s[waiting for more events...]%s\n", gray, reset)
 
 	for {
 		select {
@@ -245,11 +245,11 @@ func displayFollowLogs(cmd *cobra.Command, exec *execution.Execution, trail *pkg
 
 			// Check if execution completed
 			if updatedExec.Status.IsTerminal() {
-				fmt.Fprintf(cmd.OutOrStdout(), "\n%sExecution completed with status: %s%s\n",
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\n%sExecution completed with status: %s%s\n",
 					cyan, formatStatus(updatedExec.Status, noColor), reset)
 				if !updatedExec.CompletedAt.IsZero() {
 					duration := updatedExec.CompletedAt.Sub(updatedExec.StartedAt)
-					fmt.Fprintf(cmd.OutOrStdout(), "Total duration: %s\n", duration.Round(time.Millisecond))
+					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Total duration: %s\n", duration.Round(time.Millisecond))
 				}
 				return nil
 			}
@@ -286,27 +286,27 @@ func displayEvent(w io.Writer, event pkgexec.AuditEvent, startTime time.Time, no
 	}
 
 	// Format main message
-	fmt.Fprintf(w, "%s  %8s  %s%s %s%s",
+	_, _ = fmt.Fprintf(w, "%s  %8s  %s%s %s%s",
 		timestamp, offsetStr, color, icon, event.Message, reset)
 
 	// Add duration if present
 	if event.Duration != nil {
-		fmt.Fprintf(w, " %s(%.3fs)%s",
+		_, _ = fmt.Fprintf(w, " %s(%.3fs)%s",
 			gray, event.Duration.Seconds(), reset)
 	}
 
-	fmt.Fprintf(w, "\n")
+	_, _ = fmt.Fprintf(w, "\n")
 
 	// Add node context if present (indented)
 	if event.NodeID != "" && event.NodeType != "" {
-		fmt.Fprintf(w, "           %sNode: %s (%s)%s\n",
+		_, _ = fmt.Fprintf(w, "           %sNode: %s (%s)%s\n",
 			gray, event.NodeID, event.NodeType, reset)
 	}
 
 	// Display important error details
 	if event.Type == pkgexec.AuditEventNodeFailed || event.Type == pkgexec.AuditEventExecutionFailed || event.Type == pkgexec.AuditEventError {
 		if errorMsg, ok := event.Details["error_message"].(string); ok {
-			fmt.Fprintf(w, "           %sError: %s%s\n",
+			_, _ = fmt.Fprintf(w, "           %sError: %s%s\n",
 				red, errorMsg, reset)
 		}
 	}

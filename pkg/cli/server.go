@@ -8,6 +8,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/dshills/goflow/pkg/mcpserver"
+	"github.com/dshills/goflow/pkg/validation"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -136,7 +137,7 @@ Examples:
 				return fmt.Errorf("failed to save servers config: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "✓ Server '%s' added successfully\n", serverID)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "✓ Server '%s' added successfully\n", serverID) // Error ignored: terminal output, failure is non-critical
 			return nil
 		},
 	}
@@ -166,10 +167,10 @@ func newServerListCommand() *cobra.Command {
 
 			if len(config.Servers) == 0 {
 				if outputFormat == "json" {
-					_, _ = fmt.Fprintln(cmd.OutOrStdout(), "[]")
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), "[]") // Error ignored: terminal output, failure is non-critical
 				} else {
-					_, _ = fmt.Fprintln(cmd.OutOrStdout(), "No servers registered.")
-					_, _ = fmt.Fprintln(cmd.OutOrStdout(), "\nRegister a server with: goflow server add <id> <command> [args...]")
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), "No servers registered.")                                               // Error ignored: terminal output, failure is non-critical
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), "\nRegister a server with: goflow server add <id> <command> [args...]") // Error ignored: terminal output, failure is non-critical
 				}
 				return nil
 			}
@@ -201,20 +202,19 @@ func newServerListCommand() *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("failed to marshal JSON: %w", err)
 				}
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(output))
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(output)) // Error ignored: terminal output, failure is non-critical
 				return nil
 			}
 
 			// Create table writer for human-readable output
 			w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
-			_, _ = fmt.Fprintln(w, "ID\tNAME\tCOMMAND\tTRANSPORT\tSTATUS")
-			_, _ = fmt.Fprintln(w, "──\t────\t───────\t─────────\t──────")
+			_, _ = fmt.Fprintln(w, "ID\tNAME\tCOMMAND\tTRANSPORT\tSTATUS") // Error ignored: terminal output, failure is non-critical
+			_, _ = fmt.Fprintln(w, "──\t────\t───────\t─────────\t──────") // Error ignored: terminal output, failure is non-critical
 
 			for _, server := range config.Servers {
-				status := "Unknown"
 				// TODO: Test connection to determine actual status
 				// For now, show as "Registered"
-				status = "Registered"
+				status := "Registered"
 
 				name := server.Name
 				if name == "" {
@@ -234,11 +234,11 @@ func newServerListCommand() *cobra.Command {
 					}
 				}
 
-				_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
+				_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", // Error ignored: terminal output, failure is non-critical
 					server.ID, name, cmdDisplay, transport, status)
 			}
 
-			_ = w.Flush()
+			_ = w.Flush() // Error ignored: terminal output, failure is non-critical
 			return nil
 		},
 	}
@@ -347,7 +347,7 @@ func newServerRemoveCommand() *cobra.Command {
 				return fmt.Errorf("failed to save servers config: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "✓ Server '%s' removed successfully\n", serverID)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "✓ Server '%s' removed successfully\n", serverID) // Error ignored: terminal output, failure is non-critical
 			return nil
 		},
 	}
@@ -395,7 +395,7 @@ func newServerUpdateCommand() *cobra.Command {
 				return fmt.Errorf("failed to save servers config: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "✓ Server '%s' updated successfully\n", serverID)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "✓ Server '%s' updated successfully\n", serverID) // Error ignored: terminal output, failure is non-critical
 			return nil
 		},
 	}
@@ -429,37 +429,37 @@ func newServerShowCommand() *cobra.Command {
 			}
 
 			// Display server details
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Server ID: %s\n", server.ID)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Server ID: %s\n", server.ID) // Error ignored: terminal output, failure is non-critical
 
 			if server.Name != "" {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Name: %s\n", server.Name)
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Name: %s\n", server.Name) // Error ignored: terminal output, failure is non-critical
 			}
 
 			if server.Description != "" {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Description: %s\n", server.Description)
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Description: %s\n", server.Description) // Error ignored: terminal output, failure is non-critical
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Command: %s", server.Command)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Command: %s", server.Command) // Error ignored: terminal output, failure is non-critical
 			if len(server.Args) > 0 {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), " %s", strings.Join(server.Args, " "))
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), " %s", strings.Join(server.Args, " ")) // Error ignored: terminal output, failure is non-critical
 			}
-			_, _ = fmt.Fprintln(cmd.OutOrStdout())
+			_, _ = fmt.Fprintln(cmd.OutOrStdout()) // Error ignored: terminal output, failure is non-critical
 
 			transport := server.Transport
 			if transport == "" {
 				transport = "stdio"
 			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Transport: %s\n", transport)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Transport: %s\n", transport) // Error ignored: terminal output, failure is non-critical
 
 			if len(server.Env) > 0 {
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Environment Variables:")
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Environment Variables:") // Error ignored: terminal output, failure is non-critical
 				for key, value := range server.Env {
-					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  %s=%s\n", key, value)
+					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  %s=%s\n", key, value) // Error ignored: terminal output, failure is non-critical
 				}
 			}
 
 			if server.CredentialRef != "" {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Credential Reference: %s\n", server.CredentialRef)
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Credential Reference: %s\n", server.CredentialRef) // Error ignored: terminal output, failure is non-critical
 			}
 
 			return nil
@@ -531,9 +531,14 @@ func isValidServerID(id string) bool {
 		return false
 	}
 	for _, ch := range id {
-		if !((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '-' || ch == '_') {
+		if !isValidServerIDChar(ch) {
 			return false
 		}
 	}
 	return true
+}
+
+// isValidServerIDChar checks if a character is valid for server IDs (alphanumeric, hyphen, underscore)
+func isValidServerIDChar(ch rune) bool {
+	return validation.IsValidIdentifierChar(ch)
 }

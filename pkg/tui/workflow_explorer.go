@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/dshills/goflow/pkg/tui/components"
+	"github.com/dshills/goflow/pkg/validation"
 	"github.com/dshills/goflow/pkg/workflow"
 	"github.com/dshills/goterm"
 )
@@ -40,7 +41,7 @@ func NewWorkflowExplorer(repo workflow.WorkflowRepository, screen *goterm.Screen
 	}
 
 	// Load workflows from repository
-	explorer.loadWorkflows()
+	_ = explorer.loadWorkflows()
 
 	return explorer
 }
@@ -166,11 +167,12 @@ func (e *WorkflowExplorer) HandleKey(key rune) error {
 	// If modal is open, handle modal input
 	if e.currentModal != nil && e.currentModal.IsVisible() {
 		keyStr := string(key)
-		if key == '\n' {
+		switch key {
+		case '\n':
 			keyStr = "Enter"
-		} else if key == 27 {
+		case 27:
 			keyStr = "Esc"
-		} else if key == 8 || key == 127 {
+		case 8, 127:
 			keyStr = "Backspace"
 		}
 		e.currentModal.HandleKey(keyStr)
@@ -271,7 +273,7 @@ func (e *WorkflowExplorer) showNewWorkflowDialog() {
 				}
 
 				// Reload workflows and select the new one
-				e.loadWorkflows()
+				_ = e.loadWorkflows()
 				for i, wf := range e.filteredWorkflows {
 					if wf.Name == input {
 						e.selectedIndex = i
@@ -317,7 +319,7 @@ func (e *WorkflowExplorer) showDeleteConfirmation() {
 		if confirmed {
 			err := e.repo.Delete(selected.ID)
 			if err == nil {
-				e.loadWorkflows()
+				_ = e.loadWorkflows()
 			}
 		}
 	} else {
@@ -329,7 +331,7 @@ func (e *WorkflowExplorer) showDeleteConfirmation() {
 				if result {
 					err := e.repo.Delete(selected.ID)
 					if err == nil {
-						e.loadWorkflows()
+						_ = e.loadWorkflows()
 					}
 				}
 				e.currentModal = nil
@@ -368,7 +370,7 @@ func (e *WorkflowExplorer) showRenameDialog() {
 			selected.Name = newName
 			err := e.repo.Save(selected)
 			if err == nil {
-				e.loadWorkflows()
+				_ = e.loadWorkflows()
 			}
 		}
 		return
@@ -399,7 +401,7 @@ func (e *WorkflowExplorer) showRenameDialog() {
 				selected.Name = input
 				err := e.repo.Save(selected)
 				if err == nil {
-					e.loadWorkflows()
+					_ = e.loadWorkflows()
 				}
 			}
 			e.currentModal = nil
@@ -637,13 +639,15 @@ func isValidWorkflowName(name string) bool {
 
 	// Check for valid characters (alphanumeric, hyphens, underscores)
 	for _, ch := range name {
-		if !((ch >= 'a' && ch <= 'z') ||
-			(ch >= 'A' && ch <= 'Z') ||
-			(ch >= '0' && ch <= '9') ||
-			ch == '-' || ch == '_') {
+		if !isValidWorkflowNameChar(ch) {
 			return false
 		}
 	}
 
 	return true
+}
+
+// isValidWorkflowNameChar checks if a character is valid for workflow names (alphanumeric, hyphen, underscore)
+func isValidWorkflowNameChar(ch rune) bool {
+	return validation.IsValidIdentifierChar(ch)
 }

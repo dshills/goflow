@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/dshills/goflow/pkg/workflow"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // Position represents a 2D coordinate on the canvas
@@ -1139,9 +1141,10 @@ func (b *WorkflowBuilder) GetEdgeStyle(edge *workflow.Edge) string {
 	// Check if this edge is from a condition node
 	for _, node := range b.workflow.Nodes {
 		if node.GetID() == edge.FromNodeID && node.Type() == "condition" {
-			if edge.Condition == "true" {
+			switch edge.Condition {
+			case "true":
 				return "solid"
-			} else if edge.Condition == "false" {
+			case "false":
 				return "dashed"
 			}
 		}
@@ -1283,7 +1286,8 @@ func (p *PropertyPanel) RenderPropertyPanel() string {
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("=== %s Node Properties ===\n", strings.Title(p.node.Type())))
+	titleCaser := cases.Title(language.English)
+	sb.WriteString(fmt.Sprintf("=== %s Node Properties ===\n", titleCaser.String(p.node.Type())))
 	sb.WriteString("\n")
 
 	for i, field := range p.fields {

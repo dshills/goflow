@@ -198,7 +198,8 @@ func (e *Engine) Execute(ctx context.Context, wf *workflow.Workflow, inputs map[
 	if err := e.executeWorkflow(execCtx, wf, exec); err != nil {
 		// Check if context was cancelled or timed out
 		ctxErr := execCtx.Err()
-		if ctxErr == context.DeadlineExceeded {
+		switch ctxErr {
+		case context.DeadlineExceeded:
 			// Timeout occurred
 			timeoutNode := ""
 			if currentNode := exec.Context.CurrentNode(); currentNode != nil {
@@ -214,11 +215,11 @@ func (e *Engine) Execute(ctx context.Context, wf *workflow.Workflow, inputs map[
 			}
 			_ = exec.Timeout(timeoutNode, execErr)
 			e.emitExecutionFailed(exec, execErr)
-		} else if ctxErr == context.Canceled {
+		case context.Canceled:
 			// Context was cancelled
 			_ = exec.Cancel()
 			e.emitExecutionCancelled(exec)
-		} else {
+		default:
 			// Execution failed for other reasons
 			execErr, ok := err.(*execution.ExecutionError)
 			if !ok {
@@ -511,65 +512,6 @@ func (e *Engine) executeNode(ctx context.Context, node workflow.Node, wf *workfl
 	}
 
 	return nil
-}
-
-// topologicalSort performs a topological sort on workflow nodes using Kahn's algorithm.
-func (e *Engine) topologicalSort(wf *workflow.Workflow) ([]workflow.Node, error) {
-	// Build adjacency list and in-degree count
-	adjacency := make(map[string][]string)
-	inDegree := make(map[string]int)
-
-	// Initialize in-degree for all nodes
-	for _, node := range wf.Nodes {
-		nodeID := node.GetID()
-		inDegree[nodeID] = 0
-		adjacency[nodeID] = []string{}
-	}
-
-	// Build adjacency list and count in-degrees
-	for _, edge := range wf.Edges {
-		adjacency[edge.FromNodeID] = append(adjacency[edge.FromNodeID], edge.ToNodeID)
-		inDegree[edge.ToNodeID]++
-	}
-
-	// Find all nodes with in-degree 0 (start nodes)
-	queue := []string{}
-	for nodeID, degree := range inDegree {
-		if degree == 0 {
-			queue = append(queue, nodeID)
-		}
-	}
-
-	// Process nodes in topological order
-	var sorted []workflow.Node
-	nodeMap := make(map[string]workflow.Node)
-	for _, node := range wf.Nodes {
-		nodeMap[node.GetID()] = node
-	}
-
-	for len(queue) > 0 {
-		// Dequeue
-		currentID := queue[0]
-		queue = queue[1:]
-
-		// Add to sorted list
-		sorted = append(sorted, nodeMap[currentID])
-
-		// Reduce in-degree for neighbors
-		for _, neighborID := range adjacency[currentID] {
-			inDegree[neighborID]--
-			if inDegree[neighborID] == 0 {
-				queue = append(queue, neighborID)
-			}
-		}
-	}
-
-	// Check if all nodes were processed (no cycles)
-	if len(sorted) != len(wf.Nodes) {
-		return nil, fmt.Errorf("workflow contains a cycle")
-	}
-
-	return sorted, nil
 }
 
 // validateInputs checks that all required input variables are provided.

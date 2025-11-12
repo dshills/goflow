@@ -16,18 +16,24 @@ func main() {
 	}
 
 	// Add variables that will be used in conditions
-	wf.AddVariable(&workflow.Variable{
+	if err := wf.AddVariable(&workflow.Variable{
 		Name: "price",
 		Type: "number",
-	})
-	wf.AddVariable(&workflow.Variable{
+	}); err != nil {
+		panic(fmt.Errorf("failed to add price variable: %w", err))
+	}
+	if err := wf.AddVariable(&workflow.Variable{
 		Name: "quantity",
 		Type: "number",
-	})
-	wf.AddVariable(&workflow.Variable{
+	}); err != nil {
+		panic(fmt.Errorf("failed to add quantity variable: %w", err))
+	}
+	if err := wf.AddVariable(&workflow.Variable{
 		Name: "inStock",
 		Type: "boolean",
-	})
+	}); err != nil {
+		panic(fmt.Errorf("failed to add inStock variable: %w", err))
+	}
 
 	// Create TUI builder
 	builder, err := tui.NewWorkflowBuilder(wf)
@@ -37,14 +43,18 @@ func main() {
 
 	// Add a start node
 	startNode := &workflow.StartNode{ID: "start"}
-	builder.AddNodeToCanvas(startNode)
+	if err := builder.AddNodeToCanvas(startNode); err != nil {
+		panic(fmt.Errorf("failed to add start node to canvas: %w", err))
+	}
 
 	// Add a condition node
 	condNode := &workflow.ConditionNode{
 		ID:        "check_threshold",
 		Condition: "price > 100 && inStock",
 	}
-	builder.AddNodeToCanvas(condNode)
+	if err := builder.AddNodeToCanvas(condNode); err != nil {
+		panic(fmt.Errorf("failed to add condition node to canvas: %w", err))
+	}
 
 	// Add nodes for true and false paths
 	highValueNode := &workflow.TransformNode{
@@ -53,7 +63,9 @@ func main() {
 		Expression:     "price * 0.9", // 10% discount
 		OutputVariable: "final_price",
 	}
-	builder.AddNodeToCanvas(highValueNode)
+	if err := builder.AddNodeToCanvas(highValueNode); err != nil {
+		panic(fmt.Errorf("failed to add high value node to canvas: %w", err))
+	}
 
 	lowValueNode := &workflow.TransformNode{
 		ID:             "regular_price",
@@ -61,24 +73,38 @@ func main() {
 		Expression:     "price",
 		OutputVariable: "final_price",
 	}
-	builder.AddNodeToCanvas(lowValueNode)
+	if err := builder.AddNodeToCanvas(lowValueNode); err != nil {
+		panic(fmt.Errorf("failed to add low value node to canvas: %w", err))
+	}
 
 	// Add end node
 	endNode := &workflow.EndNode{
 		ID:          "end",
 		ReturnValue: "final_price",
 	}
-	builder.AddNodeToCanvas(endNode)
+	if err := builder.AddNodeToCanvas(endNode); err != nil {
+		panic(fmt.Errorf("failed to add end node to canvas: %w", err))
+	}
 
 	// Create edges
-	builder.CreateEdge("start", "check_threshold")
+	if err := builder.CreateEdge("start", "check_threshold"); err != nil {
+		panic(fmt.Errorf("failed to create edge start->check_threshold: %w", err))
+	}
 
 	// Create conditional edges with labels
-	builder.CreateConditionalEdge("check_threshold", "high_value_discount", "true")
-	builder.CreateConditionalEdge("check_threshold", "regular_price", "false")
+	if err := builder.CreateConditionalEdge("check_threshold", "high_value_discount", "true"); err != nil {
+		panic(fmt.Errorf("failed to create conditional edge (true): %w", err))
+	}
+	if err := builder.CreateConditionalEdge("check_threshold", "regular_price", "false"); err != nil {
+		panic(fmt.Errorf("failed to create conditional edge (false): %w", err))
+	}
 
-	builder.CreateEdge("high_value_discount", "end")
-	builder.CreateEdge("regular_price", "end")
+	if err := builder.CreateEdge("high_value_discount", "end"); err != nil {
+		panic(fmt.Errorf("failed to create edge high_value_discount->end: %w", err))
+	}
+	if err := builder.CreateEdge("regular_price", "end"); err != nil {
+		panic(fmt.Errorf("failed to create edge regular_price->end: %w", err))
+	}
 
 	// Demonstrate property panel
 	fmt.Println("=== Workflow Created ===")

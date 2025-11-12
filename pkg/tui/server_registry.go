@@ -484,7 +484,7 @@ func (v *ServerRegistryView) createServerFromDialog() {
 	}
 
 	// Reload servers
-	v.loadServers()
+	_ = v.loadServers()
 
 	// Select the new server
 	for i, s := range v.servers {
@@ -531,7 +531,7 @@ func (v *ServerRegistryView) deleteSelectedServer() {
 
 	// Disconnect if connected
 	if server.Connection.GetState() == mcpserver.StateConnected {
-		server.Disconnect()
+		_ = server.Disconnect()
 	}
 
 	// Unregister from registry
@@ -542,7 +542,7 @@ func (v *ServerRegistryView) deleteSelectedServer() {
 	}
 
 	v.statusMsg = fmt.Sprintf("Server '%s' deleted", server.Name)
-	v.loadServers()
+	_ = v.loadServers()
 }
 
 // testServerConnection tests the selected server connection (T198)
@@ -566,7 +566,7 @@ func (v *ServerRegistryView) testServerConnection() {
 		if err := server.CompleteConnection(); err != nil {
 			v.statusMsg = fmt.Sprintf("Connection failed: %v", err)
 			v.errorMsg = err.Error()
-			server.FailConnection(err.Error())
+			_ = server.FailConnection(err.Error())
 			return
 		}
 	}
@@ -641,7 +641,7 @@ func (v *ServerRegistryView) connectServer() {
 	if err := server.CompleteConnection(); err != nil {
 		v.statusMsg = fmt.Sprintf("Connect failed: %v", err)
 		v.errorMsg = err.Error()
-		server.FailConnection(err.Error())
+		_ = server.FailConnection(err.Error())
 		return
 	}
 
@@ -734,7 +734,7 @@ func (v *ServerRegistryView) Render(screen *goterm.Screen) error {
 					case <-ctx.Done():
 						s.RecordUnhealthy("ping timeout")
 					default:
-						s.HealthCheck()
+						_ = s.HealthCheck()
 					}
 				}(server)
 			}
@@ -776,13 +776,13 @@ func (v *ServerRegistryView) Render(screen *goterm.Screen) error {
 	// Render based on current mode
 	if v.showToolSchema && v.selectedIdx < len(v.servers) {
 		// T199: Tool schema viewer
-		y = v.renderToolSchemaView(screen, y)
+		_ = v.renderToolSchemaView(screen, y)
 	} else if v.showDetails && v.selectedIdx < len(v.servers) {
 		// T198: Server details view
-		y = v.renderServerDetailsView(screen, y)
+		_ = v.renderServerDetailsView(screen, y)
 	} else {
 		// T196: Server list view
-		y = v.renderServerListView(screen, y)
+		_ = v.renderServerListView(screen, y)
 	}
 
 	// Status bar (bottom)

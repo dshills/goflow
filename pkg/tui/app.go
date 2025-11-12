@@ -55,19 +55,33 @@ func NewApp() (*App, error) {
 
 	// Register default views
 	if err := app.registerViews(); err != nil {
-		screen.Close()
+		// Error path: Log Close() errors to stderr instead of silently ignoring
+		if closeErr := screen.Close(); closeErr != nil {
+			// Use %w for primary error (register views) and %v for secondary error (screen close)
+			// because we want error chain unwrapping to focus on the root cause (register failure)
+			// while still reporting the cleanup failure for debugging
+			return nil, fmt.Errorf("failed to register views: %w (and failed to close screen: %v)", err, closeErr)
+		}
 		return nil, fmt.Errorf("failed to register views: %w", err)
 	}
 
 	// Register default keybindings
 	if err := app.registerGlobalKeybindings(); err != nil {
-		screen.Close()
+		// Error path: Log Close() errors to stderr instead of silently ignoring
+		if closeErr := screen.Close(); closeErr != nil {
+			// Use %w for primary error (register keybindings) and %v for secondary error (screen close)
+			return nil, fmt.Errorf("failed to register keybindings: %w (and failed to close screen: %v)", err, closeErr)
+		}
 		return nil, fmt.Errorf("failed to register keybindings: %w", err)
 	}
 
 	// Initialize view manager with workflow explorer
 	if err := viewManager.Initialize("explorer"); err != nil {
-		screen.Close()
+		// Error path: Log Close() errors to stderr instead of silently ignoring
+		if closeErr := screen.Close(); closeErr != nil {
+			// Use %w for primary error (initialize view manager) and %v for secondary error (screen close)
+			return nil, fmt.Errorf("failed to initialize view manager: %w (and failed to close screen: %v)", err, closeErr)
+		}
 		return nil, fmt.Errorf("failed to initialize view manager: %w", err)
 	}
 
@@ -348,10 +362,7 @@ func (a *App) parseKeyInput(buf []byte) KeyEvent {
 
 	// Regular character
 	key := rune(buf[0])
-	shift := false
-	if key >= 'A' && key <= 'Z' {
-		shift = true
-	}
+	shift := key >= 'A' && key <= 'Z'
 
 	return KeyEvent{
 		Key:   key,

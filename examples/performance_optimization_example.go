@@ -47,7 +47,7 @@ func demonstrateWorkflowCaching() {
 	}
 
 	// First execution - cache miss
-	entry, found := cache.Get(nodeID, nodeType, inputs)
+	_, found := cache.Get(nodeID, nodeType, inputs)
 	fmt.Printf("First lookup: found=%v (expected cache miss)\n", found)
 
 	// Store the result
@@ -59,7 +59,7 @@ func demonstrateWorkflowCaching() {
 	fmt.Println("Stored execution result in cache")
 
 	// Second execution - cache hit
-	entry, found = cache.Get(nodeID, nodeType, inputs)
+	entry, found := cache.Get(nodeID, nodeType, inputs)
 	fmt.Printf("Second lookup: found=%v (cache hit!)\n", found)
 	if found {
 		fmt.Printf("Cached result: %v\n", entry.Outputs["result"])
@@ -76,7 +76,7 @@ func demonstrateWorkflowCaching() {
 	cache.InvalidateNode(nodeID)
 	fmt.Println("\nInvalidated cache for node:", nodeID)
 
-	entry, found = cache.Get(nodeID, nodeType, inputs)
+	_, found = cache.Get(nodeID, nodeType, inputs)
 	fmt.Printf("After invalidation: found=%v\n", found)
 }
 
@@ -86,7 +86,11 @@ func demonstrateConnectionPooling() {
 
 	// Create connection pool
 	pool := mcpserver.NewConnectionPool()
-	defer pool.Close()
+	defer func() {
+		if err := pool.Close(); err != nil {
+			fmt.Printf("Failed to close connection pool: %v\n", err)
+		}
+	}()
 	fmt.Println("Created connection pool")
 
 	// Create registry and servers

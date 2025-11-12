@@ -350,8 +350,8 @@ func ParseStackTrace(stackTrace string) []StackFrame {
 					fileInfo := parts[0]
 					if idx := strings.LastIndex(fileInfo, ":"); idx != -1 {
 						frame.File = fileInfo[:idx]
-						// Parse line number
-						fmt.Sscanf(fileInfo[idx+1:], "%d", &frame.Line)
+						// Parse line number (ignore error as frame.Line defaults to 0)
+						_, _ = fmt.Sscanf(fileInfo[idx+1:], "%d", &frame.Line)
 					}
 				}
 				i++ // Skip file:line

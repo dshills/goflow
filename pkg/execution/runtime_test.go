@@ -39,7 +39,7 @@ func TestEngine_TopologicalSort(t *testing.T) {
 	defer engine.Close()
 
 	// Perform topological sort
-	sorted, err := engine.topologicalSort(wf)
+	sorted, err := workflow.TopologicalSort(wf)
 	if err != nil {
 		t.Fatalf("Topological sort failed: %v", err)
 	}
@@ -52,8 +52,8 @@ func TestEngine_TopologicalSort(t *testing.T) {
 	// Verify node1 comes before node2
 	node1Idx := -1
 	node2Idx := -1
-	for i, node := range sorted {
-		switch node.GetID() {
+	for i, nodeID := range sorted {
+		switch nodeID {
 		case "node1":
 			node1Idx = i
 		case "node2":
@@ -310,7 +310,7 @@ func BenchmarkTopologicalSort(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := engine.topologicalSort(wf)
+		_, err := workflow.TopologicalSort(wf)
 		if err != nil {
 			b.Fatalf("Sort failed: %v", err)
 		}

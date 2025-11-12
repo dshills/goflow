@@ -76,9 +76,10 @@ func LoadConfig() *ServerConfig {
 	if logSecurityStr := os.Getenv("GOFLOW_TESTSERVER_LOG_SECURITY"); logSecurityStr != "" {
 		// Parse boolean (case-insensitive)
 		logSecurityStr = strings.ToLower(strings.TrimSpace(logSecurityStr))
-		if logSecurityStr == "true" || logSecurityStr == "1" || logSecurityStr == "yes" {
+		switch logSecurityStr {
+		case "true", "1", "yes":
 			config.LogSecurityEvents = true
-		} else if logSecurityStr == "false" || logSecurityStr == "0" || logSecurityStr == "no" {
+		case "false", "0", "no":
 			config.LogSecurityEvents = false
 		}
 		// If parsing fails, keep the default

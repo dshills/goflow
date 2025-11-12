@@ -156,7 +156,7 @@ Examples:
 
 			// Create execution engine
 			engine := execution.NewEngine()
-			defer engine.Close()
+			defer func() { _ = engine.Close() }()
 
 			// Create context with cancellation
 			ctx, cancel := context.WithCancel(context.Background())
@@ -183,12 +183,9 @@ Examples:
 			} else if watch {
 				// Run with inline watch mode
 				return runWithInlineWatch(ctx, cmd, engine, wf, workflowName, inputVars, outputJSON, debugMode)
-			} else {
-				// Run silently, only show result at end
-				return runSilent(ctx, cmd, engine, wf, workflowName, inputVars, outputJSON, debugMode)
 			}
-
-			return nil
+			// Run silently, only show result at end
+			return runSilent(ctx, cmd, engine, wf, workflowName, inputVars, outputJSON, debugMode)
 		},
 	}
 
@@ -237,7 +234,7 @@ func runWithTUI(ctx context.Context, engine *execution.Engine, wf *workflow.Work
 	if err != nil {
 		return fmt.Errorf("failed to initialize TUI: %w", err)
 	}
-	defer screen.Close()
+	defer func() { _ = screen.Close() }()
 
 	// Wait for execution to start and get monitor
 	time.Sleep(100 * time.Millisecond)
@@ -261,13 +258,13 @@ func runWithTUI(ctx context.Context, engine *execution.Engine, wf *workflow.Work
 	defer ticker.Stop()
 
 	// Initial render
-	monitorView.Render()
+	_, _ = monitorView.Render()
 
 	for {
 		select {
 		case <-execDone:
 			// Execution finished, show final state for a moment then exit
-			monitorView.Render()
+			_, _ = monitorView.Render()
 			time.Sleep(2 * time.Second)
 
 			if execErr != nil {
@@ -280,7 +277,7 @@ func runWithTUI(ctx context.Context, engine *execution.Engine, wf *workflow.Work
 
 		case <-ticker.C:
 			// Periodic refresh
-			monitorView.Render()
+			_, _ = monitorView.Render()
 		}
 	}
 }
@@ -312,8 +309,8 @@ func runWithInlineWatch(ctx context.Context, cmd *cobra.Command, engine *executi
 	isTerm := term.IsTerminal(int(os.Stdout.Fd()))
 
 	if !outputJSON {
-		fmt.Fprintf(cmd.OutOrStdout(), "Executing: %s\n", workflowName)
-		fmt.Fprintf(cmd.OutOrStdout(), "[Press Ctrl+C to cancel]\n\n")
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Executing: %s\n", workflowName) // Error ignored: terminal output, failure is non-critical
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "[Press Ctrl+C to cancel]\n\n")  // Error ignored: terminal output, failure is non-critical
 	}
 
 	// Track state for display
@@ -358,7 +355,7 @@ func runWithInlineWatch(ctx context.Context, cmd *cobra.Command, engine *executi
 // runSilent runs execution without progress updates, only showing final result.
 func runSilent(ctx context.Context, cmd *cobra.Command, engine *execution.Engine, wf *workflow.Workflow, workflowName string, inputs map[string]interface{}, outputJSON, debugMode bool) error {
 	if !outputJSON {
-		fmt.Fprintf(cmd.OutOrStdout(), "Executing workflow: %s\n", workflowName)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Executing workflow: %s\n", workflowName) // Error ignored: terminal output, failure is non-critical
 	}
 
 	// Execute workflow
@@ -394,20 +391,20 @@ func handleInlineEvent(cmd *cobra.Command, event execution.ExecutionEvent, state
 	switch event.Type {
 	case execution.EventExecutionStarted:
 		timestamp := elapsed.Truncate(time.Millisecond)
-		fmt.Fprintf(cmd.OutOrStdout(), "%s ▶ Execution started\n", timestamp)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s ▶ Execution started\n", timestamp) // Error ignored: terminal output, failure is non-critical
 
 	case execution.EventNodeStarted:
 		timestamp := elapsed.Truncate(time.Millisecond)
 		state.lastNodeID = string(event.NodeID)
-		fmt.Fprintf(cmd.OutOrStdout(), "%s ▶ %s started\n", timestamp, event.NodeID)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s ▶ %s started\n", timestamp, event.NodeID) // Error ignored: terminal output, failure is non-critical
 
 	case execution.EventNodeCompleted:
 		timestamp := elapsed.Truncate(time.Millisecond)
-		fmt.Fprintf(cmd.OutOrStdout(), "%s ✓ %s completed\n", timestamp, event.NodeID)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s ✓ %s completed\n", timestamp, event.NodeID) // Error ignored: terminal output, failure is non-critical
 
 	case execution.EventNodeFailed:
 		timestamp := elapsed.Truncate(time.Millisecond)
-		fmt.Fprintf(cmd.OutOrStdout(), "%s ✗ %s failed: %v\n", timestamp, event.NodeID, event.Error)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s ✗ %s failed: %v\n", timestamp, event.NodeID, event.Error) // Error ignored: terminal output, failure is non-critical
 
 	case execution.EventVariableChanged:
 		state.variables = event.Variables
@@ -423,7 +420,7 @@ func displayInlineProgress(cmd *cobra.Command, progress execution.ExecutionProgr
 
 	// Use ANSI escape codes to update in place
 	// Move cursor up and clear line
-	fmt.Fprintf(cmd.OutOrStdout(), "\r\033[K")
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\r\033[K") // Error ignored: terminal output, failure is non-critical
 
 	status := fmt.Sprintf("Status: Running | Progress: %.0f%% (%d/%d nodes)",
 		progress.PercentComplete,
@@ -434,32 +431,32 @@ func displayInlineProgress(cmd *cobra.Command, progress execution.ExecutionProgr
 		status += fmt.Sprintf(" | Current: %s", progress.CurrentNode)
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "%s", status)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s", status) // Error ignored: terminal output, failure is non-critical
 }
 
 // displayFinalResult shows the final execution result.
 func displayFinalResult(cmd *cobra.Command, exec *domainexec.Execution, err error, state *watchState, debugMode bool) {
-	fmt.Fprintln(cmd.OutOrStdout())
+	_, _ = fmt.Fprintln(cmd.OutOrStdout()) // Error ignored: terminal output, failure is non-critical
 
 	duration := time.Since(state.startTime)
 
 	if err != nil {
-		fmt.Fprintf(cmd.OutOrStdout(), "✗ Workflow failed (%.2fs)\n", duration.Seconds())
-		fmt.Fprintf(cmd.OutOrStdout(), "Error: %v\n", err)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "✗ Workflow failed (%.2fs)\n", duration.Seconds()) // Error ignored: terminal output, failure is non-critical
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Error: %v\n", err)                                // Error ignored: terminal output, failure is non-critical
 	} else if exec != nil {
-		fmt.Fprintf(cmd.OutOrStdout(), "✓ Workflow completed successfully (%.2fs)\n", duration.Seconds())
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "✓ Workflow completed successfully (%.2fs)\n", duration.Seconds()) // Error ignored: terminal output, failure is non-critical
 
 		if exec.ReturnValue != nil {
-			fmt.Fprintln(cmd.OutOrStdout(), "\nReturn value:")
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "\nReturn value:") // Error ignored: terminal output, failure is non-critical
 			returnJSON, _ := json.MarshalIndent(exec.ReturnValue, "", "  ")
-			fmt.Fprintln(cmd.OutOrStdout(), string(returnJSON))
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(returnJSON)) // Error ignored: terminal output, failure is non-critical
 		}
 
 		if debugMode {
-			fmt.Fprintf(cmd.OutOrStderr(), "\nDEBUG: Execution details:\n")
-			fmt.Fprintf(cmd.OutOrStderr(), "  Execution ID: %s\n", exec.ID)
-			fmt.Fprintf(cmd.OutOrStderr(), "  Duration: %.2fs\n", duration.Seconds())
-			fmt.Fprintf(cmd.OutOrStderr(), "  Nodes executed: %d\n", len(exec.NodeExecutions))
+			_, _ = fmt.Fprintf(cmd.OutOrStderr(), "\nDEBUG: Execution details:\n")                    // Error ignored: terminal output, failure is non-critical
+			_, _ = fmt.Fprintf(cmd.OutOrStderr(), "  Execution ID: %s\n", exec.ID)                    // Error ignored: terminal output, failure is non-critical
+			_, _ = fmt.Fprintf(cmd.OutOrStderr(), "  Duration: %.2fs\n", duration.Seconds())          // Error ignored: terminal output, failure is non-critical
+			_, _ = fmt.Fprintf(cmd.OutOrStderr(), "  Nodes executed: %d\n", len(exec.NodeExecutions)) // Error ignored: terminal output, failure is non-critical
 		}
 	}
 }
@@ -495,5 +492,5 @@ func displayJSONResult(cmd *cobra.Command, exec *domainexec.Execution, err error
 		// Try again with the error info
 		output, _ = json.MarshalIndent(result, "", "  ")
 	}
-	fmt.Fprintln(cmd.OutOrStdout(), string(output))
+	_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(output)) // Error ignored: terminal output, failure is non-critical
 }

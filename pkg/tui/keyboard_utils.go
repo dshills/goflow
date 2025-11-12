@@ -240,9 +240,7 @@ type CommandParser struct {
 // ParseCommand parses a command string (e.g., ":w filename" -> "w", ["filename"])
 func ParseCommand(input string) *CommandParser {
 	input = strings.TrimSpace(input)
-	if strings.HasPrefix(input, ":") {
-		input = input[1:]
-	}
+	input = strings.TrimPrefix(input, ":")
 
 	parts := strings.Fields(input)
 	if len(parts) == 0 {

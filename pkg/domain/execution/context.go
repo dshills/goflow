@@ -38,11 +38,9 @@ func NewExecutionContext(initialVars map[string]interface{}) (*ExecutionContext,
 		executionTrace:  []TraceEntry{},
 	}
 
-	// Copy initial variables if provided
-	if initialVars != nil {
-		for key, value := range initialVars {
-			ctx.Variables[key] = value
-		}
+	// Copy initial variables if provided (range over nil map is safe)
+	for key, value := range initialVars {
+		ctx.Variables[key] = value
 	}
 
 	return ctx, nil
@@ -70,8 +68,8 @@ func (ctx *ExecutionContext) SetVariableWithNode(name string, value interface{},
 	ctx.mu.Lock()
 	defer ctx.mu.Unlock()
 
-	// Capture old value for snapshot
-	oldValue, _ := ctx.Variables[name]
+	// Capture old value for snapshot (map lookup never fails, returns zero value if not present)
+	oldValue := ctx.Variables[name]
 
 	// Update variable
 	ctx.Variables[name] = value
