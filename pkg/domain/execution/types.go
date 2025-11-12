@@ -22,11 +22,13 @@ const (
 	StatusFailed Status = "failed"
 	// StatusCancelled indicates the execution was cancelled by the user.
 	StatusCancelled Status = "cancelled"
+	// StatusTimedOut indicates the execution exceeded its time limit.
+	StatusTimedOut Status = "timed_out"
 )
 
 // IsTerminal returns true if the status represents a terminal state (execution has finished).
 func (s Status) IsTerminal() bool {
-	return s == StatusCompleted || s == StatusFailed || s == StatusCancelled
+	return s == StatusCompleted || s == StatusFailed || s == StatusCancelled || s == StatusTimedOut
 }
 
 // NodeStatus represents the current state of a node execution.
@@ -80,7 +82,11 @@ type ExecutionError struct {
 }
 
 // Error implements the error interface.
+// FR-021: Nil receiver guard to prevent panics
 func (e *ExecutionError) Error() string {
+	if e == nil {
+		return "<nil>"
+	}
 	if e.NodeID != "" {
 		return fmt.Sprintf("[%s] node %s: %s", e.Type, e.NodeID, e.Message)
 	}
@@ -100,7 +106,11 @@ type NodeError struct {
 }
 
 // Error implements the error interface.
+// FR-021: Nil receiver guard to prevent panics
 func (e *NodeError) Error() string {
+	if e == nil {
+		return "<nil>"
+	}
 	return fmt.Sprintf("[%s] %s", e.Type, e.Message)
 }
 

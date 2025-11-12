@@ -1,6 +1,7 @@
 package execution
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -20,6 +21,13 @@ type ExecutionContext struct {
 	executionTrace []TraceEntry
 	// mu protects concurrent access to all fields.
 	mu sync.RWMutex
+
+	// Timeout support fields
+	ctx             context.Context    // Context with timeout/deadline
+	cancel          context.CancelFunc // Cancellation function
+	TimeoutDuration time.Duration      // Configured timeout (0 = no timeout)
+	TimedOut        bool               // Whether execution timed out
+	TimeoutNode     string             // Node ID executing when timeout occurred
 }
 
 // NewExecutionContext creates a new execution context with optional initial variables.
@@ -206,6 +214,39 @@ func (ctx *ExecutionContext) CopyVariablesTo(target *ExecutionContext) {
 	for key, value := range ctx.Variables {
 		target.Variables[key] = deepCopyValue(value)
 	}
+}
+
+// Context returns the execution context for timeout and cancellation.
+// Returns context.Background() if no timeout is configured (backwards compatible).
+func (ctx *ExecutionContext) Context() context.Context {
+	ctx.mu.RLock()
+	defer ctx.mu.RUnlock()
+
+	if ctx.ctx == nil {
+		return context.Background()
+	}
+	return ctx.ctx
+}
+
+// Cancel cancels the execution explicitly (for user-initiated cancellation).
+func (ctx *ExecutionContext) Cancel() {
+	ctx.mu.Lock()
+	defer ctx.mu.Unlock()
+
+	if ctx.cancel != nil {
+		ctx.cancel()
+	}
+}
+
+// SetContext sets the context and cancel function for timeout support.
+// This is called by the execution engine when starting execution.
+func (ctx *ExecutionContext) SetContext(execCtx context.Context, cancelFunc context.CancelFunc, timeout time.Duration) {
+	ctx.mu.Lock()
+	defer ctx.mu.Unlock()
+
+	ctx.ctx = execCtx
+	ctx.cancel = cancelFunc
+	ctx.TimeoutDuration = timeout
 }
 
 // deepCopyValue performs a deep copy of a value to prevent shared mutable state.

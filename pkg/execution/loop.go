@@ -223,6 +223,12 @@ func convertToSlice(collection interface{}) ([]interface{}, error) {
 			result[i] = item
 		}
 		return result, nil
+	case []bool:
+		result := make([]interface{}, len(v))
+		for i, item := range v {
+			result[i] = item
+		}
+		return result, nil
 	case []map[string]interface{}:
 		result := make([]interface{}, len(v))
 		for i, item := range v {

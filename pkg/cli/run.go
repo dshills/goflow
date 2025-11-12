@@ -486,6 +486,15 @@ func displayJSONResult(cmd *cobra.Command, exec *domainexec.Execution, err error
 		result["error"] = err.Error()
 	}
 
-	output, _ := json.MarshalIndent(result, "", "  ")
+	// FR-022: Check marshal error before using output
+	output, marshalErr := json.MarshalIndent(result, "", "  ")
+	if marshalErr != nil {
+		// If marshaling fails (e.g., channel, func in return_value),
+		// create a fallback error response
+		result["marshal_error"] = marshalErr.Error()
+		result["return_value"] = fmt.Sprintf("<unmarshalable: %T>", exec.ReturnValue)
+		// Try again with the error info
+		output, _ = json.MarshalIndent(result, "", "  ")
+	}
 	fmt.Fprintln(cmd.OutOrStdout(), string(output))
 }

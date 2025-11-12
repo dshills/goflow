@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -224,4 +225,189 @@ func BenchmarkRender(b *testing.B) {
 			b.Fatalf("render() failed: %v", err)
 		}
 	}
+}
+
+// TestAppKeyboardIntegration tests app responsiveness to keyboard events
+func TestAppKeyboardIntegration(t *testing.T) {
+	t.Run("app responds to keyboard events", func(t *testing.T) {
+		// Create a pipe to simulate stdin
+		r, w, err := os.Pipe()
+		if err != nil {
+			t.Fatalf("failed to create pipe: %v", err)
+		}
+		defer r.Close()
+		defer w.Close()
+
+		// Save original stdin and restore later
+		oldStdin := os.Stdin
+		defer func() { os.Stdin = oldStdin }()
+		os.Stdin = r
+
+		screen, err := goterm.Init()
+		if err != nil {
+			t.Skip("Skipping: not running in a terminal environment")
+			return
+		}
+		screen.Close()
+
+		app, err := NewApp()
+		if err != nil {
+			t.Fatalf("NewApp() failed: %v", err)
+		}
+		defer app.Close()
+
+		// Start input goroutine manually
+		go app.readKeyboardInput()
+
+		// Send a character
+		w.Write([]byte{'a'})
+
+		// Verify event received
+		select {
+		case event := <-app.inputChan:
+			if event.Key != 'a' {
+				t.Errorf("expected key 'a', got '%c'", event.Key)
+			}
+		case <-time.After(100 * time.Millisecond):
+			t.Fatal("app did not receive keyboard event")
+		}
+	})
+}
+
+// TestAppShutdownOnContextCancellation tests graceful shutdown
+func TestAppShutdownOnContextCancellation(t *testing.T) {
+	t.Run("app shuts down on context cancellation", func(t *testing.T) {
+		// Create a pipe
+		r, w, err := os.Pipe()
+		if err != nil {
+			t.Fatalf("failed to create pipe: %v", err)
+		}
+		defer r.Close()
+		defer w.Close()
+
+		// Save original stdin and restore later
+		oldStdin := os.Stdin
+		defer func() { os.Stdin = oldStdin }()
+		os.Stdin = r
+
+		screen, err := goterm.Init()
+		if err != nil {
+			t.Skip("Skipping: not running in a terminal environment")
+			return
+		}
+		screen.Close()
+
+		app, err := NewApp()
+		if err != nil {
+			t.Fatalf("NewApp() failed: %v", err)
+		}
+		defer app.Close()
+
+		// Start Run() in goroutine
+		done := make(chan error)
+		go func() {
+			done <- app.Run()
+		}()
+
+		// Give it time to start
+		time.Sleep(50 * time.Millisecond)
+
+		// Cancel context
+		app.cancel()
+
+		// App should exit quickly
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Errorf("Run() returned error: %v", err)
+			}
+		case <-time.After(200 * time.Millisecond):
+			t.Fatal("app did not shut down after context cancellation")
+		}
+	})
+}
+
+// TestAppConcurrentInputEvents tests handling multiple concurrent events
+func TestAppConcurrentInputEvents(t *testing.T) {
+	t.Run("handles multiple concurrent input events", func(t *testing.T) {
+		// Create a pipe
+		r, w, err := os.Pipe()
+		if err != nil {
+			t.Fatalf("failed to create pipe: %v", err)
+		}
+		defer r.Close()
+		defer w.Close()
+
+		// Save original stdin and restore later
+		oldStdin := os.Stdin
+		defer func() { os.Stdin = oldStdin }()
+		os.Stdin = r
+
+		screen, err := goterm.Init()
+		if err != nil {
+			t.Skip("Skipping: not running in a terminal environment")
+			return
+		}
+		screen.Close()
+
+		app, err := NewApp()
+		if err != nil {
+			t.Fatalf("NewApp() failed: %v", err)
+		}
+		defer app.Close()
+
+		// Start input goroutine
+		go app.readKeyboardInput()
+
+		// Send multiple events rapidly
+		const count = 5
+		expectedKeys := []rune{'h', 'e', 'l', 'l', 'o'}
+		for _, key := range expectedKeys {
+			w.Write([]byte{byte(key)})
+		}
+
+		// Collect all events
+		receivedKeys := make([]rune, 0, count)
+		for i := 0; i < count; i++ {
+			select {
+			case event := <-app.inputChan:
+				receivedKeys = append(receivedKeys, event.Key)
+			case <-time.After(200 * time.Millisecond):
+				t.Fatalf("timeout waiting for event %d", i)
+			}
+		}
+
+		// Verify all events received
+		if len(receivedKeys) != len(expectedKeys) {
+			t.Fatalf("expected %d events, got %d", len(expectedKeys), len(receivedKeys))
+		}
+		for i, expected := range expectedKeys {
+			if receivedKeys[i] != expected {
+				t.Errorf("event %d: expected '%c', got '%c'", i, expected, receivedKeys[i])
+			}
+		}
+	})
+}
+
+// TestAppPlatformCompatibility tests basic platform compatibility
+func TestAppPlatformCompatibility(t *testing.T) {
+	t.Run("runs on current platform", func(t *testing.T) {
+		// This test verifies that the app can be created and closed
+		// on the current platform (Unix/Linux/macOS/Windows)
+		screen, err := goterm.Init()
+		if err != nil {
+			t.Skip("Skipping: not running in a terminal environment")
+			return
+		}
+		screen.Close()
+
+		app, err := NewApp()
+		if err != nil {
+			t.Fatalf("NewApp() failed on current platform: %v", err)
+		}
+
+		if err := app.Close(); err != nil {
+			t.Fatalf("Close() failed on current platform: %v", err)
+		}
+	})
 }

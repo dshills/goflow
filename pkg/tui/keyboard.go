@@ -17,6 +17,8 @@ const (
 	ModeVisual Mode = "visual"
 	// ModeCommand is the command input mode (: commands)
 	ModeCommand Mode = "command"
+	// ModeGlobal represents global bindings that work in all modes
+	ModeGlobal Mode = "global"
 )
 
 // KeyEvent represents a keyboard input event
@@ -273,7 +275,7 @@ func (kh *KeyboardHandler) GetAllBindings() map[Mode][]*KeyBinding {
 	for _, binding := range kh.globalBindings {
 		globalBindings = append(globalBindings, binding)
 	}
-	result["global"] = globalBindings
+	result[ModeGlobal] = globalBindings
 
 	return result
 }

@@ -384,7 +384,7 @@ func (hf *HelpFormatter) FormatByMode(allBindings map[Mode][]*KeyBinding) string
 	}
 
 	// Add global bindings if present
-	if globalBindings, ok := allBindings["global"]; ok && len(globalBindings) > 0 {
+	if globalBindings, ok := allBindings[ModeGlobal]; ok && len(globalBindings) > 0 {
 		sb.WriteString("\n=== Global Bindings ===\n\n")
 		sb.WriteString(hf.FormatBindings(globalBindings))
 	}

@@ -105,13 +105,8 @@ func (e *exprEvaluator) EvaluateBool(ctx context.Context, expression string, con
 		return false, err
 	}
 
-	// Type assert to boolean
-	boolResult, ok := result.(bool)
-	if !ok {
-		return false, fmt.Errorf("%w: expression returned %T, expected bool", ErrTypeMismatch, result)
-	}
-
-	return boolResult, nil
+	// Use helper for type-safe boolean extraction
+	return extractBoolResult(result, "expression")
 }
 
 // validateExpression checks for unsafe operations
@@ -163,10 +158,14 @@ func (e *exprEvaluator) getOrCompileProgram(expression string, context map[strin
 			if len(params) != 2 {
 				return nil, fmt.Errorf("contains requires 2 arguments")
 			}
-			str, ok1 := params[0].(string)
-			substr, ok2 := params[1].(string)
-			if !ok1 || !ok2 {
-				return false, nil
+			// Use type-safe parameter extraction
+			str, err := extractParam[string](params, 0, "string")
+			if err != nil {
+				return false, nil // Return false for type mismatches (backward compatible)
+			}
+			substr, err := extractParam[string](params, 1, "substring")
+			if err != nil {
+				return false, nil // Return false for type mismatches (backward compatible)
 			}
 			return strings.Contains(str, substr), nil
 		}),
@@ -176,9 +175,10 @@ func (e *exprEvaluator) getOrCompileProgram(expression string, context map[strin
 			if len(params) != 1 {
 				return nil, fmt.Errorf("not() requires 1 argument")
 			}
-			val, ok := params[0].(bool)
-			if !ok {
-				// Try to coerce to bool for truthiness check
+			// Try type-safe extraction first
+			val, err := extractParam[bool](params, 0, "value")
+			if err != nil {
+				// Try to coerce to bool for truthiness check (backward compatible)
 				return !isTruthy(params[0]), nil
 			}
 			return !val, nil

@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dshills/goflow/pkg/errors"
 	"github.com/dshills/goflow/pkg/mcpserver"
 )
 
@@ -30,7 +31,16 @@ type StdioClient struct {
 // NewStdioClient creates a new stdio-based MCP client
 func NewStdioClient(config ServerConfig) (*StdioClient, error) {
 	if config.Command == "" {
-		return nil, fmt.Errorf("command cannot be empty")
+		baseErr := fmt.Errorf("command cannot be empty")
+		return nil, errors.NewOperationalErrorWithAttrs(
+			"creating stdio client",
+			"",
+			"",
+			baseErr,
+			map[string]interface{}{
+				"serverID": config.ID,
+			},
+		)
 	}
 
 	return &StdioClient{
@@ -46,7 +56,16 @@ func (c *StdioClient) Connect(ctx context.Context) error {
 
 	if c.cmd != nil {
 		c.mu.Unlock()
-		return fmt.Errorf("already connected")
+		baseErr := fmt.Errorf("already connected")
+		return errors.NewOperationalErrorWithAttrs(
+			"connecting to MCP server",
+			"",
+			"",
+			baseErr,
+			map[string]interface{}{
+				"serverID": c.config.ID,
+			},
+		)
 	}
 
 	// Create command with context for timeout support
@@ -68,7 +87,15 @@ func (c *StdioClient) Connect(ctx context.Context) error {
 	stdin, err := c.cmd.StdinPipe()
 	if err != nil {
 		c.mu.Unlock()
-		return fmt.Errorf("failed to create stdin pipe: %w", err)
+		return errors.NewOperationalErrorWithAttrs(
+			"creating stdin pipe",
+			"",
+			"",
+			err,
+			map[string]interface{}{
+				"serverID": c.config.ID,
+			},
+		)
 	}
 	c.stdin = stdin
 
@@ -77,7 +104,15 @@ func (c *StdioClient) Connect(ctx context.Context) error {
 	if err != nil {
 		_ = stdin.Close()
 		c.mu.Unlock()
-		return fmt.Errorf("failed to create stdout pipe: %w", err)
+		return errors.NewOperationalErrorWithAttrs(
+			"creating stdout pipe",
+			"",
+			"",
+			err,
+			map[string]interface{}{
+				"serverID": c.config.ID,
+			},
+		)
 	}
 	c.stdout = stdout
 	c.scanner = bufio.NewScanner(stdout)
@@ -88,7 +123,15 @@ func (c *StdioClient) Connect(ctx context.Context) error {
 		_ = stdin.Close()
 		_ = stdout.Close()
 		c.mu.Unlock()
-		return fmt.Errorf("failed to create stderr pipe: %w", err)
+		return errors.NewOperationalErrorWithAttrs(
+			"creating stderr pipe",
+			"",
+			"",
+			err,
+			map[string]interface{}{
+				"serverID": c.config.ID,
+			},
+		)
 	}
 	c.stderr = stderr
 
@@ -98,7 +141,16 @@ func (c *StdioClient) Connect(ctx context.Context) error {
 		_ = stdout.Close()
 		_ = stderr.Close()
 		c.mu.Unlock()
-		return fmt.Errorf("failed to start command: %w", err)
+		return errors.NewOperationalErrorWithAttrs(
+			"starting MCP server process",
+			"",
+			"",
+			err,
+			map[string]interface{}{
+				"serverID": c.config.ID,
+				"command":  c.config.Command,
+			},
+		)
 	}
 
 	// Start background reader for responses
@@ -110,7 +162,15 @@ func (c *StdioClient) Connect(ctx context.Context) error {
 	// Initialize the MCP connection
 	if err := c.initialize(ctx); err != nil {
 		_ = c.Close() // Use Close instead of closeWithoutLock since we don't hold the lock
-		return fmt.Errorf("failed to initialize: %w", err)
+		return errors.NewOperationalErrorWithAttrs(
+			"initializing MCP connection",
+			"",
+			"",
+			err,
+			map[string]interface{}{
+				"serverID": c.config.ID,
+			},
+		)
 	}
 
 	return nil
@@ -129,11 +189,27 @@ func (c *StdioClient) initialize(ctx context.Context) error {
 
 	resp, err := c.sendRequest(ctx, "initialize", initParams)
 	if err != nil {
-		return fmt.Errorf("initialize request failed: %w", err)
+		return errors.NewOperationalErrorWithAttrs(
+			"sending initialize request",
+			"",
+			"",
+			err,
+			map[string]interface{}{
+				"serverID": c.config.ID,
+			},
+		)
 	}
 
 	if resp.Error != nil {
-		return fmt.Errorf("initialize error: %w", resp.Error)
+		return errors.NewOperationalErrorWithAttrs(
+			"initialize request",
+			"",
+			"",
+			resp.Error,
+			map[string]interface{}{
+				"serverID": c.config.ID,
+			},
+		)
 	}
 
 	// Send initialized notification (no response expected)
@@ -144,11 +220,27 @@ func (c *StdioClient) initialize(ctx context.Context) error {
 
 	notifJSON, err := json.Marshal(notification)
 	if err != nil {
-		return fmt.Errorf("failed to marshal initialized notification: %w", err)
+		return errors.NewOperationalErrorWithAttrs(
+			"marshaling initialized notification",
+			"",
+			"",
+			err,
+			map[string]interface{}{
+				"serverID": c.config.ID,
+			},
+		)
 	}
 
 	if _, err := fmt.Fprintf(c.stdin, "%s\n", notifJSON); err != nil {
-		return fmt.Errorf("failed to send initialized notification: %w", err)
+		return errors.NewOperationalErrorWithAttrs(
+			"sending initialized notification",
+			"",
+			"",
+			err,
+			map[string]interface{}{
+				"serverID": c.config.ID,
+			},
+		)
 	}
 
 	return nil
@@ -158,7 +250,16 @@ func (c *StdioClient) initialize(ctx context.Context) error {
 func (c *StdioClient) sendRequest(ctx context.Context, method string, params interface{}) (*JSONRPCResponse, error) {
 	req, err := newRequest(method, params)
 	if err != nil {
-		return nil, err
+		return nil, errors.NewOperationalErrorWithAttrs(
+			"creating JSON-RPC request",
+			"",
+			"",
+			err,
+			map[string]interface{}{
+				"serverID": c.config.ID,
+				"method":   method,
+			},
+		)
 	}
 
 	// Create response channel for this request
@@ -167,7 +268,17 @@ func (c *StdioClient) sendRequest(ctx context.Context, method string, params int
 	c.mu.Lock()
 	if c.closed {
 		c.mu.Unlock()
-		return nil, fmt.Errorf("client is closed")
+		baseErr := fmt.Errorf("client is closed")
+		return nil, errors.NewOperationalErrorWithAttrs(
+			"sending request",
+			"",
+			"",
+			baseErr,
+			map[string]interface{}{
+				"serverID": c.config.ID,
+				"method":   method,
+			},
+		)
 	}
 	c.pendingRequests[req.ID] = respChan
 	c.mu.Unlock()
@@ -182,22 +293,59 @@ func (c *StdioClient) sendRequest(ctx context.Context, method string, params int
 	// Marshal and send request
 	reqJSON, err := json.Marshal(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
+		return nil, errors.NewOperationalErrorWithAttrs(
+			"marshaling JSON-RPC request",
+			"",
+			"",
+			err,
+			map[string]interface{}{
+				"serverID": c.config.ID,
+				"method":   method,
+			},
+		)
 	}
 
 	// Send the request (don't hold lock during I/O)
 	_, err = fmt.Fprintf(c.stdin, "%s\n", reqJSON)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %w", err)
+		return nil, errors.NewOperationalErrorWithAttrs(
+			"sending JSON-RPC request",
+			"",
+			"",
+			err,
+			map[string]interface{}{
+				"serverID": c.config.ID,
+				"method":   method,
+			},
+		)
 	}
 
 	// Wait for response with timeout
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return nil, errors.NewOperationalErrorWithAttrs(
+			"waiting for response",
+			"",
+			"",
+			ctx.Err(),
+			map[string]interface{}{
+				"serverID": c.config.ID,
+				"method":   method,
+			},
+		)
 	case resp, ok := <-respChan:
 		if !ok {
-			return nil, fmt.Errorf("connection closed")
+			baseErr := fmt.Errorf("connection closed")
+			return nil, errors.NewOperationalErrorWithAttrs(
+				"receiving response",
+				"",
+				"",
+				baseErr,
+				map[string]interface{}{
+					"serverID": c.config.ID,
+					"method":   method,
+				},
+			)
 		}
 		return resp, nil
 	}
@@ -292,11 +440,27 @@ func (c *StdioClient) IsConnected() bool {
 func (c *StdioClient) ListTools(ctx context.Context) ([]mcpserver.Tool, error) {
 	resp, err := c.sendRequest(ctx, "tools/list", map[string]interface{}{})
 	if err != nil {
-		return nil, fmt.Errorf("tools/list request failed: %w", err)
+		return nil, errors.NewOperationalErrorWithAttrs(
+			"listing tools",
+			"",
+			"",
+			err,
+			map[string]interface{}{
+				"serverID": c.config.ID,
+			},
+		)
 	}
 
 	if resp.Error != nil {
-		return nil, fmt.Errorf("tools/list error: %w", resp.Error)
+		return nil, errors.NewOperationalErrorWithAttrs(
+			"tools/list request",
+			"",
+			"",
+			resp.Error,
+			map[string]interface{}{
+				"serverID": c.config.ID,
+			},
+		)
 	}
 
 	// Parse response
@@ -309,7 +473,15 @@ func (c *StdioClient) ListTools(ctx context.Context) ([]mcpserver.Tool, error) {
 	}
 
 	if err := json.Unmarshal(resp.Result, &result); err != nil {
-		return nil, fmt.Errorf("failed to parse tools/list response: %w", err)
+		return nil, errors.NewOperationalErrorWithAttrs(
+			"parsing tools/list response",
+			"",
+			"",
+			err,
+			map[string]interface{}{
+				"serverID": c.config.ID,
+			},
+		)
 	}
 
 	// Convert to domain tools
@@ -324,12 +496,30 @@ func (c *StdioClient) ListTools(ctx context.Context) ([]mcpserver.Tool, error) {
 		if t.InputSchema != nil {
 			schemaJSON, err := json.Marshal(t.InputSchema)
 			if err != nil {
-				return nil, fmt.Errorf("failed to marshal input schema for tool %s: %w", t.Name, err)
+				return nil, errors.NewOperationalErrorWithAttrs(
+					"marshaling tool input schema",
+					"",
+					"",
+					err,
+					map[string]interface{}{
+						"serverID": c.config.ID,
+						"toolName": t.Name,
+					},
+				)
 			}
 
 			var schema mcpserver.ToolSchema
 			if err := json.Unmarshal(schemaJSON, &schema); err != nil {
-				return nil, fmt.Errorf("failed to parse input schema for tool %s: %w", t.Name, err)
+				return nil, errors.NewOperationalErrorWithAttrs(
+					"parsing tool input schema",
+					"",
+					"",
+					err,
+					map[string]interface{}{
+						"serverID": c.config.ID,
+						"toolName": t.Name,
+					},
+				)
 			}
 			tool.InputSchema = &schema
 		}
@@ -349,17 +539,44 @@ func (c *StdioClient) CallTool(ctx context.Context, toolName string, params map[
 
 	resp, err := c.sendRequest(ctx, "tools/call", callParams)
 	if err != nil {
-		return nil, fmt.Errorf("tools/call request failed: %w", err)
+		return nil, errors.NewOperationalErrorWithAttrs(
+			"calling MCP tool",
+			"",
+			"",
+			err,
+			map[string]interface{}{
+				"serverID": c.config.ID,
+				"toolName": toolName,
+			},
+		)
 	}
 
 	if resp.Error != nil {
-		return nil, fmt.Errorf("tools/call error: %w", resp.Error)
+		return nil, errors.NewOperationalErrorWithAttrs(
+			"MCP tool execution",
+			"",
+			"",
+			resp.Error,
+			map[string]interface{}{
+				"serverID": c.config.ID,
+				"toolName": toolName,
+			},
+		)
 	}
 
 	// Parse response as generic map
 	var result map[string]interface{}
 	if err := json.Unmarshal(resp.Result, &result); err != nil {
-		return nil, fmt.Errorf("failed to parse tools/call response: %w", err)
+		return nil, errors.NewOperationalErrorWithAttrs(
+			"parsing tool response",
+			"",
+			"",
+			err,
+			map[string]interface{}{
+				"serverID": c.config.ID,
+				"toolName": toolName,
+			},
+		)
 	}
 
 	return result, nil
@@ -373,11 +590,27 @@ func (c *StdioClient) Ping(ctx context.Context) error {
 
 	resp, err := c.sendRequest(pingCtx, "ping", map[string]interface{}{})
 	if err != nil {
-		return fmt.Errorf("ping request failed: %w", err)
+		return errors.NewOperationalErrorWithAttrs(
+			"pinging MCP server",
+			"",
+			"",
+			err,
+			map[string]interface{}{
+				"serverID": c.config.ID,
+			},
+		)
 	}
 
 	if resp.Error != nil {
-		return fmt.Errorf("ping error: %w", resp.Error)
+		return errors.NewOperationalErrorWithAttrs(
+			"ping request",
+			"",
+			"",
+			resp.Error,
+			map[string]interface{}{
+				"serverID": c.config.ID,
+			},
+		)
 	}
 
 	return nil

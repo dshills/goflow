@@ -8,6 +8,7 @@ run:
   skip-dirs:
     - tests
     - pkg/tui/examples
+    - specs
 
 linters:
   disable-all: true
