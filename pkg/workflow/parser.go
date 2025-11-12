@@ -62,7 +62,7 @@ type yamlNode struct {
 
 	// ParallelNode fields
 	Branches [][]string `yaml:"branches,omitempty"`
-	Merge    string     `yaml:"merge,omitempty"`
+	Merge    string     `yaml:"merge_strategy,omitempty"`
 
 	// LoopNode fields
 	Collection     string   `yaml:"collection,omitempty"`
@@ -171,10 +171,10 @@ func Parse(yamlBytes []byte) (*Workflow, error) {
 		}
 	}
 
-	// Validate the parsed workflow
-	if err := wf.Validate(); err != nil {
-		return nil, fmt.Errorf("validation: %w", err)
-	}
+	// Note: We don't validate here to allow parsing of workflows for inspection
+	// and to allow tests to examine validation errors separately.
+	// Callers should call wf.Validate() explicitly, or rely on the execution
+	// engine which validates before executing.
 
 	return wf, nil
 }

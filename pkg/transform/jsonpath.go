@@ -155,9 +155,12 @@ func convertGJSONResult(result gjson.Result) interface{} {
 	case gjson.True:
 		return true
 	case gjson.Number:
-		// Always return numbers as float64 for consistency with JSON spec
-		// JSON doesn't distinguish between int and float at parse time
-		return result.Num
+		// Convert to int if it's a whole number, otherwise keep as float64
+		num := result.Num
+		if num == float64(int64(num)) {
+			return int(num)
+		}
+		return num
 	case gjson.String:
 		return result.Str
 	case gjson.JSON:
@@ -166,9 +169,37 @@ func convertGJSONResult(result gjson.Result) interface{} {
 		if err := json.Unmarshal([]byte(result.Raw), &value); err != nil {
 			return result.Raw
 		}
-		return value
+		// Recursively convert float64 to int where appropriate
+		return normalizeNumbers(value)
 	default:
 		return result.Value()
+	}
+}
+
+// normalizeNumbers recursively converts float64 values to int where they represent whole numbers
+// This maintains compatibility with Go's native type expectations while preserving JSON semantics
+func normalizeNumbers(value interface{}) interface{} {
+	switch v := value.(type) {
+	case map[string]interface{}:
+		result := make(map[string]interface{}, len(v))
+		for key, val := range v {
+			result[key] = normalizeNumbers(val)
+		}
+		return result
+	case []interface{}:
+		result := make([]interface{}, len(v))
+		for i, val := range v {
+			result[i] = normalizeNumbers(val)
+		}
+		return result
+	case float64:
+		// Convert to int if it's a whole number
+		if v == float64(int64(v)) {
+			return int(v)
+		}
+		return v
+	default:
+		return value
 	}
 }
 

@@ -285,6 +285,11 @@ func TestParallelPerformance_NoGoroutineLeaks(t *testing.T) {
 		if result.Status != execution.StatusCompleted {
 			t.Errorf("Expected status %s, got %s", execution.StatusCompleted, result.Status)
 		}
+
+		// Close engine to clean up database connections and prevent goroutine leaks
+		if err := engine.Close(); err != nil {
+			t.Logf("Warning: failed to close engine: %v", err)
+		}
 	}
 
 	// Allow time for cleanup
@@ -528,6 +533,7 @@ func BenchmarkParallel_MemoryAllocation(b *testing.B) {
 		if err != nil {
 			b.Fatalf("Workflow execution failed: %v", err)
 		}
+		_ = engine.Close() // Clean up to prevent goroutine leaks
 	}
 }
 
@@ -559,6 +565,7 @@ func BenchmarkParallel_NodeOverhead(b *testing.B) {
 
 		totalNodes.Add(int64(len(result.NodeExecutions)))
 		totalDuration.Add(int64(duration))
+		_ = engine.Close() // Clean up to prevent goroutine leaks
 	}
 
 	b.StopTimer()
@@ -679,5 +686,6 @@ func runParallelBenchmark(b *testing.B, yaml string) {
 		if err != nil {
 			b.Fatalf("Workflow execution failed: %v", err)
 		}
+		_ = engine.Close() // Clean up to prevent goroutine leaks
 	}
 }

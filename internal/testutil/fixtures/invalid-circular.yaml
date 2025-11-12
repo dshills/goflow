@@ -2,6 +2,13 @@ version: "1.0"
 name: "invalid-circular-workflow"
 description: "A workflow with circular dependencies (should fail validation)"
 
+servers:
+  - id: "test-server"
+    name: "test"
+    command: "go"
+    args: ["run", "../../internal/testutil/testserver/main.go"]
+    transport: "stdio"
+
 nodes:
   - id: "start"
     type: "start"

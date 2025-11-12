@@ -85,7 +85,8 @@ func (e *Engine) Execute(ctx context.Context, wf *workflow.Workflow, inputs map[
 		e.monitorMu.Lock()
 		if e.monitor != nil {
 			e.monitor.Close()
-			e.monitor = nil
+			// Keep monitor accessible after execution for tests/TUI
+			// e.monitor = nil
 		}
 		e.monitorMu.Unlock()
 	}()
@@ -605,6 +606,9 @@ func (e *Engine) disconnectServers(wf *workflow.Workflow) {
 			_ = server.Disconnect()
 		}
 
+		// Unregister the server from the registry to allow re-registration
+		_ = e.serverRegistry.Unregister(serverConfig.ID)
+
 		// Close the MCP client if it exists
 		e.clientsMu.Lock()
 		if client, exists := e.activeClients[serverConfig.ID]; exists {
@@ -700,6 +704,7 @@ func (e *Engine) emitExecutionFailed(exec *execution.Execution, err *execution.E
 		Type:        EventExecutionFailed,
 		Timestamp:   time.Now(),
 		ExecutionID: exec.ID,
+		NodeID:      err.NodeID, // Set NodeID field for consistency
 		Status:      exec.Status,
 		Error:       err,
 		Variables:   monitor.GetVariableSnapshot(),

@@ -106,10 +106,15 @@ func TestWorkflowValidation_InvalidEdgeReference(t *testing.T) {
 		t.Fatalf("Failed to read fixture file: %v", err)
 	}
 
-	// This should fail because workflow.Parse doesn't exist yet
-	_, err = workflow.Parse(data)
+	wf, err := workflow.Parse(data)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+
+	// Validation should fail for invalid edge reference
+	err = wf.Validate()
 	if err == nil {
-		t.Error("Expected parse to fail with invalid edge reference, got nil")
+		t.Error("Expected validation to fail with invalid edge reference, got nil")
 	}
 }
 
@@ -212,6 +217,12 @@ func TestWorkflowValidation_DisconnectedGraph(t *testing.T) {
 	yaml := `
 version: "1.0"
 name: "test"
+servers:
+  - id: "test"
+    name: "test"
+    command: "go"
+    args: ["run", "../../internal/testutil/testserver/main.go"]
+    transport: "stdio"
 nodes:
   - id: "start"
     type: "start"
@@ -324,8 +335,13 @@ edges:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Parse now calls Validate(), so we expect invalid workflows to fail during Parse
-			_, err := workflow.Parse([]byte(tt.yaml))
+			wf, err := workflow.Parse([]byte(tt.yaml))
+			if err != nil {
+				t.Fatalf("Parse failed: %v", err)
+			}
+
+			// Validation happens separately from parsing
+			err = wf.Validate()
 
 			if tt.expectError && err == nil {
 				t.Errorf("Expected validation error containing '%s', got nil", tt.errorMsg)
@@ -405,8 +421,13 @@ edges:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Parse now calls Validate(), so we expect invalid workflows to fail during Parse
-			_, err := workflow.Parse([]byte(tt.yaml))
+			wf, err := workflow.Parse([]byte(tt.yaml))
+			if err != nil {
+				t.Fatalf("Parse failed: %v", err)
+			}
+
+			// Validation happens separately from parsing
+			err = wf.Validate()
 
 			if tt.expectError && err == nil {
 				t.Errorf("Expected validation error containing '%s', got nil", tt.errorMsg)

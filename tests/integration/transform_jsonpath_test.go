@@ -86,9 +86,10 @@ func TestJSONPathFilters_Integration(t *testing.T) {
 					map[string]interface{}{"sku": "A5", "price": 200.0, "inStock": false},
 				},
 			},
+			// Note: Whole number floats are normalized to ints (50.0 -> 50, 80.0 -> 80)
 			want: []interface{}{
-				map[string]interface{}{"sku": "A1", "price": 50.0, "inStock": true},
-				map[string]interface{}{"sku": "A4", "price": 80.0, "inStock": true},
+				map[string]interface{}{"sku": "A1", "price": 50, "inStock": true},
+				map[string]interface{}{"sku": "A4", "price": 80, "inStock": true},
 			},
 			wantErr: false,
 		},
@@ -271,7 +272,8 @@ func TestJSONPathRecursiveDescent_Integration(t *testing.T) {
 				return
 			}
 
-			if !tt.wantErr && !deepEqual(got, tt.want) {
+			// Use unordered comparison for recursive descent because map iteration order is non-deterministic
+			if !tt.wantErr && !deepEqualUnordered(got, tt.want) {
 				t.Errorf("Query() = %v, want %v", got, tt.want)
 			}
 		})
@@ -714,7 +716,8 @@ func TestJSONPathWithVariousDataTypes_Integration(t *testing.T) {
 			data: map[string]interface{}{
 				"prices": []interface{}{10.5, 20.0, 15.75},
 			},
-			want:    []interface{}{10.5, 20.0, 15.75},
+			// Note: 20.0 becomes int(20) after normalization since it's a whole number
+			want:    []interface{}{10.5, 20, 15.75},
 			wantErr: false,
 		},
 		{
@@ -838,4 +841,45 @@ func TestJSONPathPerformance_Integration(t *testing.T) {
 // Uses a reflection-based comparison to handle various types
 func deepEqual(a, b interface{}) bool {
 	return reflect.DeepEqual(a, b)
+}
+
+// deepEqualUnordered compares two slices regardless of element order
+// Useful for tests where map iteration order is non-deterministic
+func deepEqualUnordered(a, b interface{}) bool {
+	// First try regular deep equal (fast path)
+	if reflect.DeepEqual(a, b) {
+		return true
+	}
+
+	// Convert to slices
+	aSlice, aOk := a.([]interface{})
+	bSlice, bOk := b.([]interface{})
+
+	if !aOk || !bOk {
+		return false
+	}
+
+	if len(aSlice) != len(bSlice) {
+		return false
+	}
+
+	// Create a map to track which elements we've matched
+	matched := make([]bool, len(bSlice))
+
+	// For each element in a, find a matching element in b
+	for _, aElem := range aSlice {
+		found := false
+		for j, bElem := range bSlice {
+			if !matched[j] && reflect.DeepEqual(aElem, bElem) {
+				matched[j] = true
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+
+	return true
 }

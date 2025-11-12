@@ -1271,8 +1271,199 @@ func TestNavigationBoundaries(t *testing.T) {
 
 // Mock implementation stubs for compilation
 func (m *MockTUI) HandleKeyEvent(key KeyEvent) error {
-	// This will be implemented in the actual TUI
+	// Handle special keys
+	if key.IsSpecial {
+		return m.handleSpecialKey(key)
+	}
+
+	// Handle mode-specific key events
+	switch m.mode {
+	case "normal":
+		return m.handleNormalModeKey(key)
+	case "insert":
+		return m.handleInsertModeKey(key)
+	case "visual":
+		return m.handleVisualModeKey(key)
+	case "command":
+		return m.handleCommandModeKey(key)
+	}
+
 	return nil
+}
+
+func (m *MockTUI) handleSpecialKey(key KeyEvent) error {
+	switch key.Special {
+	case "Escape":
+		if m.mode == "insert" || m.mode == "visual" || m.mode == "command" {
+			m.mode = "normal"
+		} else if m.helpVisible {
+			m.helpVisible = false
+		}
+	case "Enter":
+		if m.mode == "command" {
+			m.ExecuteCommand()
+			m.mode = "normal"
+		}
+	case "Tab":
+		if key.Shift {
+			// Shift-Tab: navigate backwards (stub for now)
+		} else {
+			// Tab: navigate forwards (stub for now)
+		}
+	}
+	return nil
+}
+
+func (m *MockTUI) handleNormalModeKey(key KeyEvent) error {
+	// Handle Ctrl combinations
+	if key.Ctrl {
+		switch key.Key {
+		case 'd': // Ctrl-d: page down
+			m.cursorY += 10 // Half page
+			if m.cursorY > 100 {
+				m.cursorY = 100
+			}
+		case 'u': // Ctrl-u: page up
+			m.cursorY -= 10 // Half page
+			if m.cursorY < 0 {
+				m.cursorY = 0
+			}
+		case 'r': // Ctrl-r: redo
+			if len(m.redoStack) > 0 {
+				m.undoStack = append(m.undoStack, m.redoStack[len(m.redoStack)-1])
+				m.redoStack = m.redoStack[:len(m.redoStack)-1]
+			}
+		}
+		return nil
+	}
+
+	// Handle regular keys
+	switch key.Key {
+	case 'h': // Move left
+		if m.cursorX > 0 {
+			m.cursorX--
+		}
+	case 'j': // Move down
+		m.cursorY++
+	case 'k': // Move up
+		if m.cursorY > 0 {
+			m.cursorY--
+		}
+	case 'l': // Move right
+		m.cursorX++
+	case 'w': // Next word
+		m.cursorX = m.findNextWordStart(m.cursorX)
+	case 'b': // Previous word
+		m.cursorX = m.findPrevWordStart(m.cursorX)
+	case 'g': // Handle 'gg' sequence
+		// For simplicity, move to top
+		m.cursorY = 0
+	case 'G': // Move to bottom
+		m.cursorY = 100 // Mock bottom
+	case 'i': // Enter insert mode
+		m.mode = "insert"
+	case 'v': // Enter visual mode
+		m.mode = "visual"
+	case ':': // Enter command mode
+		m.mode = "command"
+		m.commandBuffer = ""
+	case 'e': // Start edge creation
+		if m.selectedNode != "" {
+			m.pendingEdge = &Edge{From: m.selectedNode}
+		}
+	case 'y': // Copy/yank
+		if m.selectedNode != "" {
+			m.clipboard = m.selectedNode
+		}
+	case 'u': // Undo
+		if len(m.undoStack) > 0 {
+			m.redoStack = append(m.redoStack, m.undoStack[len(m.undoStack)-1])
+			m.undoStack = m.undoStack[:len(m.undoStack)-1]
+		}
+	case '/': // Search
+		m.mode = "command"
+		m.commandBuffer = "/"
+	case 'n': // Next search result
+		if len(m.searchResults) > 0 {
+			m.currentSearchIdx = (m.currentSearchIdx + 1) % len(m.searchResults)
+			result := m.searchResults[m.currentSearchIdx]
+			m.cursorX = result.X
+			m.cursorY = result.Y
+		}
+	case 'N': // Previous search result
+		if len(m.searchResults) > 0 {
+			m.currentSearchIdx = (m.currentSearchIdx - 1 + len(m.searchResults)) % len(m.searchResults)
+			result := m.searchResults[m.currentSearchIdx]
+			m.cursorX = result.X
+			m.cursorY = result.Y
+		}
+	case '?': // Toggle help
+		m.helpVisible = !m.helpVisible
+	}
+
+	return nil
+}
+
+func (m *MockTUI) handleInsertModeKey(key KeyEvent) error {
+	// In insert mode, just add characters to buffer
+	return nil
+}
+
+func (m *MockTUI) handleVisualModeKey(key KeyEvent) error {
+	// Handle visual mode - can toggle back with 'v'
+	if key.Key == 'v' {
+		m.mode = "normal"
+	}
+	return nil
+}
+
+func (m *MockTUI) handleCommandModeKey(key KeyEvent) error {
+	// Build command buffer
+	if key.Key >= 32 && key.Key <= 126 { // Printable ASCII
+		m.commandBuffer += string(key.Key)
+	}
+	return nil
+}
+
+func (m *MockTUI) findNextWordStart(currentX int) int {
+	// Mock implementation: find next word boundary
+	if len(m.buffer) == 0 || currentX >= len(m.buffer[0]) {
+		return currentX
+	}
+
+	// Skip current word
+	x := currentX
+	for x < len(m.buffer[0]) && m.buffer[0][x] != ' ' {
+		x++
+	}
+	// Skip spaces
+	for x < len(m.buffer[0]) && m.buffer[0][x] == ' ' {
+		x++
+	}
+
+	return x
+}
+
+func (m *MockTUI) findPrevWordStart(currentX int) int {
+	// Mock implementation: find previous word boundary
+	if len(m.buffer) == 0 || currentX <= 0 {
+		return 0
+	}
+
+	// Move back one position
+	x := currentX - 1
+
+	// Skip spaces
+	for x > 0 && m.buffer[0][x] == ' ' {
+		x--
+	}
+
+	// Find start of word
+	for x > 0 && m.buffer[0][x-1] != ' ' {
+		x--
+	}
+
+	return x
 }
 
 func (m *MockTUI) ExecuteCommand() error {

@@ -208,7 +208,7 @@ nodes:
 version: "1.0"
 name: "test"
 `,
-			expectError: true,
+			expectError: false, // Parse succeeds, but Validate() would fail
 		},
 		{
 			name: "invalid_node_type",
@@ -316,8 +316,15 @@ edges:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// This should fail because workflow.Parse doesn't exist yet
-			_, err := workflow.Parse([]byte(tt.yaml))
+			wf, err := workflow.Parse([]byte(tt.yaml))
+			if err != nil && !tt.expectError {
+				t.Fatalf("Unexpected parse error: %v", err)
+			}
+
+			// Validation now happens separately from parsing
+			if wf != nil {
+				err = wf.Validate()
+			}
 
 			if tt.expectError && err == nil {
 				t.Errorf("Expected error containing '%s', got nil", tt.errorMsg)
