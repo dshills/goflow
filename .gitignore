@@ -95,3 +95,6 @@ settings.local.json
 *_secret*.json
 secrets/
 credentials/
+
+# Internal development documentation
+docs/archive/
