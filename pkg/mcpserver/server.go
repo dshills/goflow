@@ -214,14 +214,15 @@ func (s *MCPServer) Disconnect() error {
 
 // Reconnect attempts to reconnect to the server
 func (s *MCPServer) Reconnect() error {
-	// Can reconnect from failed or disconnected states
-	if s.Connection.State != StateFailed && s.Connection.State != StateDisconnected {
-		return NewConnectionError(fmt.Sprintf("invalid state transition: cannot reconnect from %s", s.Connection.State))
+	// THREAD-SAFETY: Use getter for state check
+	currentState := s.Connection.GetState()
+	if currentState != StateFailed && currentState != StateDisconnected {
+		return NewConnectionError(fmt.Sprintf("invalid state transition: cannot reconnect from %s", currentState))
 	}
 
-	// Calculate backoff if there were previous errors
-	if s.Connection.ErrorCount > 0 {
-		errorCount := s.Connection.ErrorCount
+	// THREAD-SAFETY: Use getter for error count
+	errorCount := s.Connection.GetErrorCount()
+	if errorCount > 0 {
 		if errorCount < 0 {
 			errorCount = 0
 		}
@@ -233,12 +234,19 @@ func (s *MCPServer) Reconnect() error {
 		if backoff > 60*time.Second {
 			backoff = 60 * time.Second // Cap at 60 seconds
 		}
+
+		// THREAD-SAFETY: Lock for multiple field updates
+		s.Connection.mu.Lock()
 		s.Connection.RetryBackoff = backoff
+		s.Connection.mu.Unlock()
 	}
 
-	// Update state
+	// THREAD-SAFETY: Lock for multiple field updates
+	s.Connection.mu.Lock()
 	s.Connection.State = StateConnecting
 	s.Connection.LastActivity = time.Now()
+	s.Connection.mu.Unlock()
+
 	s.HealthStatus = HealthUnknown
 
 	return nil
@@ -259,8 +267,8 @@ func (s *MCPServer) Reconnect() error {
 // - The MCP client call fails
 // - The response cannot be parsed
 func (s *MCPServer) DiscoverTools() error {
-	// Can only discover tools when connected
-	if s.Connection.State != StateConnected {
+	// THREAD-SAFETY: Use getter for state check
+	if s.Connection.GetState() != StateConnected {
 		return NewConnectionError("cannot discover tools: not connected")
 	}
 
@@ -278,7 +286,8 @@ func (s *MCPServer) DiscoverTools() error {
 
 		// Store the discovered tools
 		s.Tools = tools
-		s.Connection.LastActivity = time.Now()
+		// THREAD-SAFETY: Use UpdateLastActivity method
+		s.Connection.UpdateLastActivity()
 
 		return nil
 	}
@@ -288,7 +297,8 @@ func (s *MCPServer) DiscoverTools() error {
 		s.Tools = []Tool{}
 	}
 
-	s.Connection.LastActivity = time.Now()
+	// THREAD-SAFETY: Use UpdateLastActivity method
+	s.Connection.UpdateLastActivity()
 
 	return nil
 }
@@ -308,8 +318,8 @@ func (s *MCPServer) DiscoverTools() error {
 // - The tool is not found in the tools list
 // - The MCP client call fails
 func (s *MCPServer) InvokeTool(toolName string, params map[string]interface{}) (interface{}, error) {
-	// Can only invoke tools when connected
-	if s.Connection.State != StateConnected {
+	// THREAD-SAFETY: Use getter for state check
+	if s.Connection.GetState() != StateConnected {
 		return nil, NewConnectionError("cannot invoke tool: not connected")
 	}
 
@@ -338,11 +348,13 @@ func (s *MCPServer) InvokeTool(toolName string, params map[string]interface{}) (
 			return nil, NewExecutionError(fmt.Sprintf("failed to invoke tool %s: %v", toolName, err))
 		}
 
+		// THREAD-SAFETY: UpdateLastActivity already uses locking
 		s.Connection.UpdateLastActivity()
 		return result, nil
 	}
 
 	// For mock/testing scenarios without a client, return a mock result
+	// THREAD-SAFETY: UpdateLastActivity already uses locking
 	s.Connection.UpdateLastActivity()
 
 	return map[string]interface{}{
@@ -365,33 +377,39 @@ func (s *MCPServer) InvokeTool(toolName string, params map[string]interface{}) (
 func (s *MCPServer) HealthCheck() error {
 	s.LastHealthCheck = time.Now()
 
+	// THREAD-SAFETY: Use getter for state check
+	currentState := s.Connection.GetState()
+
 	// If connection state is disconnected, report as disconnected
-	if s.Connection.State == StateDisconnected {
+	if currentState == StateDisconnected {
 		s.HealthStatus = HealthDisconnected
 		return nil
 	}
 
 	// If a client is configured, use it to ping the server
-	if s.client != nil && s.Connection.State == StateConnected {
+	if s.client != nil && currentState == StateConnected {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
 		err := s.client.Ping(ctx)
 		if err != nil {
 			s.HealthStatus = HealthUnhealthy
-			s.Connection.LastError = fmt.Sprintf("ping failed: %v", err)
-			s.Connection.ErrorCount++
+			// THREAD-SAFETY: Use setters for error tracking
+			s.Connection.SetLastError(fmt.Sprintf("ping failed: %v", err))
+			s.Connection.IncrementErrorCount()
 			return fmt.Errorf("health check failed: %w", err)
 		}
 
 		s.HealthStatus = HealthHealthy
-		s.Connection.LastActivity = time.Now()
+		// THREAD-SAFETY: Use UpdateLastActivity method
+		s.Connection.UpdateLastActivity()
 		return nil
 	}
 
 	// For mock/testing scenarios without a client, mark as healthy if connected
 	s.HealthStatus = HealthHealthy
-	s.Connection.LastActivity = time.Now()
+	// THREAD-SAFETY: Use UpdateLastActivity method
+	s.Connection.UpdateLastActivity()
 
 	return nil
 }
@@ -400,6 +418,7 @@ func (s *MCPServer) HealthCheck() error {
 func (s *MCPServer) RecordUnhealthy(errorMsg string) {
 	s.HealthStatus = HealthUnhealthy
 	s.LastHealthCheck = time.Now()
-	s.Connection.LastError = errorMsg
-	s.Connection.ErrorCount++
+	// THREAD-SAFETY: Use setters for error tracking
+	s.Connection.SetLastError(errorMsg)
+	s.Connection.IncrementErrorCount()
 }

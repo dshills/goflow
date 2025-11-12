@@ -227,7 +227,39 @@ func (v *PathValidator) Validate(userPath string) (string, error) {
 		}
 	}
 
+	// SECURITY: Additional containment verification after symlink resolution
+	// Double-check that the resolved path is a subdirectory of the resolved base
+	// This prevents attacks where symlinks might bypass the filepath.Rel check
+	if !strings.HasPrefix(resolvedPath, v.resolvedBase) {
+		atomic.AddUint64(&v.rejections, 1)
+		return "", &ValidationError{
+			UserPath:     userPath,
+			Reason:       "resolved path is not contained within base directory",
+			ResolvedPath: resolvedPath,
+			Timestamp:    time.Now(),
+		}
+	}
+
+	// Verify no path separator tricks after the base prefix
+	// e.g., base="/var/app" should reject resolved="/var/appdata/file"
+	if len(resolvedPath) > len(v.resolvedBase) {
+		// Must have path separator after base (or be exactly base)
+		charAfterBase := resolvedPath[len(v.resolvedBase)]
+		if charAfterBase != filepath.Separator && charAfterBase != '/' {
+			atomic.AddUint64(&v.rejections, 1)
+			return "", &ValidationError{
+				UserPath:     userPath,
+				Reason:       "resolved path prefix matches but is not a subdirectory",
+				ResolvedPath: resolvedPath,
+				Timestamp:    time.Now(),
+			}
+		}
+	}
+
 	// Layer 6: Windows reserved name checking
+	// SECURITY FIX: Pass only the path components, not the full resolved path
+	// Windows reserved names should be checked in the original user path to catch
+	// attempts to use CON, PRN, etc. in any path component
 	if runtime.GOOS == "windows" {
 		if err := v.checkWindowsReservedNames(userPath); err != nil {
 			atomic.AddUint64(&v.rejections, 1)

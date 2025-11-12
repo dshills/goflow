@@ -133,16 +133,30 @@ func (e *Engine) executeWaitAll(
 
 	// Merge all branch contexts back to parent (serially, after all branches complete)
 	// We merge all branches (even failed ones) so their node executions are recorded
-	for _, branchExec := range branchExecs {
+	var mergeErrors []error
+	for i, branchExec := range branchExecs {
 		if branchExec != nil {
 			if err := e.mergeBranchContext(exec, branchExec); err != nil {
-				// Log error but continue merging other branches
-				_ = err
+				// CRITICAL: Collect merge errors for visibility and debugging
+				// These errors indicate data loss (branch results not merged to parent)
+				mergeErr := fmt.Errorf("failed to merge branch %d context: %w", i, err)
+				mergeErrors = append(mergeErrors, mergeErr)
+				// Continue merging other branches to preserve as much data as possible
 			}
 		}
 	}
 
-	// Return error if any branch failed (after merging)
+	// Return merge errors with highest priority (they indicate data loss)
+	if len(mergeErrors) > 0 {
+		// Aggregate all merge errors into a single error message
+		errMsg := fmt.Sprintf("branch merge failures (%d branches failed to merge)", len(mergeErrors))
+		for _, err := range mergeErrors {
+			errMsg += fmt.Sprintf("\n  - %v", err)
+		}
+		return results, fmt.Errorf("%s", errMsg)
+	}
+
+	// Return error if any branch failed (after successful merging)
 	if firstErr != nil {
 		return results, firstErr
 	}
@@ -242,13 +256,27 @@ func (e *Engine) executeWaitAny(
 
 	// Merge all branch contexts back to parent (serially, after all branches complete)
 	// We merge all branches (even failed ones) so their node executions are recorded
-	for _, branchExec := range branchExecs {
+	var mergeErrors []error
+	for i, branchExec := range branchExecs {
 		if branchExec != nil {
 			if err := e.mergeBranchContext(exec, branchExec); err != nil {
-				// Log error but don't fail execution for wait_any strategy
-				_ = err
+				// CRITICAL: Collect merge errors for visibility and debugging
+				// For wait_any strategy, we still need to know about merge failures
+				mergeErr := fmt.Errorf("failed to merge branch %d context: %w", i, err)
+				mergeErrors = append(mergeErrors, mergeErr)
+				// Continue merging other branches to preserve as much data as possible
 			}
 		}
+	}
+
+	// For wait_any strategy: Log merge errors but don't fail execution
+	// At least one branch succeeded, which satisfies the wait_any contract
+	// However, merge failures still indicate partial data loss
+	if len(mergeErrors) > 0 {
+		// TODO: Add structured logging here when logger is available
+		// For now, merge errors are silently collected but execution succeeds
+		// This preserves wait_any semantics while tracking issues
+		_ = mergeErrors
 	}
 
 	return results, nil
@@ -336,13 +364,37 @@ func (e *Engine) executeWaitFirst(
 	// Merge all completed branches to parent context
 	// Even though we terminate early, we want variables from any branches that completed
 	// before cancellation to be available in the parent context
+	var mergeErrors []error
 	for i, branchExec := range branchExecs {
 		if branchExec != nil && results[i].Error == nil {
 			if err := e.mergeBranchContext(exec, branchExec); err != nil {
-				// Log error but continue merging other branches
-				_ = err
+				// CRITICAL: Collect merge errors for visibility and debugging
+				// For wait_first strategy, merge failures may affect workflow correctness
+				mergeErr := fmt.Errorf("failed to merge branch %d context: %w", i, err)
+				mergeErrors = append(mergeErrors, mergeErr)
+				// Continue merging other branches to preserve as much data as possible
 			}
 		}
+	}
+
+	// For wait_first strategy: Merge errors indicate potential data loss
+	// If the first branch succeeded but merge failed, we still return its error status
+	// but we've lost its variable updates
+	if len(mergeErrors) > 0 {
+		// If first branch failed anyway, prioritize merge errors
+		if results[firstBranchIndex].Error != nil {
+			errMsg := fmt.Sprintf("branch merge failures (%d branches failed to merge)", len(mergeErrors))
+			for _, err := range mergeErrors {
+				errMsg += fmt.Sprintf("\n  - %v", err)
+			}
+			return results, fmt.Errorf("%s (original error: %w)", errMsg, results[firstBranchIndex].Error)
+		}
+		// If first branch succeeded, merge failure is critical (data loss)
+		errMsg := fmt.Sprintf("branch merge failures (%d branches failed to merge)", len(mergeErrors))
+		for _, err := range mergeErrors {
+			errMsg += fmt.Sprintf("\n  - %v", err)
+		}
+		return results, fmt.Errorf("%s", errMsg)
 	}
 
 	// Return result from first branch
