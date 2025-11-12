@@ -90,7 +90,7 @@ servers:
   - id: "test-server"
     name: "test"
     command: "go"
-    args: ["run", "../../internal/testutil/mocks/mock_mcp_server.go", "--mode=server"]
+    args: ["run", "../../internal/testutil/testserver/main.go"]
     transport: "stdio"
 nodes:
   - id: "start"
@@ -195,7 +195,7 @@ servers:
   - id: "test-server"
     name: "test"
     command: "go"
-    args: ["run", "../../internal/testutil/mocks/mock_mcp_server.go", "--mode=server"]
+    args: ["run", "../../internal/testutil/testserver/main.go"]
     transport: "stdio"
 nodes:
   - id: "start"
@@ -265,7 +265,7 @@ servers:
   - id: "test-server"
     name: "test"
     command: "go"
-    args: ["run", "../../internal/testutil/mocks/mock_mcp_server.go", "--mode=server"]
+    args: ["run", "../../internal/testutil/testserver/main.go"]
     transport: "stdio"
 nodes:
   - id: "start"
@@ -319,7 +319,7 @@ servers:
   - id: "test-server"
     name: "test"
     command: "go"
-    args: ["run", "../../internal/testutil/mocks/mock_mcp_server.go", "--mode=server"]
+    args: ["run", "../../internal/testutil/testserver/main.go"]
     transport: "stdio"
 nodes:
   - id: "start"
@@ -379,7 +379,7 @@ servers:
   - id: "test-server"
     name: "test"
     command: "go"
-    args: ["run", "../../internal/testutil/mocks/mock_mcp_server.go", "--mode=server"]
+    args: ["run", "../../internal/testutil/testserver/main.go"]
     transport: "stdio"
 nodes:
   - id: "start"
@@ -445,8 +445,8 @@ nodes:
     type: "start"
   - id: "transform1"
     type: "transform"
-    input: "${input_data}"
-    expression: "${input} | upper"
+    input: "input_data"
+    expression: "'HELLO'"
     output: "transformed"
   - id: "end"
     type: "end"

@@ -11,10 +11,10 @@ func TestStdioClient_BasicConnection(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Get path to mock server
-	mockServerPath, err := filepath.Abs("../../internal/testutil/mocks/cmd/mock_server/main.go")
+	// Get path to test server
+	mockServerPath, err := filepath.Abs("../../internal/testutil/testserver/main.go")
 	if err != nil {
-		t.Fatalf("Failed to get mock server path: %v", err)
+		t.Fatalf("Failed to get test server path: %v", err)
 	}
 
 	config := ServerConfig{
@@ -50,9 +50,9 @@ func TestStdioClient_ToolDiscovery(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	mockServerPath, err := filepath.Abs("../../internal/testutil/mocks/cmd/mock_server/main.go")
+	mockServerPath, err := filepath.Abs("../../internal/testutil/testserver/main.go")
 	if err != nil {
-		t.Fatalf("Failed to get mock server path: %v", err)
+		t.Fatalf("Failed to get test server path: %v", err)
 	}
 
 	config := ServerConfig{
@@ -102,9 +102,9 @@ func TestStdioClient_ToolInvocation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	mockServerPath, err := filepath.Abs("../../internal/testutil/mocks/cmd/mock_server/main.go")
+	mockServerPath, err := filepath.Abs("../../internal/testutil/testserver/main.go")
 	if err != nil {
-		t.Fatalf("Failed to get mock server path: %v", err)
+		t.Fatalf("Failed to get test server path: %v", err)
 	}
 
 	config := ServerConfig{

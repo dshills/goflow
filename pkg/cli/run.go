@@ -79,8 +79,8 @@ Examples:
 			var err error
 
 			if fromStdin {
-				// Read workflow from stdin
-				wf, err = LoadWorkflowFromReader(os.Stdin)
+				// Read workflow from stdin (use cmd.InOrStdin for testability)
+				wf, err = LoadWorkflowFromReader(cmd.InOrStdin())
 				if err != nil {
 					return fmt.Errorf("failed to parse workflow from stdin: %w", err)
 				}
@@ -124,6 +124,18 @@ Examples:
 					return fmt.Errorf("invalid variable format: %s (expected key=value)", varFlag)
 				}
 				inputVars[parts[0]] = parts[1]
+			}
+
+			// Validate required variables are provided
+			for _, variable := range wf.Variables {
+				if variable == nil {
+					continue
+				}
+				if variable.Required {
+					if _, exists := inputVars[variable.Name]; !exists {
+						return fmt.Errorf("required variable missing: %s", variable.Name)
+					}
+				}
 			}
 
 			// Apply timeout if specified

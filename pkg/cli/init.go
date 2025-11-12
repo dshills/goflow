@@ -183,6 +183,14 @@ func createETLTemplate(name, description string) (*workflow.Workflow, error) {
 		return nil, err
 	}
 
+	// NOTE: Server configuration has been removed for security reasons.
+	// Users should register servers using 'goflow server add' command.
+	// Example:
+	//   goflow server add data-server npx -y @modelcontextprotocol/server-everything
+	//
+	// Previously auto-configured servers posed a supply-chain security risk
+	// by automatically downloading and executing remote code via npx.
+
 	// Add workflow variables
 	wf.AddVariable(&workflow.Variable{
 		Name:        "raw_data",
@@ -233,6 +241,14 @@ func createAPIIntegrationTemplate(name, description string) (*workflow.Workflow,
 		return nil, err
 	}
 
+	// NOTE: Server configuration has been removed for security reasons.
+	// Users should register servers using 'goflow server add' command.
+	// Example:
+	//   goflow server add http-server npx -y @modelcontextprotocol/server-fetch
+	//
+	// Previously auto-configured servers posed a supply-chain security risk
+	// by automatically downloading and executing remote code via npx.
+
 	// Add workflow variables
 	wf.AddVariable(&workflow.Variable{
 		Name:        "api_response",
@@ -279,6 +295,14 @@ func createBatchProcessingTemplate(name, description string) (*workflow.Workflow
 	if err != nil {
 		return nil, err
 	}
+
+	// NOTE: Server configuration has been removed for security reasons.
+	// Users should register servers using 'goflow server add' command.
+	// Example:
+	//   goflow server add batch-server npx -y @modelcontextprotocol/server-everything
+	//
+	// Previously auto-configured servers posed a supply-chain security risk
+	// by automatically downloading and executing remote code via npx.
 
 	// Add nodes
 	startNode := &workflow.StartNode{ID: "start"}

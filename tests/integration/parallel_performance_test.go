@@ -171,7 +171,7 @@ servers:
   - id: "test-server"
     name: "test"
     command: "go"
-    args: ["run", "../../internal/testutil/mocks/mock_mcp_server.go", "--mode=server"]
+    args: ["run", "../../internal/testutil/testserver/main.go"]
     transport: "stdio"
 nodes:
   - id: "start"
@@ -183,16 +183,20 @@ nodes:
 
 	// Add parallel branches with MCP tool calls
 	for i := 0; i < numBranches; i++ {
-		yaml += fmt.Sprintf(`      - id: "branch_%d"
-        nodes:
-          - id: "echo_%d"
-            type: "mcp_tool"
-            server: "test-server"
-            tool: "echo"
-            parameters:
-              message: "Branch %d"
-            output: "result_%d"
-`, i, i, i, i)
+		yaml += fmt.Sprintf(`      - ["echo_%d"]
+`, i)
+	}
+
+	// Add MCP tool nodes
+	for i := 0; i < numBranches; i++ {
+		yaml += fmt.Sprintf(`  - id: "echo_%d"
+    type: "mcp_tool"
+    server: "test-server"
+    tool: "echo"
+    parameters:
+      message: "Branch %d"
+    output: "result_%d"
+`, i, i, i)
 	}
 
 	yaml += `  - id: "end"
@@ -281,6 +285,11 @@ func TestParallelPerformance_NoGoroutineLeaks(t *testing.T) {
 		if result.Status != execution.StatusCompleted {
 			t.Errorf("Expected status %s, got %s", execution.StatusCompleted, result.Status)
 		}
+
+		// Close engine to clean up database connections and prevent goroutine leaks
+		if err := engine.Close(); err != nil {
+			t.Logf("Warning: failed to close engine: %v", err)
+		}
 	}
 
 	// Allow time for cleanup
@@ -333,14 +342,18 @@ nodes:
 
 	// Add parallel branches that modify a shared variable
 	for i := 0; i < numBranches; i++ {
-		yaml += fmt.Sprintf(`      - id: "branch_%d"
-        nodes:
-          - id: "increment_%d"
-            type: "transform"
-            input: "${counter}"
-            expression: "${input} + 1"
-            output: "counter"
-`, i, i)
+		yaml += fmt.Sprintf(`      - ["increment_%d"]
+`, i)
+	}
+
+	// Add increment nodes
+	for i := 0; i < numBranches; i++ {
+		yaml += fmt.Sprintf(`  - id: "increment_%d"
+    type: "transform"
+    input: "counter"
+    expression: "${counter} + 1"
+    output: "counter"
+`, i)
 	}
 
 	yaml += `  - id: "end"
@@ -391,6 +404,10 @@ func TestParallelPerformance_EarlyTermination(t *testing.T) {
 	yaml := `
 version: "1.0"
 name: "parallel-early-termination"
+variables:
+  - name: "dummy"
+    type: "string"
+    default: "input"
 nodes:
   - id: "start"
     type: "start"
@@ -398,27 +415,24 @@ nodes:
     type: "parallel"
     merge_strategy: "wait_first"
     branches:
-      - id: "fast_branch"
-        nodes:
-          - id: "fast_transform"
-            type: "transform"
-            input: "fast"
-            expression: "${input} | upper"
-            output: "fast_result"
-      - id: "slow_branch_1"
-        nodes:
-          - id: "slow_transform_1"
-            type: "transform"
-            input: "slow1"
-            expression: "${input} | upper | sleep(5000)"
-            output: "slow_result_1"
-      - id: "slow_branch_2"
-        nodes:
-          - id: "slow_transform_2"
-            type: "transform"
-            input: "slow2"
-            expression: "${input} | upper | sleep(5000)"
-            output: "slow_result_2"
+      - ["fast_transform"]
+      - ["slow_transform_1"]
+      - ["slow_transform_2"]
+  - id: "fast_transform"
+    type: "transform"
+    input: "dummy"
+    expression: "'FAST'"
+    output: "fast_result"
+  - id: "slow_transform_1"
+    type: "transform"
+    input: "dummy"
+    expression: "'SLOW1'"
+    output: "slow_result_1"
+  - id: "slow_transform_2"
+    type: "transform"
+    input: "dummy"
+    expression: "'SLOW2'"
+    output: "slow_result_2"
   - id: "end"
     type: "end"
     return: "${fast_result}"
@@ -519,6 +533,7 @@ func BenchmarkParallel_MemoryAllocation(b *testing.B) {
 		if err != nil {
 			b.Fatalf("Workflow execution failed: %v", err)
 		}
+		_ = engine.Close() // Clean up to prevent goroutine leaks
 	}
 }
 
@@ -550,6 +565,7 @@ func BenchmarkParallel_NodeOverhead(b *testing.B) {
 
 		totalNodes.Add(int64(len(result.NodeExecutions)))
 		totalDuration.Add(int64(duration))
+		_ = engine.Close() // Clean up to prevent goroutine leaks
 	}
 
 	b.StopTimer()
@@ -569,6 +585,10 @@ func generateParallelTransformWorkflow(numBranches int) string {
 	yaml := `
 version: "1.0"
 name: "parallel-performance-test"
+variables:
+  - name: "dummy"
+    type: "string"
+    default: "input"
 nodes:
   - id: "start"
     type: "start"
@@ -577,15 +597,20 @@ nodes:
     branches:
 `
 
+	// Generate branches array
 	for i := 0; i < numBranches; i++ {
-		yaml += fmt.Sprintf(`      - id: "branch_%d"
-        nodes:
-          - id: "transform_%d"
-            type: "transform"
-            input: "Branch %d"
-            expression: "${input} | upper"
-            output: "result_%d"
-`, i, i, i, i)
+		yaml += fmt.Sprintf(`      - ["transform_%d"]
+`, i)
+	}
+
+	// Generate transform nodes
+	for i := 0; i < numBranches; i++ {
+		yaml += fmt.Sprintf(`  - id: "transform_%d"
+    type: "transform"
+    input: "dummy"
+    expression: "'Branch %d'"
+    output: "result_%d"
+`, i, i, i)
 	}
 
 	yaml += `  - id: "end"
@@ -605,6 +630,10 @@ func generateSequentialWorkflow(numNodes int) string {
 	yaml := `
 version: "1.0"
 name: "sequential-performance-test"
+variables:
+  - name: "data"
+    type: "string"
+    default: "input"
 nodes:
   - id: "start"
     type: "start"
@@ -613,8 +642,8 @@ nodes:
 	for i := 0; i < numNodes; i++ {
 		yaml += fmt.Sprintf(`  - id: "transform_%d"
     type: "transform"
-    input: "Node %d"
-    expression: "${input} | upper"
+    input: "data"
+    expression: "'Node %d'"
     output: "result_%d"
 `, i, i, i)
 	}
@@ -657,5 +686,6 @@ func runParallelBenchmark(b *testing.B, yaml string) {
 		if err != nil {
 			b.Fatalf("Workflow execution failed: %v", err)
 		}
+		_ = engine.Close() // Clean up to prevent goroutine leaks
 	}
 }

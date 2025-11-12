@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dshills/goflow/internal/testutil"
 	"github.com/dshills/goflow/pkg/mcp"
 )
 
@@ -13,19 +14,7 @@ import (
 func TestMCPStdio_ConnectionLifecycle(t *testing.T) {
 	ctx := context.Background()
 
-	// Get path to mock server
-	mockServerPath, err := filepath.Abs("../../internal/testutil/mocks/mock_mcp_server.go")
-	if err != nil {
-		t.Fatalf("Failed to get mock server path: %v", err)
-	}
-
-	// This should fail because mcp.NewStdioClient doesn't exist yet
-	config := mcp.ServerConfig{
-		ID:      "test-server",
-		Command: "go",
-		Args:    []string{"run", mockServerPath, "--mode=server"},
-	}
-
+	config := testutil.TestServerConfig("test-server")
 	client, err := mcp.NewStdioClient(config)
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
@@ -59,18 +48,7 @@ func TestMCPStdio_ToolDiscovery(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	mockServerPath, err := filepath.Abs("../../internal/testutil/mocks/mock_mcp_server.go")
-	if err != nil {
-		t.Fatalf("Failed to get mock server path: %v", err)
-	}
-
-	// This should fail because mcp.NewStdioClient doesn't exist yet
-	config := mcp.ServerConfig{
-		ID:      "test-server",
-		Command: "go",
-		Args:    []string{"run", mockServerPath, "--mode=server"},
-	}
-
+	config := testutil.TestServerConfig("test-server")
 	client, err := mcp.NewStdioClient(config)
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
@@ -122,18 +100,7 @@ func TestMCPStdio_ToolInvocation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	mockServerPath, err := filepath.Abs("../../internal/testutil/mocks/mock_mcp_server.go")
-	if err != nil {
-		t.Fatalf("Failed to get mock server path: %v", err)
-	}
-
-	// This should fail because mcp.NewStdioClient doesn't exist yet
-	config := mcp.ServerConfig{
-		ID:      "test-server",
-		Command: "go",
-		Args:    []string{"run", mockServerPath, "--mode=server"},
-	}
-
+	config := testutil.TestServerConfig("test-server")
 	client, err := mcp.NewStdioClient(config)
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
@@ -187,18 +154,7 @@ func TestMCPStdio_ToolInvocationWithFiles(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	mockServerPath, err := filepath.Abs("../../internal/testutil/mocks/mock_mcp_server.go")
-	if err != nil {
-		t.Fatalf("Failed to get mock server path: %v", err)
-	}
-
-	// This should fail because mcp.NewStdioClient doesn't exist yet
-	config := mcp.ServerConfig{
-		ID:      "test-server",
-		Command: "go",
-		Args:    []string{"run", mockServerPath, "--mode=server"},
-	}
-
+	config := testutil.TestServerConfig("test-server")
 	client, err := mcp.NewStdioClient(config)
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
@@ -313,18 +269,7 @@ func TestMCPStdio_MultipleClients(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	mockServerPath, err := filepath.Abs("../../internal/testutil/mocks/mock_mcp_server.go")
-	if err != nil {
-		t.Fatalf("Failed to get mock server path: %v", err)
-	}
-
-	// This should fail because mcp.NewStdioClient doesn't exist yet
-	config := mcp.ServerConfig{
-		ID:      "test-server",
-		Command: "go",
-		Args:    []string{"run", mockServerPath, "--mode=server"},
-	}
-
+	config := testutil.TestServerConfig("test-server")
 	clients := make([]*mcp.StdioClient, 3)
 	for i := 0; i < 3; i++ {
 		client, err := mcp.NewStdioClient(config)
@@ -360,18 +305,7 @@ func TestMCPStdio_ErrorHandling(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	mockServerPath, err := filepath.Abs("../../internal/testutil/mocks/mock_mcp_server.go")
-	if err != nil {
-		t.Fatalf("Failed to get mock server path: %v", err)
-	}
-
-	// This should fail because mcp.NewStdioClient doesn't exist yet
-	config := mcp.ServerConfig{
-		ID:      "test-server",
-		Command: "go",
-		Args:    []string{"run", mockServerPath, "--mode=server"},
-	}
-
+	config := testutil.TestServerConfig("test-server")
 	client, err := mcp.NewStdioClient(config)
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)

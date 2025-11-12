@@ -15,7 +15,13 @@ import (
 func TestRunCommand_Basic(t *testing.T) {
 	// Create a temporary workflow file
 	tmpDir := t.TempDir()
-	workflowPath := filepath.Join(tmpDir, "test-workflow.yaml")
+	workflowsDir := filepath.Join(tmpDir, "workflows")
+	err := os.MkdirAll(workflowsDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create workflows directory: %v", err)
+	}
+
+	workflowPath := filepath.Join(workflowsDir, "test-workflow.yaml")
 
 	workflowYAML := `
 version: "1.0"
@@ -29,10 +35,14 @@ edges:
   - from: "start"
     to: "end"
 `
-	err := os.WriteFile(workflowPath, []byte(workflowYAML), 0644)
+	err = os.WriteFile(workflowPath, []byte(workflowYAML), 0644)
 	if err != nil {
 		t.Fatalf("Failed to write test workflow: %v", err)
 	}
+
+	// Set config directory to temp dir
+	os.Setenv("GOFLOW_CONFIG_DIR", tmpDir)
+	defer os.Unsetenv("GOFLOW_CONFIG_DIR")
 
 	// This should fail because cli.NewRunCommand doesn't exist yet
 	cmd := cli.NewRunCommand()
@@ -42,8 +52,8 @@ edges:
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
 
-	// Set arguments
-	cmd.SetArgs([]string{workflowPath})
+	// Set arguments - use workflow name, not path
+	cmd.SetArgs([]string{"test-workflow"})
 
 	// Execute command
 	err = cmd.Execute()
@@ -61,7 +71,13 @@ edges:
 // TestRunCommand_WithInputFile tests run command with input variable file
 func TestRunCommand_WithInputFile(t *testing.T) {
 	tmpDir := t.TempDir()
-	workflowPath := filepath.Join(tmpDir, "test-workflow.yaml")
+	workflowsDir := filepath.Join(tmpDir, "workflows")
+	err := os.MkdirAll(workflowsDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create workflows directory: %v", err)
+	}
+
+	workflowPath := filepath.Join(workflowsDir, "test-workflow.yaml")
 	inputPath := filepath.Join(tmpDir, "input.json")
 
 	workflowYAML := `
@@ -80,7 +96,7 @@ edges:
   - from: "start"
     to: "end"
 `
-	err := os.WriteFile(workflowPath, []byte(workflowYAML), 0644)
+	err = os.WriteFile(workflowPath, []byte(workflowYAML), 0644)
 	if err != nil {
 		t.Fatalf("Failed to write test workflow: %v", err)
 	}
@@ -91,6 +107,10 @@ edges:
 		t.Fatalf("Failed to write input file: %v", err)
 	}
 
+	// Set config directory to temp dir
+	os.Setenv("GOFLOW_CONFIG_DIR", tmpDir)
+	defer os.Unsetenv("GOFLOW_CONFIG_DIR")
+
 	// This should fail because cli.NewRunCommand doesn't exist yet
 	cmd := cli.NewRunCommand()
 
@@ -98,7 +118,7 @@ edges:
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
 
-	cmd.SetArgs([]string{workflowPath, "--input", inputPath})
+	cmd.SetArgs([]string{"test-workflow", "--input", inputPath})
 
 	err = cmd.Execute()
 	if err != nil {
@@ -109,7 +129,13 @@ edges:
 // TestRunCommand_WithInlineVariables tests run command with inline variable values
 func TestRunCommand_WithInlineVariables(t *testing.T) {
 	tmpDir := t.TempDir()
-	workflowPath := filepath.Join(tmpDir, "test-workflow.yaml")
+	workflowsDir := filepath.Join(tmpDir, "workflows")
+	err := os.MkdirAll(workflowsDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create workflows directory: %v", err)
+	}
+
+	workflowPath := filepath.Join(workflowsDir, "test-workflow.yaml")
 
 	workflowYAML := `
 version: "1.0"
@@ -128,10 +154,14 @@ edges:
   - from: "start"
     to: "end"
 `
-	err := os.WriteFile(workflowPath, []byte(workflowYAML), 0644)
+	err = os.WriteFile(workflowPath, []byte(workflowYAML), 0644)
 	if err != nil {
 		t.Fatalf("Failed to write test workflow: %v", err)
 	}
+
+	// Set config directory to temp dir
+	os.Setenv("GOFLOW_CONFIG_DIR", tmpDir)
+	defer os.Unsetenv("GOFLOW_CONFIG_DIR")
 
 	// This should fail because cli.NewRunCommand doesn't exist yet
 	cmd := cli.NewRunCommand()
@@ -141,7 +171,7 @@ edges:
 	cmd.SetErr(&stderr)
 
 	cmd.SetArgs([]string{
-		workflowPath,
+		"test-workflow",
 		"--var", "var1=value1",
 		"--var", "var2=value2",
 	})
@@ -155,7 +185,13 @@ edges:
 // TestRunCommand_DebugMode tests run command with debug flag
 func TestRunCommand_DebugMode(t *testing.T) {
 	tmpDir := t.TempDir()
-	workflowPath := filepath.Join(tmpDir, "test-workflow.yaml")
+	workflowsDir := filepath.Join(tmpDir, "workflows")
+	err := os.MkdirAll(workflowsDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create workflows directory: %v", err)
+	}
+
+	workflowPath := filepath.Join(workflowsDir, "test-workflow.yaml")
 
 	workflowYAML := `
 version: "1.0"
@@ -169,10 +205,14 @@ edges:
   - from: "start"
     to: "end"
 `
-	err := os.WriteFile(workflowPath, []byte(workflowYAML), 0644)
+	err = os.WriteFile(workflowPath, []byte(workflowYAML), 0644)
 	if err != nil {
 		t.Fatalf("Failed to write test workflow: %v", err)
 	}
+
+	// Set config directory to temp dir
+	os.Setenv("GOFLOW_CONFIG_DIR", tmpDir)
+	defer os.Unsetenv("GOFLOW_CONFIG_DIR")
 
 	// This should fail because cli.NewRunCommand doesn't exist yet
 	cmd := cli.NewRunCommand()
@@ -181,7 +221,7 @@ edges:
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
 
-	cmd.SetArgs([]string{workflowPath, "--debug"})
+	cmd.SetArgs([]string{"test-workflow", "--debug"})
 
 	err = cmd.Execute()
 	if err != nil {
@@ -198,7 +238,13 @@ edges:
 // TestRunCommand_WatchMode tests run command with watch flag
 func TestRunCommand_WatchMode(t *testing.T) {
 	tmpDir := t.TempDir()
-	workflowPath := filepath.Join(tmpDir, "test-workflow.yaml")
+	workflowsDir := filepath.Join(tmpDir, "workflows")
+	err := os.MkdirAll(workflowsDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create workflows directory: %v", err)
+	}
+
+	workflowPath := filepath.Join(workflowsDir, "test-workflow.yaml")
 
 	workflowYAML := `
 version: "1.0"
@@ -212,10 +258,14 @@ edges:
   - from: "start"
     to: "end"
 `
-	err := os.WriteFile(workflowPath, []byte(workflowYAML), 0644)
+	err = os.WriteFile(workflowPath, []byte(workflowYAML), 0644)
 	if err != nil {
 		t.Fatalf("Failed to write test workflow: %v", err)
 	}
+
+	// Set config directory to temp dir
+	os.Setenv("GOFLOW_CONFIG_DIR", tmpDir)
+	defer os.Unsetenv("GOFLOW_CONFIG_DIR")
 
 	// This should fail because cli.NewRunCommand doesn't exist yet
 	cmd := cli.NewRunCommand()
@@ -228,7 +278,7 @@ edges:
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	cmd.SetArgs([]string{workflowPath, "--watch"})
+	cmd.SetArgs([]string{"test-workflow", "--watch"})
 
 	// Watch mode should start execution
 	// For testing, we'd cancel after a short time
@@ -266,17 +316,27 @@ func TestRunCommand_NonExistentWorkflow(t *testing.T) {
 // TestRunCommand_InvalidWorkflow tests error handling for invalid workflow YAML
 func TestRunCommand_InvalidWorkflow(t *testing.T) {
 	tmpDir := t.TempDir()
-	workflowPath := filepath.Join(tmpDir, "invalid-workflow.yaml")
+	workflowsDir := filepath.Join(tmpDir, "workflows")
+	err := os.MkdirAll(workflowsDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create workflows directory: %v", err)
+	}
+
+	workflowPath := filepath.Join(workflowsDir, "invalid-workflow.yaml")
 
 	invalidYAML := `
 version: "1.0"
 name: "invalid-workflow"
 # Missing required nodes field
 `
-	err := os.WriteFile(workflowPath, []byte(invalidYAML), 0644)
+	err = os.WriteFile(workflowPath, []byte(invalidYAML), 0644)
 	if err != nil {
 		t.Fatalf("Failed to write invalid workflow: %v", err)
 	}
+
+	// Set config directory to temp dir
+	os.Setenv("GOFLOW_CONFIG_DIR", tmpDir)
+	defer os.Unsetenv("GOFLOW_CONFIG_DIR")
 
 	// This should fail because cli.NewRunCommand doesn't exist yet
 	cmd := cli.NewRunCommand()
@@ -285,7 +345,7 @@ name: "invalid-workflow"
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
 
-	cmd.SetArgs([]string{workflowPath})
+	cmd.SetArgs([]string{"invalid-workflow"})
 
 	err = cmd.Execute()
 	if err == nil {
@@ -296,7 +356,13 @@ name: "invalid-workflow"
 // TestRunCommand_MissingRequiredVariable tests error for missing required variables
 func TestRunCommand_MissingRequiredVariable(t *testing.T) {
 	tmpDir := t.TempDir()
-	workflowPath := filepath.Join(tmpDir, "test-workflow.yaml")
+	workflowsDir := filepath.Join(tmpDir, "workflows")
+	err := os.MkdirAll(workflowsDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create workflows directory: %v", err)
+	}
+
+	workflowPath := filepath.Join(workflowsDir, "test-workflow.yaml")
 
 	workflowYAML := `
 version: "1.0"
@@ -314,10 +380,14 @@ edges:
   - from: "start"
     to: "end"
 `
-	err := os.WriteFile(workflowPath, []byte(workflowYAML), 0644)
+	err = os.WriteFile(workflowPath, []byte(workflowYAML), 0644)
 	if err != nil {
 		t.Fatalf("Failed to write test workflow: %v", err)
 	}
+
+	// Set config directory to temp dir
+	os.Setenv("GOFLOW_CONFIG_DIR", tmpDir)
+	defer os.Unsetenv("GOFLOW_CONFIG_DIR")
 
 	// This should fail because cli.NewRunCommand doesn't exist yet
 	cmd := cli.NewRunCommand()
@@ -326,7 +396,7 @@ edges:
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
 
-	cmd.SetArgs([]string{workflowPath})
+	cmd.SetArgs([]string{"test-workflow"})
 
 	err = cmd.Execute()
 	if err == nil {
@@ -342,7 +412,13 @@ edges:
 // TestRunCommand_OutputFormatJSON tests run command with JSON output format
 func TestRunCommand_OutputFormatJSON(t *testing.T) {
 	tmpDir := t.TempDir()
-	workflowPath := filepath.Join(tmpDir, "test-workflow.yaml")
+	workflowsDir := filepath.Join(tmpDir, "workflows")
+	err := os.MkdirAll(workflowsDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create workflows directory: %v", err)
+	}
+
+	workflowPath := filepath.Join(workflowsDir, "test-workflow.yaml")
 
 	workflowYAML := `
 version: "1.0"
@@ -357,10 +433,14 @@ edges:
   - from: "start"
     to: "end"
 `
-	err := os.WriteFile(workflowPath, []byte(workflowYAML), 0644)
+	err = os.WriteFile(workflowPath, []byte(workflowYAML), 0644)
 	if err != nil {
 		t.Fatalf("Failed to write test workflow: %v", err)
 	}
+
+	// Set config directory to temp dir
+	os.Setenv("GOFLOW_CONFIG_DIR", tmpDir)
+	defer os.Unsetenv("GOFLOW_CONFIG_DIR")
 
 	// This should fail because cli.NewRunCommand doesn't exist yet
 	cmd := cli.NewRunCommand()
@@ -369,7 +449,7 @@ edges:
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
 
-	cmd.SetArgs([]string{workflowPath, "--output", "json"})
+	cmd.SetArgs([]string{"test-workflow", "--output", "json"})
 
 	err = cmd.Execute()
 	if err != nil {
@@ -417,7 +497,13 @@ edges:
 // TestRunCommand_TimeoutFlag tests run command with timeout
 func TestRunCommand_TimeoutFlag(t *testing.T) {
 	tmpDir := t.TempDir()
-	workflowPath := filepath.Join(tmpDir, "test-workflow.yaml")
+	workflowsDir := filepath.Join(tmpDir, "workflows")
+	err := os.MkdirAll(workflowsDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create workflows directory: %v", err)
+	}
+
+	workflowPath := filepath.Join(workflowsDir, "test-workflow.yaml")
 
 	workflowYAML := `
 version: "1.0"
@@ -431,10 +517,14 @@ edges:
   - from: "start"
     to: "end"
 `
-	err := os.WriteFile(workflowPath, []byte(workflowYAML), 0644)
+	err = os.WriteFile(workflowPath, []byte(workflowYAML), 0644)
 	if err != nil {
 		t.Fatalf("Failed to write test workflow: %v", err)
 	}
+
+	// Set config directory to temp dir
+	os.Setenv("GOFLOW_CONFIG_DIR", tmpDir)
+	defer os.Unsetenv("GOFLOW_CONFIG_DIR")
 
 	// This should fail because cli.NewRunCommand doesn't exist yet
 	cmd := cli.NewRunCommand()
@@ -443,7 +533,7 @@ edges:
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
 
-	cmd.SetArgs([]string{workflowPath, "--timeout", "30s"})
+	cmd.SetArgs([]string{"test-workflow", "--timeout", "30"})
 
 	err = cmd.Execute()
 	if err != nil {
@@ -454,7 +544,13 @@ edges:
 // TestRunCommand_InvalidInputFormat tests error for invalid input file format
 func TestRunCommand_InvalidInputFormat(t *testing.T) {
 	tmpDir := t.TempDir()
-	workflowPath := filepath.Join(tmpDir, "test-workflow.yaml")
+	workflowsDir := filepath.Join(tmpDir, "workflows")
+	err := os.MkdirAll(workflowsDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create workflows directory: %v", err)
+	}
+
+	workflowPath := filepath.Join(workflowsDir, "test-workflow.yaml")
 	inputPath := filepath.Join(tmpDir, "invalid-input.json")
 
 	workflowYAML := `
@@ -469,7 +565,7 @@ edges:
   - from: "start"
     to: "end"
 `
-	err := os.WriteFile(workflowPath, []byte(workflowYAML), 0644)
+	err = os.WriteFile(workflowPath, []byte(workflowYAML), 0644)
 	if err != nil {
 		t.Fatalf("Failed to write test workflow: %v", err)
 	}
@@ -480,6 +576,10 @@ edges:
 		t.Fatalf("Failed to write invalid input: %v", err)
 	}
 
+	// Set config directory to temp dir
+	os.Setenv("GOFLOW_CONFIG_DIR", tmpDir)
+	defer os.Unsetenv("GOFLOW_CONFIG_DIR")
+
 	// This should fail because cli.NewRunCommand doesn't exist yet
 	cmd := cli.NewRunCommand()
 
@@ -487,7 +587,7 @@ edges:
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
 
-	cmd.SetArgs([]string{workflowPath, "--input", inputPath})
+	cmd.SetArgs([]string{"test-workflow", "--input", inputPath})
 
 	err = cmd.Execute()
 	if err == nil {

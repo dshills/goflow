@@ -11,6 +11,7 @@ import (
 type Variable struct {
 	Name         string      `json:"name" yaml:"name"`
 	Type         string      `json:"type" yaml:"type"`
+	Required     bool        `json:"required,omitempty" yaml:"required,omitempty"`
 	DefaultValue interface{} `json:"default_value,omitempty" yaml:"default_value,omitempty"`
 	Description  string      `json:"description,omitempty" yaml:"description,omitempty"`
 }
@@ -53,6 +54,12 @@ func (v *Variable) Validate() error {
 		if err := v.validateDefaultValueType(); err != nil {
 			return err
 		}
+	}
+
+	// If variable is required, it should not have a default value
+	// (having both doesn't make semantic sense - if it's required, user must provide it)
+	if v.Required && v.DefaultValue != nil {
+		return fmt.Errorf("variable: required variable %s cannot have a default value", v.Name)
 	}
 
 	return nil

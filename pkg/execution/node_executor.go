@@ -213,6 +213,41 @@ func (e *Engine) isJSONPathExpression(expr string) bool {
 }
 
 // substituteVariables replaces variable placeholders (${var_name}) with actual values from context.
+// resolveVariablePath resolves a variable path like "user.name" or "config.database.host"
+// Supports nested field access via dot notation for map[string]interface{} values only
+// Note: Does not currently support array/slice indexing with brackets (e.g., items[0])
+func (e *Engine) resolveVariablePath(ctx *execution.ExecutionContext, path string) (interface{}, error) {
+	// Split path by dots
+	parts := strings.Split(path, ".")
+
+	// Get the root variable
+	value, exists := ctx.GetVariable(parts[0])
+	if !exists {
+		return nil, fmt.Errorf("variable '%s' not found", parts[0])
+	}
+
+	// Navigate through nested fields
+	current := value
+	for i := 1; i < len(parts); i++ {
+		field := parts[i]
+
+		// Handle map access
+		if m, ok := current.(map[string]interface{}); ok {
+			val, exists := m[field]
+			if !exists {
+				return nil, fmt.Errorf("field '%s' not found in variable '%s'", field, strings.Join(parts[:i+1], "."))
+			}
+			current = val
+			continue
+		}
+
+		// If not a map, can't access nested fields
+		return nil, fmt.Errorf("cannot access field '%s' on non-map value (type: %T)", field, current)
+	}
+
+	return current, nil
+}
+
 func (e *Engine) substituteVariables(input string, ctx *execution.ExecutionContext) (string, error) {
 	// Pattern to match ${variable_name}
 	pattern := regexp.MustCompile(`\$\{([^}]+)\}`)
@@ -227,12 +262,12 @@ func (e *Engine) substituteVariables(input string, ctx *execution.ExecutionConte
 		}
 
 		placeholder := match[0] // Full match: ${var_name}
-		varName := match[1]     // Variable name: var_name
+		varPath := match[1]     // Variable path: var_name or var_name.field.subfield
 
-		// Get variable value
-		value, exists := ctx.GetVariable(varName)
-		if !exists {
-			return "", fmt.Errorf("variable '%s' not found", varName)
+		// Get variable value (supports nested field access via dot notation)
+		value, err := e.resolveVariablePath(ctx, varPath)
+		if err != nil {
+			return "", err
 		}
 
 		// Convert value to string
@@ -415,6 +450,11 @@ func (e *Engine) executeLoopNode(ctx context.Context, node *workflow.LoopNode, w
 			IterationError: err,
 		}
 	}
+
+	// Clean up loop variables to prevent leakage outside loop scope
+	exec.Context.DeleteVariable(node.ItemVariable)
+	indexVarName := node.ItemVariable + "_index"
+	exec.Context.DeleteVariable(indexVarName)
 
 	// Collect and record results
 	loopResults := e.collectLoopResults(iterations)

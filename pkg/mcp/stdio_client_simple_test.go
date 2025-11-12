@@ -13,10 +13,10 @@ import (
 )
 
 func TestMockServerRaw(t *testing.T) {
-	// Test the mock server directly to ensure it works
-	mockServerPath, err := filepath.Abs("../../internal/testutil/mocks/cmd/mock_server/main.go")
+	// Test the test server directly to ensure it works
+	mockServerPath, err := filepath.Abs("../../internal/testutil/testserver/main.go")
 	if err != nil {
-		t.Fatalf("Failed to get mock server path: %v", err)
+		t.Fatalf("Failed to get test server path: %v", err)
 	}
 
 	cmd := exec.Command("go", "run", mockServerPath)

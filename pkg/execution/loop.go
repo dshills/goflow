@@ -104,6 +104,20 @@ func (e *Engine) executeLoopIteration(
 		return iteration, false, iteration.Error
 	}
 
+	// Check break condition BEFORE executing body (if specified)
+	if node.BreakCondition != "" {
+		broken, err := e.evaluateBreakCondition(node.BreakCondition, exec)
+		if err != nil {
+			iteration.Error = fmt.Errorf("break condition evaluation failed: %w", err)
+			return iteration, false, iteration.Error
+		}
+
+		if broken {
+			iteration.Broken = true
+			return iteration, true, nil
+		}
+	}
+
 	// Execute loop body nodes
 	for _, nodeID := range node.Body {
 		bodyNode, exists := nodeMap[nodeID]
@@ -130,41 +144,24 @@ func (e *Engine) executeLoopIteration(
 		}
 	}
 
-	// Check break condition if specified
-	if node.BreakCondition != "" {
-		broken, err := e.evaluateBreakCondition(ctx, node.BreakCondition, exec)
-		if err != nil {
-			iteration.Error = fmt.Errorf("break condition evaluation failed: %w", err)
-			return iteration, false, iteration.Error
-		}
-
-		if broken {
-			iteration.Broken = true
-			return iteration, true, nil
-		}
-	}
-
 	return iteration, false, nil
 }
 
 // evaluateBreakCondition evaluates the break condition expression
 // Returns true if the loop should break
 func (e *Engine) evaluateBreakCondition(
-	ctx context.Context,
 	condition string,
 	exec *execution.Execution,
 ) (bool, error) {
-	// Substitute variables in condition
-	substituted, err := e.substituteVariables(condition, exec.Context)
-	if err != nil {
-		return false, fmt.Errorf("failed to substitute variables in break condition: %w", err)
-	}
-
 	// Create transformer for expression evaluation
 	transformer := transform.NewTransformer()
 
+	// Get all variables as context for expression evaluation
+	contextData := exec.Context.CreateSnapshot()
+
 	// Evaluate condition as boolean expression
-	result, err := transformer.Transform(ctx, substituted, nil)
+	// Note: Using context.Background() since we don't have a cancellation context here
+	result, err := transformer.Transform(context.Background(), condition, contextData)
 	if err != nil {
 		return false, fmt.Errorf("failed to evaluate break condition: %w", err)
 	}

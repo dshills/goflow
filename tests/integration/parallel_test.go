@@ -326,7 +326,7 @@ servers:
   - id: "test-server"
     name: "test"
     command: "go"
-    args: ["run", "../../internal/testutil/mocks/mock_mcp_server.go", "--mode=server"]
+    args: ["run", "../../internal/testutil/testserver/main.go"]
     transport: "stdio"
 variables:
   - name: "result"
@@ -351,7 +351,7 @@ nodes:
     server: "test-server"
     tool: "failing_tool"
     parameters: {}
-    output_variable: "result"
+    output: "result"
   - id: "end"
     type: "end"
 edges:
@@ -413,7 +413,7 @@ servers:
   - id: "test-server"
     name: "test"
     command: "go"
-    args: ["run", "../../internal/testutil/mocks/mock_mcp_server.go", "--mode=server", "--delay=100ms"]
+    args: ["run", "../../internal/testutil/testserver/main.go", "--delay=100ms"]
     transport: "stdio"
 nodes:
   - id: "start"
@@ -431,21 +431,21 @@ nodes:
     tool: "delay_task"
     parameters:
       duration: "100ms"
-    output_variable: "result1"
+    output: "result1"
   - id: "branch2_task"
     type: "mcp_tool"
     server: "test-server"
     tool: "delay_task"
     parameters:
       duration: "100ms"
-    output_variable: "result2"
+    output: "result2"
   - id: "branch3_task"
     type: "mcp_tool"
     server: "test-server"
     tool: "delay_task"
     parameters:
       duration: "100ms"
-    output_variable: "result3"
+    output: "result3"
   - id: "end"
     type: "end"
 edges:
@@ -512,6 +512,9 @@ variables:
   - name: "results"
     type: "array"
     default: []
+  - name: "dummy"
+    type: "string"
+    default: ""
 nodes:
   - id: "start"
     type: "start"
@@ -524,22 +527,22 @@ nodes:
       - ["branch3"]
   - id: "branch1"
     type: "transform"
-    input: ""
+    input: "dummy"
     expression: "'result1'"
     output: "branch1_result"
   - id: "branch2"
     type: "transform"
-    input: ""
+    input: "dummy"
     expression: "'result2'"
     output: "branch2_result"
   - id: "branch3"
     type: "transform"
-    input: ""
+    input: "dummy"
     expression: "'result3'"
     output: "branch3_result"
   - id: "collect_results"
     type: "transform"
-    input: ""
+    input: "dummy"
     expression: "[${branch1_result}, ${branch2_result}, ${branch3_result}]"
     output: "results"
   - id: "end"

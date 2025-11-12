@@ -75,18 +75,16 @@ with conditional logic, data transformation, and parallel execution.`,
 // initConfig initializes the GoFlow configuration directory and files
 func initConfig() error {
 	// Determine config directory
-	if GlobalConfig.ConfigDir == "" {
-		// Check environment variable
-		if envDir := os.Getenv("GOFLOW_CONFIG_DIR"); envDir != "" {
-			GlobalConfig.ConfigDir = envDir
-		} else {
-			// Use default ~/.goflow
-			homeDir, err := os.UserHomeDir()
-			if err != nil {
-				return fmt.Errorf("failed to get user home directory: %w", err)
-			}
-			GlobalConfig.ConfigDir = filepath.Join(homeDir, ".goflow")
+	// Environment variable always takes priority (for testing)
+	if envDir := os.Getenv("GOFLOW_CONFIG_DIR"); envDir != "" {
+		GlobalConfig.ConfigDir = envDir
+	} else if GlobalConfig.ConfigDir == "" {
+		// Use default ~/.goflow
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("failed to get user home directory: %w", err)
 		}
+		GlobalConfig.ConfigDir = filepath.Join(homeDir, ".goflow")
 	}
 
 	// Create config directory if it doesn't exist
@@ -123,9 +121,18 @@ func initConfig() error {
 }
 
 // GetConfigDir returns the configuration directory path
+// Priority order: 1) GOFLOW_CONFIG_DIR env var (for testing), 2) GlobalConfig.ConfigDir, 3) ~/.goflow
 func GetConfigDir() string {
+	// Check environment variable first (for testing)
+	if envDir := os.Getenv("GOFLOW_CONFIG_DIR"); envDir != "" {
+		return envDir
+	}
 	if GlobalConfig.ConfigDir == "" {
-		homeDir, _ := os.UserHomeDir()
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			// Fallback to current directory if home dir cannot be determined
+			return ".goflow"
+		}
 		return filepath.Join(homeDir, ".goflow")
 	}
 	return GlobalConfig.ConfigDir

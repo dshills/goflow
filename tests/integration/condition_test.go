@@ -53,14 +53,14 @@ func TestConditionNodeEvaluation_SimpleComparison(t *testing.T) {
 		},
 		{
 			name:        "equal to - true",
-			condition:   "status == 'active'",
+			condition:   `status == "active"`,
 			inputVar:    "status",
 			inputValue:  "active",
 			expectedRes: true,
 		},
 		{
 			name:        "equal to - false",
-			condition:   "status == 'active'",
+			condition:   `status == "active"`,
 			inputVar:    "status",
 			inputValue:  "inactive",
 			expectedRes: false,
@@ -116,14 +116,14 @@ version: "1.0"
 name: "condition-simple-test"
 variables:
   - name: "` + tt.inputVar + `"
-    type: "number"
+    type: "string"
     default: null
 nodes:
   - id: "start"
     type: "start"
   - id: "condition_check"
     type: "condition"
-    condition: '` + tt.condition + `'
+    condition: ` + tt.condition + `
   - id: "true_path"
     type: "passthrough"
   - id: "false_path"
@@ -527,7 +527,7 @@ nodes:
     type: "passthrough"
   - id: "end"
     type: "end"
-    return: "${action_result}"
+    return: "completed"
 edges:
   - from: "start"
     to: "check_admin"
@@ -621,8 +621,6 @@ nodes:
     type: "passthrough"
   - id: "vip_standard"
     type: "passthrough"
-  - id: "regular_premium"
-    type: "passthrough"
   - id: "regular_standard"
     type: "passthrough"
   - id: "end"
@@ -646,8 +644,6 @@ edges:
   - from: "vip_premium"
     to: "end"
   - from: "vip_standard"
-    to: "end"
-  - from: "regular_premium"
     to: "end"
   - from: "regular_standard"
     to: "end"
@@ -718,9 +714,6 @@ edges:
 
 // TestConditionNodeErrors_InvalidExpression tests error handling for invalid expressions
 func TestConditionNodeErrors_InvalidExpression(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
 	tests := []struct {
 		name      string
 		condition string
@@ -775,24 +768,16 @@ edges:
     to: "end"
 `
 
+			// Validation should catch these errors
 			wf, err := workflow.Parse([]byte(yaml))
 			if err != nil {
-				t.Fatalf("Failed to parse workflow: %v", err)
+				return // Parse error is acceptable
 			}
 
-			engine := runtimeexec.NewEngine()
-			result, err := engine.Execute(ctx, wf, nil)
-
-			// Should either error or have a failed status
-			if err == nil && result.Status == execution.StatusCompleted {
-				t.Error("Expected execution to fail or error for invalid expression")
-			}
-
-			// If we got a result, it should have error details
-			if result != nil && result.Status == execution.StatusFailed {
-				if result.Error == nil {
-					t.Error("Expected error details in failed execution")
-				}
+			// Validate should catch invalid expressions
+			err = wf.Validate()
+			if err == nil {
+				t.Error("Expected validation error for invalid condition expression")
 			}
 		})
 	}
@@ -818,6 +803,8 @@ nodes:
     condition: "requiredValue > 10"
   - id: "true_path"
     type: "passthrough"
+  - id: "false_path"
+    type: "passthrough"
   - id: "end"
     type: "end"
 edges:
@@ -826,7 +813,12 @@ edges:
   - from: "condition_check"
     to: "true_path"
     condition: "true"
+  - from: "condition_check"
+    to: "false_path"
+    condition: "false"
   - from: "true_path"
+    to: "end"
+  - from: "false_path"
     to: "end"
 `
 

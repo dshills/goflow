@@ -708,6 +708,15 @@ func TestWorkflowBuilderView_LoadWorkflow(t *testing.T) {
 				t.Fatalf("Failed to create builder: %v", err)
 			}
 
+			// Setup mock repository
+			mockRepo := NewMockWorkflowRepository()
+			if tt.setupData != nil {
+				if wf := tt.setupData(); wf != nil {
+					mockRepo.Save(wf)
+				}
+			}
+			builder.SetRepository(mockRepo)
+
 			err = builder.LoadWorkflow(tt.workflowName)
 
 			if tt.wantErr && err == nil {

@@ -202,8 +202,8 @@ func TestMissingVariableHandling(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			renderer := transform.NewTemplateRenderer()
 			// Configure renderer based on test case
-			// renderer.SetStrictMode(tt.strictMode)
-			// renderer.SetDefaultValue(tt.defaultValue)
+			renderer.SetStrictMode(tt.strictMode)
+			renderer.SetDefaultValue(tt.defaultValue)
 
 			got, err := renderer.Render(context.Background(), tt.template, tt.context)
 

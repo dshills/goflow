@@ -24,63 +24,6 @@ import (
 // 7. Empty state handling (no workflows)
 // 8. Search/filter workflows (/ key)
 
-// MockWorkflowRepository implements a simple in-memory workflow repository for testing
-type MockWorkflowRepository struct {
-	workflows  []*workflow.Workflow
-	saveFunc   func(*workflow.Workflow) error
-	deleteFunc func(string) error
-}
-
-func (m *MockWorkflowRepository) Save(wf *workflow.Workflow) error {
-	if m.saveFunc != nil {
-		return m.saveFunc(wf)
-	}
-	// Check if workflow exists and update, otherwise append
-	for i, existing := range m.workflows {
-		if existing.ID == wf.ID {
-			m.workflows[i] = wf
-			return nil
-		}
-	}
-	m.workflows = append(m.workflows, wf)
-	return nil
-}
-
-func (m *MockWorkflowRepository) FindByID(id string) (*workflow.Workflow, error) {
-	for _, wf := range m.workflows {
-		if wf.ID == id {
-			return wf, nil
-		}
-	}
-	return nil, workflow.ErrWorkflowNotFound
-}
-
-func (m *MockWorkflowRepository) FindByName(name string) (*workflow.Workflow, error) {
-	for _, wf := range m.workflows {
-		if wf.Name == name {
-			return wf, nil
-		}
-	}
-	return nil, workflow.ErrWorkflowNotFound
-}
-
-func (m *MockWorkflowRepository) List() ([]*workflow.Workflow, error) {
-	return m.workflows, nil
-}
-
-func (m *MockWorkflowRepository) Delete(id string) error {
-	if m.deleteFunc != nil {
-		return m.deleteFunc(id)
-	}
-	for i, wf := range m.workflows {
-		if wf.ID == id {
-			m.workflows = append(m.workflows[:i], m.workflows[i+1:]...)
-			return nil
-		}
-	}
-	return workflow.ErrWorkflowNotFound
-}
-
 // createTestWorkflows creates a set of test workflows for testing
 func createTestWorkflows() []*workflow.Workflow {
 	wf1, _ := workflow.NewWorkflow("data-pipeline", "Read, transform, write data")
@@ -134,9 +77,7 @@ func TestWorkflowExplorerRenderEmpty(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create empty repository
-			repo := &MockWorkflowRepository{
-				workflows: []*workflow.Workflow{},
-			}
+			repo := NewMockWorkflowRepository()
 
 			// Create screen buffer
 			screen := goterm.NewScreen(tt.width, tt.height)
@@ -220,9 +161,7 @@ func TestWorkflowExplorerRenderList(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := &MockWorkflowRepository{
-				workflows: tt.workflows,
-			}
+			repo := NewMockWorkflowRepositoryWithWorkflows(tt.workflows)
 
 			screen := goterm.NewScreen(tt.width, tt.height)
 			explorer := tui.NewWorkflowExplorer(repo, screen)
@@ -329,9 +268,7 @@ func TestWorkflowExplorerNavigationJK(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := &MockWorkflowRepository{
-				workflows: tt.workflows,
-			}
+			repo := NewMockWorkflowRepositoryWithWorkflows(tt.workflows)
 
 			screen := goterm.NewScreen(80, 24)
 			explorer := tui.NewWorkflowExplorer(repo, screen)
@@ -397,9 +334,7 @@ func TestWorkflowExplorerSelectionEnter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := &MockWorkflowRepository{
-				workflows: tt.workflows,
-			}
+			repo := NewMockWorkflowRepositoryWithWorkflows(tt.workflows)
 
 			screen := goterm.NewScreen(80, 24)
 			explorer := tui.NewWorkflowExplorer(repo, screen)
@@ -466,9 +401,7 @@ func TestWorkflowExplorerNewWorkflow(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			workflows := createTestWorkflows()[:tt.existingCount]
-			repo := &MockWorkflowRepository{
-				workflows: workflows,
-			}
+			repo := NewMockWorkflowRepositoryWithWorkflows(workflows)
 
 			screen := goterm.NewScreen(80, 24)
 			explorer := tui.NewWorkflowExplorer(repo, screen)
@@ -561,9 +494,7 @@ func TestWorkflowExplorerDeleteWorkflow(t *testing.T) {
 			workflows := make([]*workflow.Workflow, len(tt.workflows))
 			copy(workflows, tt.workflows)
 
-			repo := &MockWorkflowRepository{
-				workflows: workflows,
-			}
+			repo := NewMockWorkflowRepositoryWithWorkflows(workflows)
 
 			screen := goterm.NewScreen(80, 24)
 			explorer := tui.NewWorkflowExplorer(repo, screen)
@@ -639,9 +570,7 @@ func TestWorkflowExplorerRenameWorkflow(t *testing.T) {
 			workflows := make([]*workflow.Workflow, len(tt.workflows))
 			copy(workflows, tt.workflows)
 
-			repo := &MockWorkflowRepository{
-				workflows: workflows,
-			}
+			repo := NewMockWorkflowRepositoryWithWorkflows(workflows)
 
 			screen := goterm.NewScreen(80, 24)
 			explorer := tui.NewWorkflowExplorer(repo, screen)
@@ -733,9 +662,7 @@ func TestWorkflowExplorerSearch(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := &MockWorkflowRepository{
-				workflows: tt.workflows,
-			}
+			repo := NewMockWorkflowRepositoryWithWorkflows(tt.workflows)
 
 			screen := goterm.NewScreen(80, 24)
 			explorer := tui.NewWorkflowExplorer(repo, screen)
@@ -805,9 +732,7 @@ func TestWorkflowExplorerSearch(t *testing.T) {
 // TestWorkflowExplorerEdgeCases tests edge cases and error conditions
 func TestWorkflowExplorerEdgeCases(t *testing.T) {
 	t.Run("handle_key_on_empty_list", func(t *testing.T) {
-		repo := &MockWorkflowRepository{
-			workflows: []*workflow.Workflow{},
-		}
+		repo := NewMockWorkflowRepositoryWithWorkflows([]*workflow.Workflow{})
 
 		screen := goterm.NewScreen(80, 24)
 		explorer := tui.NewWorkflowExplorer(repo, screen)
@@ -831,9 +756,7 @@ func TestWorkflowExplorerEdgeCases(t *testing.T) {
 	})
 
 	t.Run("single_workflow_navigation", func(t *testing.T) {
-		repo := &MockWorkflowRepository{
-			workflows: createTestWorkflows()[:1],
-		}
+		repo := NewMockWorkflowRepositoryWithWorkflows(createTestWorkflows()[:1])
 
 		screen := goterm.NewScreen(80, 24)
 		explorer := tui.NewWorkflowExplorer(repo, screen)
@@ -852,9 +775,7 @@ func TestWorkflowExplorerEdgeCases(t *testing.T) {
 	})
 
 	t.Run("rapid_key_presses", func(t *testing.T) {
-		repo := &MockWorkflowRepository{
-			workflows: createTestWorkflows(),
-		}
+		repo := NewMockWorkflowRepositoryWithWorkflows(createTestWorkflows())
 
 		screen := goterm.NewScreen(80, 24)
 		explorer := tui.NewWorkflowExplorer(repo, screen)
@@ -874,9 +795,7 @@ func TestWorkflowExplorerEdgeCases(t *testing.T) {
 	})
 
 	t.Run("escape_key_cancels_operations", func(t *testing.T) {
-		repo := &MockWorkflowRepository{
-			workflows: createTestWorkflows(),
-		}
+		repo := NewMockWorkflowRepositoryWithWorkflows(createTestWorkflows())
 
 		screen := goterm.NewScreen(80, 24)
 		explorer := tui.NewWorkflowExplorer(repo, screen)
@@ -898,9 +817,7 @@ func TestWorkflowExplorerEdgeCases(t *testing.T) {
 // TestWorkflowExplorerRendering tests rendering at different frame rates
 func TestWorkflowExplorerRendering(t *testing.T) {
 	t.Run("render_performance_target", func(t *testing.T) {
-		repo := &MockWorkflowRepository{
-			workflows: createTestWorkflows(),
-		}
+		repo := NewMockWorkflowRepositoryWithWorkflows(createTestWorkflows())
 
 		screen := goterm.NewScreen(80, 24)
 		explorer := tui.NewWorkflowExplorer(repo, screen)
@@ -926,9 +843,7 @@ func TestWorkflowExplorerRendering(t *testing.T) {
 	})
 
 	t.Run("responsive_to_screen_resize", func(t *testing.T) {
-		repo := &MockWorkflowRepository{
-			workflows: createTestWorkflows(),
-		}
+		repo := NewMockWorkflowRepositoryWithWorkflows(createTestWorkflows())
 
 		// Start with one size
 		screen := goterm.NewScreen(80, 24)
@@ -950,9 +865,7 @@ func TestWorkflowExplorerRendering(t *testing.T) {
 // TestWorkflowExplorerHelpText tests help text display
 func TestWorkflowExplorerHelpText(t *testing.T) {
 	t.Run("help_text_displayed", func(t *testing.T) {
-		repo := &MockWorkflowRepository{
-			workflows: createTestWorkflows(),
-		}
+		repo := NewMockWorkflowRepositoryWithWorkflows(createTestWorkflows())
 
 		screen := goterm.NewScreen(80, 24)
 		explorer := tui.NewWorkflowExplorer(repo, screen)
@@ -978,9 +891,7 @@ func TestWorkflowExplorerHelpText(t *testing.T) {
 	})
 
 	t.Run("question_mark_shows_full_help", func(t *testing.T) {
-		repo := &MockWorkflowRepository{
-			workflows: createTestWorkflows(),
-		}
+		repo := NewMockWorkflowRepositoryWithWorkflows(createTestWorkflows())
 
 		screen := goterm.NewScreen(80, 24)
 		explorer := tui.NewWorkflowExplorer(repo, screen)
@@ -1018,23 +929,6 @@ func TestWorkflowExplorerHelpText(t *testing.T) {
 
 // screenContainsText is a helper function to check if screen buffer contains text
 // This will fail initially because we need to implement screen buffer inspection
-func screenContainsText(screen *goterm.Screen, text string) bool {
-	// This function needs to be implemented to search through the screen buffer
-	// Expected error: screen.GetCell or similar method doesn't exist yet
-	w, h := screen.Size()
-	for y := 0; y < h; y++ {
-		rowText := ""
-		for x := 0; x < w; x++ {
-			cell := screen.GetCell(x, y)
-			rowText += string(cell.Ch)
-		}
-		if containsSubstring(rowText, text) {
-			return true
-		}
-	}
-	return false
-}
-
 // containsSubstring checks if haystack contains needle (case-insensitive)
 func containsSubstring(haystack, needle string) bool {
 	if len(needle) > len(haystack) {

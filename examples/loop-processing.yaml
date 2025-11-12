@@ -1,0 +1,231 @@
+# GoFlow Loop Processing Example
+# This workflow demonstrates loop execution for iterating over collections
+# It processes items sequentially with conditional break logic
+#
+# Demonstrates:
+#   - Loop node for collection iteration
+#   - Break conditions for early termination
+#   - Variable scoping within loop body
+#   - Result collection and aggregation
+#   - Nested field access (${item.field})
+#
+# Note: Loop execution is part of Phase 8 (Advanced Features)
+#
+# Prerequisites:
+#   1. Register filesystem MCP server:
+#      goflow server add filesystem npx -y @modelcontextprotocol/server-filesystem /tmp
+#
+#   2. Prepare test data file at /tmp/users.json:
+#      [
+#        {"id": 1, "name": "Alice", "email": "alice@example.com", "active": true},
+#        {"id": 2, "name": "Bob", "email": "bob@example.com", "active": false},
+#        {"id": 3, "name": "Charlie", "email": "charlie@example.com", "active": true}
+#      ]
+
+version: "1.0"
+name: "loop-processing"
+description: "Process items in a collection with loop and break conditions"
+
+metadata:
+  author: "goflow-examples"
+  created: "2025-11-11T00:00:00Z"
+  tags: ["loop", "iteration", "break", "scoping"]
+  phase: "8"
+  status: "implemented"
+
+variables:
+  - name: "input_file"
+    type: "string"
+    default: "/tmp/users.json"
+    description: "File containing user data to process"
+
+  - name: "max_inactive_users"
+    type: "number"
+    default: 3
+    description: "Stop processing after finding this many inactive users"
+
+servers:
+  - id: "filesystem"
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+
+nodes:
+  - id: "start"
+    type: "start"
+
+  # Read user data file
+  - id: "read_users"
+    type: "mcp_tool"
+    server: "filesystem"
+    tool: "read_file"
+    parameters:
+      path: "${input_file}"
+    output: "users_json"
+    description: "Read user data from file"
+
+  # Parse JSON to get user array
+  - id: "parse_users"
+    type: "transform"
+    input: "${users_json}"
+    expression: "jq(. | fromjson)"
+    output: "users"
+    description: "Parse JSON string to array of user objects"
+
+  # Initialize counter for inactive users
+  - id: "init_counter"
+    type: "transform"
+    input: "0"
+    expression: "0"
+    output: "inactive_count"
+    description: "Initialize inactive user counter"
+
+  # Loop through users and process each one
+  # The loop automatically creates:
+  #   - ${user}: current user object
+  #   - ${user_index}: current iteration index (0-based)
+  - id: "process_users_loop"
+    type: "loop"
+    collection: "${users}"
+    item: "user"
+    body:
+      - "check_user_status"
+      - "update_inactive_count"
+      - "process_active_user"
+    break_condition: "${inactive_count} >= ${max_inactive_users}"
+    output: "loop_results"
+    description: "Process each user, breaking after max inactive users"
+
+  # Check if current user is active
+  - id: "check_user_status"
+    type: "transform"
+    input: "${user}"
+    expression: "$.active"
+    output: "is_active"
+    description: "Extract user active status"
+
+  # Increment inactive counter if user is not active
+  - id: "update_inactive_count"
+    type: "transform"
+    input: "${inactive_count}"
+    expression: "${inactive_count} + 1"
+    output: "inactive_count"
+    description: "Increment counter for inactive users"
+    condition: "${is_active} == false"
+
+  # Process active user (only if active)
+  - id: "process_active_user"
+    type: "transform"
+    input: "${user}"
+    expression: |
+      jq({
+        user_id: .id,
+        username: .name,
+        email: .email,
+        processed_at: "${now()}",
+        iteration: ${user_index}
+      })
+    output: "processed_user"
+    description: "Transform active user data"
+    condition: "${is_active} == true"
+
+  # Aggregate results from loop
+  - id: "aggregate_results"
+    type: "transform"
+    input: "${loop_results}"
+    expression: |
+      jq({
+        total_iterations: .iteration_count,
+        processed_users: (.iterations | map(select(.processed_user != null)) | length),
+        inactive_users_found: ${inactive_count},
+        early_termination: .broken // false,
+        break_at_iteration: .break_index // null
+      })
+    output: "summary"
+    description: "Calculate processing summary"
+
+  - id: "end"
+    type: "end"
+    return: "${summary}"
+
+edges:
+  - from: "start"
+    to: "read_users"
+
+  - from: "read_users"
+    to: "parse_users"
+
+  - from: "parse_users"
+    to: "init_counter"
+
+  - from: "init_counter"
+    to: "process_users_loop"
+
+  - from: "process_users_loop"
+    to: "aggregate_results"
+
+  - from: "aggregate_results"
+    to: "end"
+
+# Implementation Notes for Loop Execution:
+#
+# 1. Loop Variables:
+#    - Item variable (${user}) is scoped to loop body
+#    - Index variable (${user_index}) automatically created
+#    - Variables are cleaned up after loop completion (no leakage)
+#
+# 2. Break Conditions:
+#    - Evaluated BEFORE each iteration (including first)
+#    - Must evaluate to boolean expression
+#    - Can reference any variable in scope
+#    - Break is recorded in loop results
+#    - NOTE: Break check before iteration means the loop may run one extra
+#      iteration after the condition becomes true (e.g., inactive_count reaches
+#      threshold during iteration N, but break only fires before iteration N+1)
+#
+# 3. Variable Scoping:
+#    - Loop item variable only exists within loop body
+#    - Loop can reference outer scope variables
+#    - Loop can modify outer scope variables (like counters)
+#    - After loop: item and index variables are deleted
+#
+# 4. Nested Field Access:
+#    - Use dot notation: ${user.name}, ${user.email}
+#    - Works with map[string]interface{} values
+#    - Does not support array indexing: ${users[0]} (use transform instead)
+#
+# 5. Loop Results Structure:
+#    - iterations: array of outputs from each iteration
+#    - iteration_count: total number of iterations executed
+#    - broken: true if loop terminated via break condition
+#    - break_index: iteration index where break occurred
+#
+# 6. Error Handling:
+#    - Error in loop body stops entire loop
+#    - Partial results are still available
+#    - Use try/catch nodes for error recovery (future)
+#
+# 7. Performance:
+#    - Loops are sequential by default
+#    - Use parallel flag for concurrent iteration (see parallel-batch.yaml)
+#    - Consider memory usage for large collections
+#
+# 8. Security Considerations:
+#    - IMPORTANT: This example uses string interpolation into jq expressions
+#      (e.g., "${now()}" and "${user_index}"). This is for demonstration only.
+#    - In production workflows with untrusted input, avoid direct interpolation
+#      into external command strings to prevent injection attacks.
+#    - Best practice: Use structured data passing or proper escaping/serialization
+#      for all external tool invocations.
+#    - Variable interpolation is safe for GoFlow's built-in expression evaluator,
+#      but be cautious when mixing with external tools like jq.
+#
+# Example Usage:
+#
+#   # Run with default settings
+#   goflow run loop-processing
+#
+#   # Override input file
+#   goflow run loop-processing --input '{"input_file": "/tmp/my-users.json"}'
+#
+#   # Stop after finding 1 inactive user
+#   goflow run loop-processing --input '{"max_inactive_users": 1}'

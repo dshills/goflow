@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"sync"
 
-	"golang.org/x/sync/errgroup"
-
 	"github.com/dshills/goflow/pkg/domain/execution"
 	"github.com/dshills/goflow/pkg/workflow"
 )
@@ -78,7 +76,11 @@ func (e *Engine) executeWaitAll(
 	results []BranchResult,
 	resultsMu *sync.Mutex,
 ) ([]BranchResult, error) {
-	g, gctx := errgroup.WithContext(ctx)
+	// Don't use errgroup.WithContext because that cancels all branches when one fails
+	// We want all branches to complete even if some fail
+	var wg sync.WaitGroup
+	var firstErr error
+	var errMu sync.Mutex
 
 	// Store branch executions for later merging
 	branchExecs := make([]*execution.Execution, len(node.Branches))
@@ -87,15 +89,23 @@ func (e *Engine) executeWaitAll(
 		branchIndex := i
 		branchNodes := branch
 
-		g.Go(func() error {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
 			// Create isolated context for this branch
 			branchExec, err := e.createBranchContext(exec)
 			if err != nil {
-				return fmt.Errorf("failed to create branch context: %w", err)
+				errMu.Lock()
+				if firstErr == nil {
+					firstErr = fmt.Errorf("failed to create branch context: %w", err)
+				}
+				errMu.Unlock()
+				return
 			}
 
-			// Execute branch nodes
-			branchOutputs, branchErr := e.executeBranchNodes(gctx, branchNodes, wf, branchExec, nodeMap)
+			// Execute branch nodes using original context (not cancelled when other branches fail)
+			branchOutputs, branchErr := e.executeBranchNodes(ctx, branchNodes, wf, branchExec, nodeMap)
 
 			// Store result and branch execution
 			resultsMu.Lock()
@@ -107,22 +117,34 @@ func (e *Engine) executeWaitAll(
 			branchExecs[branchIndex] = branchExec
 			resultsMu.Unlock()
 
-			return branchErr
-		})
+			// Track first error for return value
+			if branchErr != nil {
+				errMu.Lock()
+				if firstErr == nil {
+					firstErr = fmt.Errorf("parallel execution failed: %w", branchErr)
+				}
+				errMu.Unlock()
+			}
+		}()
 	}
 
 	// Wait for all branches to complete
-	if err := g.Wait(); err != nil {
-		return results, fmt.Errorf("parallel execution failed: %w", err)
-	}
+	wg.Wait()
 
-	// Merge all successful branch contexts back to parent (serially, after all branches complete)
-	for i, branchExec := range branchExecs {
-		if branchExec != nil && results[i].Error == nil {
+	// Merge all branch contexts back to parent (serially, after all branches complete)
+	// We merge all branches (even failed ones) so their node executions are recorded
+	for _, branchExec := range branchExecs {
+		if branchExec != nil {
 			if err := e.mergeBranchContext(exec, branchExec); err != nil {
-				return results, fmt.Errorf("failed to merge branch %d context: %w", i, err)
+				// Log error but continue merging other branches
+				_ = err
 			}
 		}
+	}
+
+	// Return error if any branch failed (after merging)
+	if firstErr != nil {
+		return results, firstErr
 	}
 
 	return results, nil
@@ -218,9 +240,10 @@ func (e *Engine) executeWaitAny(
 		return results, ctx.Err()
 	}
 
-	// Merge all successful branch contexts back to parent (serially, after all branches complete)
-	for i, branchExec := range branchExecs {
-		if branchExec != nil && results[i].Error == nil {
+	// Merge all branch contexts back to parent (serially, after all branches complete)
+	// We merge all branches (even failed ones) so their node executions are recorded
+	for _, branchExec := range branchExecs {
+		if branchExec != nil {
 			if err := e.mergeBranchContext(exec, branchExec); err != nil {
 				// Log error but don't fail execution for wait_any strategy
 				_ = err

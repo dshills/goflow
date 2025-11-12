@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -63,20 +64,36 @@ func (q *gjsonQuerier) Query(ctx context.Context, path string, data interface{})
 		return handleNegativeIndex(jsonStr, path)
 	}
 
+	// Check if this is a recursive descent query (before conversion)
+	// This must be checked BEFORE wildcard handling because patterns like $..items[*].id
+	// need recursive descent logic, not simple wildcard logic
+	if strings.Contains(path, "..") {
+		// Extract the pattern after ..
+		parts := strings.Split(path, "..")
+		if len(parts) > 1 {
+			pattern := strings.TrimPrefix(parts[1], ".")
+			return handleRecursiveDescentPattern(jsonStr, pattern, data)
+		}
+	}
+
+	// Check if we need to handle contains operator in filters
+	// Must be checked BEFORE wildcard handling because patterns like @.roles[*] contains "admin"
+	// contain [*] but need special filter handling
+	if hasContainsFilter(path) {
+		return handleContainsFilter(jsonStr, path)
+	}
+
+	// Check if we have a filter followed by wildcard operations
+	// e.g., $.orders[?(@.status == 'pending')].items[*].sku
+	// This requires special multi-stage handling and must be checked BEFORE simple wildcard handling
+	if hasFilterFollowedByWildcard(path) {
+		return handleFilteredWildcardPath(jsonStr, path)
+	}
+
 	// Check if this is a wildcard query that needs special handling
 	// e.g., $.items[*].name or $.prices[*]
 	if strings.Contains(path, "[*]") {
 		return handleWildcardQuery(ctx, jsonStr, path, data)
-	}
-
-	// Check if this is a recursive descent query (before conversion)
-	if strings.Contains(path, "..") {
-		// Extract the field name after ..
-		parts := strings.Split(path, "..")
-		if len(parts) > 1 {
-			fieldName := strings.TrimPrefix(parts[1], ".")
-			return handleRecursiveDescent(jsonStr, fieldName)
-		}
 	}
 
 	// Convert JSONPath to gjson syntax
@@ -86,19 +103,9 @@ func (q *gjsonQuerier) Query(ctx context.Context, path string, data interface{})
 	}
 
 	// Special case: root object access
+	// Return the original data directly to preserve types (avoid int -> float64 conversion)
 	if queryPath == "" || queryPath == "." || path == "$" {
-		var result interface{}
-		if err := json.Unmarshal(jsonBytes, &result); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal data: %w", err)
-		}
-		return result, nil
-	}
-
-	// Check if we have a filter followed by wildcard operations
-	// e.g., $.orders[?(@.status == 'pending')].items[*].sku
-	// This requires special multi-stage handling
-	if hasFilterFollowedByWildcard(path) {
-		return handleFilteredWildcardPath(jsonStr, path)
+		return data, nil
 	}
 
 	// Check if we need to handle OR conditions in filters
@@ -148,9 +155,12 @@ func convertGJSONResult(result gjson.Result) interface{} {
 	case gjson.True:
 		return true
 	case gjson.Number:
-		// Always return numbers as float64 for consistency with JSON spec
-		// JSON doesn't distinguish between int and float at parse time
-		return result.Num
+		// Convert to int if it's a whole number, otherwise keep as float64
+		num := result.Num
+		if num == float64(int64(num)) {
+			return int(num)
+		}
+		return num
 	case gjson.String:
 		return result.Str
 	case gjson.JSON:
@@ -159,9 +169,37 @@ func convertGJSONResult(result gjson.Result) interface{} {
 		if err := json.Unmarshal([]byte(result.Raw), &value); err != nil {
 			return result.Raw
 		}
-		return value
+		// Recursively convert float64 to int where appropriate
+		return normalizeNumbers(value)
 	default:
 		return result.Value()
+	}
+}
+
+// normalizeNumbers recursively converts float64 values to int where they represent whole numbers
+// This maintains compatibility with Go's native type expectations while preserving JSON semantics
+func normalizeNumbers(value interface{}) interface{} {
+	switch v := value.(type) {
+	case map[string]interface{}:
+		result := make(map[string]interface{}, len(v))
+		for key, val := range v {
+			result[key] = normalizeNumbers(val)
+		}
+		return result
+	case []interface{}:
+		result := make([]interface{}, len(v))
+		for i, val := range v {
+			result[i] = normalizeNumbers(val)
+		}
+		return result
+	case float64:
+		// Convert to int if it's a whole number
+		if v == float64(int64(v)) {
+			return int(v)
+		}
+		return v
+	default:
+		return value
 	}
 }
 
@@ -593,6 +631,448 @@ func handleNestedWildcards(jsonStr, queryPath string) (interface{}, error) {
 	return flattened, nil
 }
 
+// handleRecursiveDescentPattern handles recursive descent queries with complex patterns
+// Examples: $..name, $..name[?(@.active == true)], $..items[*].id, $..[?(@.active == true)].name
+func handleRecursiveDescentPattern(jsonStr, pattern string, originalData interface{}) (interface{}, error) {
+	// Check if pattern has filter or array operations
+	hasFilter := strings.Contains(pattern, "[?(")
+	hasWildcard := strings.Contains(pattern, "[*]")
+
+	if !hasFilter && !hasWildcard {
+		// Simple field name - use old implementation
+		return handleRecursiveDescent(jsonStr, pattern)
+	}
+
+	// Parse the JSON to traverse it
+	var data interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &data); err != nil {
+		return nil, err
+	}
+
+	// Check if pattern starts with filter (e.g., [?(@.active == true)].name)
+	// This means: find all objects where filter matches, then extract field
+	if strings.HasPrefix(pattern, "[?(") {
+		// Extract filter and field
+		filterEnd := strings.Index(pattern, ")]")
+		if filterEnd == -1 {
+			return nil, ErrInvalidJSONPath
+		}
+		filterExpr := pattern[3:filterEnd]   // Skip [?(
+		afterFilter := pattern[filterEnd+2:] // Skip )]
+		afterFilter = strings.TrimPrefix(afterFilter, ".")
+
+		// Find all objects recursively that match the filter
+		var results []interface{}
+		findAllObjectsWithFilter(data, filterExpr, afterFilter, &results)
+
+		if len(results) == 0 {
+			return nil, nil
+		}
+		return results, nil
+	}
+
+	// Extract base field name (before [ )
+	baseField := pattern
+	bracketIdx := strings.Index(pattern, "[")
+	if bracketIdx > 0 {
+		baseField = pattern[:bracketIdx]
+	}
+	afterBracket := ""
+	if bracketIdx >= 0 {
+		afterBracket = pattern[bracketIdx:]
+	}
+
+	// For filters like $..name[?(@.active == true)]:
+	// We need to find all objects that have the baseField, apply the filter to the parent object,
+	// and if it matches, extract the field value
+	if hasFilter && !hasWildcard {
+		// Extract filter expression
+		filterStart := strings.Index(afterBracket, "[?(")
+		filterEnd := strings.Index(afterBracket, ")]")
+		if filterStart == -1 || filterEnd == -1 {
+			return nil, ErrInvalidJSONPath
+		}
+		filterExpr := afterBracket[filterStart+3 : filterEnd]
+
+		// Find all objects that have the base field
+		var results []interface{}
+		findRecursiveWithFilter(data, baseField, filterExpr, &results)
+
+		if len(results) == 0 {
+			return nil, nil
+		}
+		return results, nil
+	}
+
+	// For wildcards like $..items[*].id:
+	// Find all arrays with the baseField name, then extract from each element
+	if hasWildcard {
+		// Find all occurrences of the base field (should be arrays)
+		var baseResults []interface{}
+		findRecursiveWithContext(data, baseField, &baseResults)
+
+		if len(baseResults) == 0 {
+			return nil, nil
+		}
+
+		// Apply the pattern to each base result
+		var finalResults []interface{}
+		querier := NewJSONPathQuerier()
+
+		for _, baseResult := range baseResults {
+			// Build a query: $<afterBracket>
+			queryPath := "$" + afterBracket
+
+			// Query this result
+			result, err := querier.Query(context.Background(), queryPath, baseResult)
+			if err == nil && result != nil {
+				// Flatten results if it's an array
+				if arr, ok := result.([]interface{}); ok {
+					finalResults = append(finalResults, arr...)
+				} else {
+					finalResults = append(finalResults, result)
+				}
+			}
+		}
+
+		if len(finalResults) == 0 {
+			return nil, nil
+		}
+
+		return finalResults, nil
+	}
+
+	return nil, ErrInvalidJSONPath
+}
+
+// findAllObjectsWithFilter finds all objects recursively that match a filter, then extracts a field
+// For example, $..[?(@.active == true)].name finds all objects where active==true, then gets their name field
+func findAllObjectsWithFilter(data interface{}, filterExpr string, fieldToExtract string, results *[]interface{}) {
+	switch v := data.(type) {
+	case map[string]interface{}:
+		// Check if this object matches the filter
+		if evaluateFilter(v, filterExpr) {
+			// Extract the specified field if present
+			if fieldToExtract != "" {
+				if val, ok := v[fieldToExtract]; ok {
+					*results = append(*results, val)
+				}
+			} else {
+				// No field specified, return the whole object
+				*results = append(*results, v)
+			}
+		}
+		// Recurse into all values
+		for _, mapVal := range v {
+			findAllObjectsWithFilter(mapVal, filterExpr, fieldToExtract, results)
+		}
+	case []interface{}:
+		// Recurse into array elements
+		for _, item := range v {
+			findAllObjectsWithFilter(item, filterExpr, fieldToExtract, results)
+		}
+	}
+}
+
+// findRecursiveWithFilter finds objects with a specific field that match a filter condition
+// For example, $..name[?(@.active == true)] finds all objects that have a "name" field
+// where the parent object's "active" field is true, then returns the "name" values
+func findRecursiveWithFilter(data interface{}, fieldName string, filterExpr string, results *[]interface{}) {
+	switch v := data.(type) {
+	case map[string]interface{}:
+		// Check if this map has the field
+		if val, ok := v[fieldName]; ok {
+			// Evaluate the filter on this object
+			if evaluateFilter(v, filterExpr) {
+				*results = append(*results, val)
+			}
+		}
+		// Recurse into all values
+		for _, mapVal := range v {
+			findRecursiveWithFilter(mapVal, fieldName, filterExpr, results)
+		}
+	case []interface{}:
+		// Recurse into array elements
+		for _, item := range v {
+			findRecursiveWithFilter(item, fieldName, filterExpr, results)
+		}
+	}
+}
+
+// evaluateFilter evaluates a filter expression on an object
+// Examples: "@.active == true", "@.price > 100", "@.status == 'pending'", "@.roles[*] contains 'admin'"
+func evaluateFilter(obj map[string]interface{}, filterExpr string) bool {
+	// Remove @. prefix
+	filterExpr = strings.ReplaceAll(filterExpr, "@.", "")
+
+	// Simple expression parser for common patterns
+	// Support: ==, !=, >, <, >=, <=, contains
+
+	// Try contains operator (e.g., roles[*] contains "admin")
+	if strings.Contains(filterExpr, " contains ") {
+		parts := strings.Split(filterExpr, " contains ")
+		if len(parts) == 2 {
+			fieldExpr := strings.TrimSpace(parts[0])
+			searchValueStr := strings.TrimSpace(parts[1])
+
+			// Parse the search value
+			searchValue := parseFilterValue(searchValueStr)
+
+			// Handle array field expressions like roles[*]
+			if strings.HasSuffix(fieldExpr, "[*]") {
+				// Extract base field name
+				fieldName := strings.TrimSuffix(fieldExpr, "[*]")
+
+				// Get the array from object
+				val, ok := obj[fieldName]
+				if !ok {
+					return false
+				}
+
+				// Check if it's an array
+				arr, ok := val.([]interface{})
+				if !ok {
+					return false
+				}
+
+				// Check if any element in the array equals searchValue
+				for _, item := range arr {
+					if compareValues(item, searchValue) {
+						return true
+					}
+				}
+				return false
+			}
+
+			// For non-array fields, just check if the field value contains the search value
+			val, ok := obj[fieldExpr]
+			if !ok {
+				return false
+			}
+
+			// Check if it's an array
+			if arr, ok := val.([]interface{}); ok {
+				for _, item := range arr {
+					if compareValues(item, searchValue) {
+						return true
+					}
+				}
+				return false
+			}
+
+			// For strings, check if it contains the substring
+			if strVal, ok := val.(string); ok {
+				if searchStr, ok := searchValue.(string); ok {
+					return strings.Contains(strVal, searchStr)
+				}
+			}
+
+			return false
+		}
+	}
+
+	// Try ==
+	if parts := strings.Split(filterExpr, "=="); len(parts) == 2 {
+		field := strings.TrimSpace(parts[0])
+		expectedStr := strings.TrimSpace(parts[1])
+
+		// Get value from object
+		val, ok := obj[field]
+		if !ok {
+			return false
+		}
+
+		// Parse expected value
+		expected := parseFilterValue(expectedStr)
+
+		// Compare
+		return compareValues(val, expected)
+	}
+
+	// Try !=
+	if parts := strings.Split(filterExpr, "!="); len(parts) == 2 {
+		field := strings.TrimSpace(parts[0])
+		expectedStr := strings.TrimSpace(parts[1])
+
+		val, ok := obj[field]
+		if !ok {
+			return false
+		}
+
+		expected := parseFilterValue(expectedStr)
+		return !compareValues(val, expected)
+	}
+
+	// Try >=
+	if parts := strings.Split(filterExpr, ">="); len(parts) == 2 {
+		field := strings.TrimSpace(parts[0])
+		expectedStr := strings.TrimSpace(parts[1])
+
+		val, ok := obj[field]
+		if !ok {
+			return false
+		}
+
+		expected := parseFilterValue(expectedStr)
+		return compareNumeric(val, expected, ">=")
+	}
+
+	// Try <=
+	if parts := strings.Split(filterExpr, "<="); len(parts) == 2 {
+		field := strings.TrimSpace(parts[0])
+		expectedStr := strings.TrimSpace(parts[1])
+
+		val, ok := obj[field]
+		if !ok {
+			return false
+		}
+
+		expected := parseFilterValue(expectedStr)
+		return compareNumeric(val, expected, "<=")
+	}
+
+	// Try >
+	if parts := strings.Split(filterExpr, ">"); len(parts) == 2 && !strings.Contains(filterExpr, ">=") {
+		field := strings.TrimSpace(parts[0])
+		expectedStr := strings.TrimSpace(parts[1])
+
+		val, ok := obj[field]
+		if !ok {
+			return false
+		}
+
+		expected := parseFilterValue(expectedStr)
+		return compareNumeric(val, expected, ">")
+	}
+
+	// Try <
+	if parts := strings.Split(filterExpr, "<"); len(parts) == 2 && !strings.Contains(filterExpr, "<=") {
+		field := strings.TrimSpace(parts[0])
+		expectedStr := strings.TrimSpace(parts[1])
+
+		val, ok := obj[field]
+		if !ok {
+			return false
+		}
+
+		expected := parseFilterValue(expectedStr)
+		return compareNumeric(val, expected, "<")
+	}
+
+	return false
+}
+
+// parseFilterValue parses a filter value string into the appropriate type
+func parseFilterValue(s string) interface{} {
+	s = strings.TrimSpace(s)
+
+	// Boolean
+	if s == "true" {
+		return true
+	}
+	if s == "false" {
+		return false
+	}
+
+	// String (quoted)
+	if (strings.HasPrefix(s, "'") && strings.HasSuffix(s, "'")) ||
+		(strings.HasPrefix(s, "\"") && strings.HasSuffix(s, "\"")) {
+		return s[1 : len(s)-1]
+	}
+
+	// Number
+	if num, err := strconv.ParseFloat(s, 64); err == nil {
+		return num
+	}
+
+	// Default to string
+	return s
+}
+
+// compareValues compares two values for equality
+func compareValues(a, b interface{}) bool {
+	// Handle nil
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+
+	// Type conversion for numbers
+	aNum, aIsNum := toFloat64(a)
+	bNum, bIsNum := toFloat64(b)
+	if aIsNum && bIsNum {
+		return aNum == bNum
+	}
+
+	// Use reflect.DeepEqual to safely compare any types (including maps, slices)
+	return reflect.DeepEqual(a, b)
+}
+
+// compareNumeric compares two values numerically
+func compareNumeric(a, b interface{}, op string) bool {
+	aNum, aOk := toFloat64(a)
+	bNum, bOk := toFloat64(b)
+
+	if !aOk || !bOk {
+		return false
+	}
+
+	switch op {
+	case ">":
+		return aNum > bNum
+	case "<":
+		return aNum < bNum
+	case ">=":
+		return aNum >= bNum
+	case "<=":
+		return aNum <= bNum
+	default:
+		return false
+	}
+}
+
+// toFloat64 converts a value to float64 if possible
+func toFloat64(v interface{}) (float64, bool) {
+	switch n := v.(type) {
+	case float64:
+		return n, true
+	case float32:
+		return float64(n), true
+	case int:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	case int32:
+		return float64(n), true
+	default:
+		return 0, false
+	}
+}
+
+// findRecursiveWithContext recursively searches for a field and stores the parent object
+// This allows us to apply filters or operations on the found values
+func findRecursiveWithContext(data interface{}, fieldName string, results *[]interface{}) {
+	switch v := data.(type) {
+	case map[string]interface{}:
+		// Check if this map has the field
+		if val, ok := v[fieldName]; ok {
+			// Store the value itself
+			*results = append(*results, val)
+		}
+		// Recurse into all values
+		for _, mapVal := range v {
+			findRecursiveWithContext(mapVal, fieldName, results)
+		}
+	case []interface{}:
+		// Recurse into array elements
+		for _, item := range v {
+			findRecursiveWithContext(item, fieldName, results)
+		}
+	}
+}
+
 // handleRecursiveDescent handles recursive descent queries like $..email
 // fieldName should already be extracted (e.g., "email" from "$..email")
 func handleRecursiveDescent(jsonStr, fieldName string) (interface{}, error) {
@@ -652,7 +1132,14 @@ func handleWildcardQuery(ctx context.Context, jsonStr, path string, data interfa
 	basePath = strings.TrimPrefix(basePath, ".")
 
 	// Get the array at base path
-	baseResult := gjson.Get(jsonStr, basePath)
+	var baseResult gjson.Result
+	if basePath == "" {
+		// Root level array - use the whole JSON
+		baseResult = gjson.Parse(jsonStr)
+	} else {
+		baseResult = gjson.Get(jsonStr, basePath)
+	}
+
 	if !baseResult.IsArray() {
 		return nil, ErrTypeMismatch
 	}
@@ -846,6 +1333,23 @@ func handleNegativeIndex(jsonStr, path string) (interface{}, error) {
 	return convertGJSONResult(element), nil
 }
 
+// hasContainsFilter checks if the path contains 'contains' operator in a filter
+func hasContainsFilter(path string) bool {
+	inFilter := false
+	for i := 0; i < len(path)-1; i++ {
+		if i < len(path)-2 && path[i:i+3] == "[?(" {
+			inFilter = true
+		}
+		if inFilter && i < len(path)-9 && path[i:i+9] == " contains" {
+			return true
+		}
+		if inFilter && path[i:i+2] == ")]" {
+			inFilter = false
+		}
+	}
+	return false
+}
+
 // hasORFilter checks if the path contains OR (||) in a filter
 func hasORFilter(path string) bool {
 	inFilter := false
@@ -1001,6 +1505,109 @@ func handleFilteredWildcardPath(jsonStr, path string) (interface{}, error) {
 	}
 
 	return result, nil
+}
+
+// handleContainsFilter handles queries with contains operator
+// $.users[?(@.roles[*] contains "admin")].email
+func handleContainsFilter(jsonStr, path string) (interface{}, error) {
+	// Find the filter
+	filterStart := strings.Index(path, "[?(")
+	if filterStart == -1 {
+		return nil, ErrInvalidJSONPath
+	}
+
+	// Find the closing )]
+	depth := 1
+	j := filterStart + 3
+	for j < len(path) && depth > 0 {
+		if path[j] == '(' {
+			depth++
+		} else if path[j] == ')' {
+			depth--
+		}
+		j++
+	}
+
+	if depth != 0 || j >= len(path) || path[j] != ']' {
+		return nil, ErrInvalidJSONPath
+	}
+
+	// Extract parts
+	basePath := path[:filterStart]
+	filterExpr := path[filterStart+3 : j-1]
+	afterFilter := path[j+1:]
+
+	// Get the base array
+	baseGPath := strings.TrimPrefix(basePath, "$")
+	baseGPath = strings.TrimPrefix(baseGPath, ".")
+
+	// Get all items from the base path
+	var baseResult gjson.Result
+	if baseGPath == "" {
+		baseResult = gjson.Parse(jsonStr)
+	} else {
+		baseResult = gjson.Get(jsonStr, baseGPath)
+	}
+
+	if !baseResult.IsArray() {
+		return nil, ErrTypeMismatch
+	}
+
+	// Parse the full data to apply custom filter
+	var data interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &data); err != nil {
+		return nil, err
+	}
+
+	// Navigate to the base path in the parsed data
+	var baseArray []interface{}
+	if baseGPath == "" {
+		if arr, ok := data.([]interface{}); ok {
+			baseArray = arr
+		} else {
+			return nil, ErrTypeMismatch
+		}
+	} else {
+		// Navigate to the base path
+		pathParts := strings.Split(baseGPath, ".")
+		current := data
+		for _, part := range pathParts {
+			if m, ok := current.(map[string]interface{}); ok {
+				current = m[part]
+			} else {
+				return nil, ErrTypeMismatch
+			}
+		}
+		if arr, ok := current.([]interface{}); ok {
+			baseArray = arr
+		} else {
+			return nil, ErrTypeMismatch
+		}
+	}
+
+	// Filter the array using our custom evaluateFilter
+	var filteredResults []interface{}
+	for _, item := range baseArray {
+		if itemMap, ok := item.(map[string]interface{}); ok {
+			if evaluateFilter(itemMap, filterExpr) {
+				// If there's an afterFilter path, extract that field
+				if afterFilter != "" {
+					afterFilter = strings.TrimPrefix(afterFilter, ".")
+					if val, ok := itemMap[afterFilter]; ok {
+						filteredResults = append(filteredResults, val)
+					}
+				} else {
+					filteredResults = append(filteredResults, item)
+				}
+			}
+		}
+	}
+
+	if len(filteredResults) == 0 {
+		return nil, nil
+	}
+
+	return filteredResults, nil
 }
 
 // handleORFilter handles queries with OR conditions by running separate queries and merging results

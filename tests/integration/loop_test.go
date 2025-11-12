@@ -76,7 +76,7 @@ nodes:
   - id: "loop_items"
     type: "loop"
     collection: "items"
-    item_variable: "currentItem"
+    item: "currentItem"
     body:
       - "process_item"
   - id: "process_item"
@@ -144,7 +144,7 @@ servers:
   - id: "test-server"
     name: "test"
     command: "go"
-    args: ["run", "../../internal/testutil/mocks/mock_mcp_server.go", "--mode=server"]
+    args: ["run", "../../internal/testutil/testserver/main.go"]
     transport: "stdio"
 nodes:
   - id: "start"
@@ -152,7 +152,7 @@ nodes:
   - id: "loop_items"
     type: "loop"
     collection: "items"
-    item_variable: "item"
+    item: "item"
     body:
       - "echo_item"
   - id: "echo_item"
@@ -228,7 +228,7 @@ func TestLoopNode_BreakCondition(t *testing.T) {
 		{
 			name:               "break on first item",
 			items:              []interface{}{"stop", "continue", "continue"},
-			breakCondition:     "item == \"stop\"",
+			breakCondition:     "item == 'stop'",
 			expectedIterations: 0, // Should break immediately
 		},
 		{
@@ -260,7 +260,7 @@ nodes:
   - id: "loop_items"
     type: "loop"
     collection: "items"
-    item_variable: "item"
+    item: "item"
     break_condition: "` + tt.breakCondition + `"
     body:
       - "process"
@@ -328,7 +328,7 @@ servers:
   - id: "test-server"
     name: "test"
     command: "go"
-    args: ["run", "../../internal/testutil/mocks/mock_mcp_server.go", "--mode=server"]
+    args: ["run", "../../internal/testutil/testserver/main.go"]
     transport: "stdio"
 nodes:
   - id: "start"
@@ -336,7 +336,7 @@ nodes:
   - id: "loop_numbers"
     type: "loop"
     collection: "numbers"
-    item_variable: "num"
+    item: "num"
     body:
       - "process_number"
   - id: "process_number"
@@ -410,13 +410,13 @@ nodes:
   - id: "outer_loop"
     type: "loop"
     collection: "outerItems"
-    item_variable: "outerItem"
+    item: "outerItem"
     body:
       - "inner_loop"
   - id: "inner_loop"
     type: "loop"
     collection: "innerItems"
-    item_variable: "innerItem"
+    item: "innerItem"
     body:
       - "process_pair"
   - id: "process_pair"
@@ -480,7 +480,7 @@ servers:
   - id: "test-server"
     name: "test"
     command: "go"
-    args: ["run", "../../internal/testutil/mocks/mock_mcp_server.go", "--mode=server"]
+    args: ["run", "../../internal/testutil/testserver/main.go"]
     transport: "stdio"
 nodes:
   - id: "start"
@@ -488,7 +488,7 @@ nodes:
   - id: "loop_items"
     type: "loop"
     collection: "items"
-    item_variable: "item"
+    item: "item"
     body:
       - "risky_operation"
   - id: "risky_operation"
@@ -554,7 +554,7 @@ servers:
   - id: "test-server"
     name: "test"
     command: "go"
-    args: ["run", "../../internal/testutil/mocks/mock_mcp_server.go", "--mode=server"]
+    args: ["run", "../../internal/testutil/testserver/main.go"]
     transport: "stdio"
 nodes:
   - id: "start"
@@ -562,7 +562,7 @@ nodes:
   - id: "loop_users"
     type: "loop"
     collection: "users"
-    item_variable: "user"
+    item: "user"
     body:
       - "process_user"
   - id: "process_user"
@@ -638,7 +638,7 @@ nodes:
   - id: "loop_items"
     type: "loop"
     collection: "items"
-    item_variable: "currentItem"
+    item: "currentItem"
     body:
       - "store_item"
   - id: "store_item"
@@ -707,7 +707,7 @@ nodes:
   - id: "loop_items"
     type: "loop"
     collection: "items"
-    item_variable: "item"
+    item: "item"
     body:
       - "process"
   - id: "process"
@@ -789,7 +789,7 @@ nodes:
   - id: "loop_items"
     type: "loop"
     collection: "items"
-    item_variable: "item"
+    item: "item"
     break_condition: "item.value > threshold"
     body:
       - "process_item"
