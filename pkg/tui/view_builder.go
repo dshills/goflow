@@ -1,23 +1,25 @@
 package tui
 
 import (
+	"fmt"
+	"os"
+
+	"github.com/dshills/goflow/pkg/workflow"
 	"github.com/dshills/goterm"
 )
 
 // WorkflowBuilderView provides a visual workflow editor
-// Users can add nodes, create edges, and configure workflow properties
+// This view wraps the WorkflowBuilder component
 type WorkflowBuilderView struct {
-	name        string
-	active      bool
-	workflowID  string   // Current workflow being edited
-	nodes       []string // List of node IDs
-	edges       []string // List of edge descriptions
-	selectedIdx int      // Currently selected item
-	mode        string   // "normal", "insert", "visual", "command"
-	statusMsg   string   // Status message to display
-	initialized bool
-	width       int // View width
-	height      int // View height
+	name         string
+	active       bool
+	builder      *WorkflowBuilder // The actual workflow builder
+	statusMsg    string           // Status message to display
+	initialized  bool
+	width        int          // View width
+	height       int          // View height
+	viewSwitcher ViewSwitcher // For switching to other views
+	workflowPath string       // Path to the workflow file being edited
 }
 
 // NewWorkflowBuilderView creates a new workflow builder view
@@ -25,10 +27,8 @@ func NewWorkflowBuilderView() *WorkflowBuilderView {
 	return &WorkflowBuilderView{
 		name:        "builder",
 		active:      false,
-		nodes:       make([]string, 0),
-		edges:       make([]string, 0),
-		selectedIdx: 0,
-		mode:        "normal",
+		statusMsg:   "Ready",
+		initialized: false,
 	}
 }
 
@@ -37,28 +37,61 @@ func (v *WorkflowBuilderView) Name() string {
 	return v.name
 }
 
+// SetViewSwitcher implements the View interface
+func (v *WorkflowBuilderView) SetViewSwitcher(switcher ViewSwitcher) {
+	v.viewSwitcher = switcher
+}
+
 // Init initializes the workflow builder view
 func (v *WorkflowBuilderView) Init() error {
-	if v.initialized {
-		return nil // already initialized, preserve state
+	// Check if we should load a workflow from environment
+	workflowPath := os.Getenv("GOFLOW_CURRENT_WORKFLOW")
+	if workflowPath == "" && v.workflowPath == "" {
+		// No workflow specified - create a new empty workflow
+		wf, err := workflow.NewWorkflow("new-workflow", "New Workflow")
+		if err != nil {
+			return fmt.Errorf("failed to create new workflow: %w", err)
+		}
+
+		// Add start node
+		startNode := &workflow.StartNode{ID: "start"}
+		if err := wf.AddNode(startNode); err != nil {
+			return fmt.Errorf("failed to add start node: %w", err)
+		}
+
+		// Create builder with new workflow
+		builder, err := NewWorkflowBuilder(wf)
+		if err != nil {
+			return fmt.Errorf("failed to create workflow builder: %w", err)
+		}
+
+		v.builder = builder
+		v.statusMsg = "New workflow created"
+		v.initialized = true
+		return nil
 	}
 
-	// TODO: Load current workflow from storage
-	// For now, use placeholder data
-	v.nodes = []string{
-		"[start] Start",
-		"[tool] Fetch Data",
-		"[transform] Process",
-		"[end] End",
+	// Use the workflow path from environment if set
+	if workflowPath != "" {
+		v.workflowPath = workflowPath
+		// Clear the environment variable
+		_ = os.Unsetenv("GOFLOW_CURRENT_WORKFLOW") // Best effort; ignore error
 	}
-	v.edges = []string{
-		"start -> fetch_data",
-		"fetch_data -> process",
-		"process -> end",
+
+	// Load workflow from file
+	wf, err := workflow.ParseFile(v.workflowPath)
+	if err != nil {
+		return fmt.Errorf("failed to load workflow: %w", err)
 	}
-	v.selectedIdx = 0
-	v.mode = "normal"
-	v.statusMsg = "Ready"
+
+	// Create builder with loaded workflow
+	builder, err := NewWorkflowBuilder(wf)
+	if err != nil {
+		return fmt.Errorf("failed to create workflow builder: %w", err)
+	}
+
+	v.builder = builder
+	v.statusMsg = "Workflow loaded"
 	v.initialized = true
 
 	return nil
@@ -67,69 +100,38 @@ func (v *WorkflowBuilderView) Init() error {
 // Cleanup releases resources when view is deactivated
 func (v *WorkflowBuilderView) Cleanup() error {
 	// Preserve state for when we return to this view
+	// The builder maintains its own state
 	return nil
 }
 
 // HandleKey processes keyboard input events
 func (v *WorkflowBuilderView) HandleKey(event KeyEvent) error {
-	// TODO: Implement vim-style keyboard navigation
-	// Normal mode:
-	// - h/j/k/l: navigate nodes
-	// - a: add node
-	// - e: create edge
-	// - d: delete node/edge
-	// - r: rename node
-	// - i: enter insert mode
-	// - v: enter visual mode
-	// - :: enter command mode
-	// - ?: toggle help
-	//
-	// Insert mode:
-	// - Escape: return to normal mode
-	// - Characters: insert text
-	//
-	// Visual mode:
-	// - Escape: return to normal mode
-	// - Movement: select multiple items
-	//
-	// Command mode:
-	// - Escape: return to normal mode
-	// - Enter: execute command
-	// - :w: save workflow
-	// - :q: quit builder
+	if v.builder == nil {
+		return fmt.Errorf("builder not initialized")
+	}
 
-	// Basic navigation for now
-	switch {
-	case event.Key == 'j' && v.mode == "normal":
-		// Move selection down
-		totalItems := len(v.nodes)
-		if v.selectedIdx < totalItems-1 {
-			v.selectedIdx++
-		}
-	case event.Key == 'k' && v.mode == "normal":
-		// Move selection up
-		if v.selectedIdx > 0 {
-			v.selectedIdx--
-		}
-	case event.Key == 'i' && v.mode == "normal":
-		// Enter insert mode
-		v.mode = "insert"
-		v.statusMsg = "-- INSERT --"
-	case event.IsSpecial && event.Special == "Escape":
-		// Return to normal mode
-		if v.mode != "normal" {
-			v.mode = "normal"
-			v.statusMsg = "Ready"
-		}
-	case event.Key == 'a' && v.mode == "normal":
-		// Add node
-		v.statusMsg = "Add node (not yet implemented)"
-	case event.Key == 'e' && v.mode == "normal":
-		// Create edge
-		v.statusMsg = "Create edge (not yet implemented)"
-	case event.Key == 'd' && v.mode == "normal":
-		// Delete item
-		v.statusMsg = "Delete item (not yet implemented)"
+	// Convert KeyEvent to string key for WorkflowBuilder
+	// This is a simplified conversion - the WorkflowBuilder expects string keys
+	keyStr := ""
+
+	if event.IsSpecial {
+		// Special keys
+		keyStr = event.Special
+	} else if event.Ctrl {
+		// Ctrl combinations
+		keyStr = fmt.Sprintf("Ctrl+%c", event.Key)
+	} else if event.Shift && event.IsSpecial {
+		// Shift combinations with special keys
+		keyStr = "Shift+" + event.Special
+	} else {
+		// Regular keys
+		keyStr = string(event.Key)
+	}
+
+	// Handle the key through the workflow builder
+	if err := v.builder.HandleKey(keyStr); err != nil {
+		v.statusMsg = "Error: " + err.Error()
+		return nil // Don't propagate errors, just show in status
 	}
 
 	return nil
@@ -137,78 +139,53 @@ func (v *WorkflowBuilderView) HandleKey(event KeyEvent) error {
 
 // Render draws the workflow builder to the screen
 func (v *WorkflowBuilderView) Render(screen *goterm.Screen) error {
-	// TODO: Implement rendering with visual workflow representation
-	// Layout:
-	// +----------------------------------+
-	// | Workflow Builder    [Tab: Next]  |
-	// +----------------------------------+
-	// |                                  |
-	// | Nodes:                           |
-	// | > [start] Start                  |
-	// |   [tool] Fetch Data              |
-	// |   [transform] Process            |
-	// |   [end] End                      |
-	// |                                  |
-	// | Edges:                           |
-	// |   start -> fetch_data            |
-	// |   fetch_data -> process          |
-	// |   process -> end                 |
-	// |                                  |
-	// +----------------------------------+
-	// | Mode: NORMAL    Status: Ready    |
-	// +----------------------------------+
-
-	_, height := screen.Size()
-	fg := goterm.ColorDefault()
-	bg := goterm.ColorDefault()
+	if v.builder == nil {
+		// Render error message if builder not initialized
+		fg := goterm.ColorDefault()
+		bg := goterm.ColorDefault()
+		screen.Clear()
+		screen.DrawText(0, 0, "Error: Workflow Builder not initialized", fg, bg, goterm.StyleBold)
+		return nil
+	}
 
 	// Clear screen
 	screen.Clear()
 
-	// Title bar
-	title := "Workflow Builder [Tab: Switch View] [?: Help]"
+	// Get screen dimensions
+	width, height := screen.Size()
+
+	// Update builder dimensions if changed
+	if width != v.width || height != v.height {
+		v.width = width
+		v.height = height
+		// Notify builder of size change if needed
+		if v.builder.canvas != nil {
+			v.builder.canvas.Width = width
+			v.builder.canvas.Height = height - 2 // Leave room for status bar
+		}
+	}
+
+	// Render the workflow builder using the integrated rendering system
+	// This will render canvas, panels, palette, etc.
+	if err := v.builder.Render(screen, width, height-1); err != nil {
+		// If rendering fails, show error message
+		screen.DrawText(0, 2, fmt.Sprintf("Render error: %v", err), goterm.ColorRGB(255, 100, 100), goterm.ColorDefault(), goterm.StyleNone)
+	}
+
+	// Title bar (drawn on top of everything)
+	fg := goterm.ColorDefault()
+	bg := goterm.ColorDefault()
+	title := fmt.Sprintf("Workflow Builder: %s [Mode: %s]",
+		v.builder.workflow.Name,
+		v.builder.mode)
 	screen.DrawText(0, 0, title, fg, bg, goterm.StyleBold)
 
-	// Nodes section
-	y := 2
-	screen.DrawText(0, y, "Nodes:", fg, bg, goterm.StyleBold)
-	y++
-
-	for i, node := range v.nodes {
-		if y >= height-5 {
-			break // leave room for edges and status
-		}
-
-		prefix := "  "
-		style := goterm.StyleNone
-		if i == v.selectedIdx {
-			prefix = "> "
-			style = goterm.StyleReverse
-		}
-
-		screen.DrawText(0, y, prefix+node, fg, bg, style)
-		y++
+	// Status bar at bottom
+	statusLine := fmt.Sprintf("Status: %s | Keys: ? = help, q = quit, Tab = switch view", v.statusMsg)
+	if v.builder.modified {
+		statusLine += " [modified]"
 	}
-
-	// Edges section
-	y++
-	if y < height-2 {
-		screen.DrawText(0, y, "Edges:", fg, bg, goterm.StyleBold)
-		y++
-
-		for _, edge := range v.edges {
-			if y >= height-1 {
-				break
-			}
-			screen.DrawText(0, y, "  "+edge, fg, bg, goterm.StyleNone)
-			y++
-		}
-	}
-
-	// Status bar (bottom line)
-	modeStr := "Mode: " + v.mode
-	statusLine := modeStr + "    Status: " + v.statusMsg
-	screen.DrawText(0, height-1, statusLine, fg, bg, goterm.StyleNone)
+	screen.DrawText(0, height-1, statusLine, fg, bg, goterm.StyleReverse)
 
 	return nil
 }
@@ -224,8 +201,8 @@ func (v *WorkflowBuilderView) SetActive(active bool) {
 }
 
 // SetWorkflow sets the workflow to be edited
-func (v *WorkflowBuilderView) SetWorkflow(workflowID string) {
-	v.workflowID = workflowID
+func (v *WorkflowBuilderView) SetWorkflow(workflowPath string) {
+	v.workflowPath = workflowPath
 	v.initialized = false // force reload on next Init()
 }
 

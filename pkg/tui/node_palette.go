@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/dshills/goflow/pkg/workflow"
+	"github.com/dshills/goterm"
 	"github.com/google/uuid"
 )
 
@@ -234,4 +235,139 @@ func (p *NodePalette) CreateNode() (workflow.Node, error) {
 	default:
 		return nil, fmt.Errorf("unknown node type: %s", selected.typeName)
 	}
+}
+
+// Render draws the node palette to the screen
+// x, y: top-left corner position
+// width, height: available space
+func (p *NodePalette) Render(screen interface{}, x, y, width, height int) error {
+	if !p.visible {
+		return nil
+	}
+
+	// Import goterm types
+	type Screen interface {
+		SetCell(cellX, cellY int, cell interface{})
+		Size() (int, int)
+	}
+
+	scr, ok := screen.(Screen)
+	if !ok {
+		return fmt.Errorf("invalid screen type")
+	}
+
+	// Get filtered node types
+	filtered := p.Filter(p.filterText)
+	if len(filtered) == 0 {
+		return nil
+	}
+
+	// Colors using goterm
+	fgColor := goterm.ColorRGB(255, 255, 255)      // White text
+	bgColor := goterm.ColorRGB(30, 30, 30)         // Dark background
+	selectedBgColor := goterm.ColorRGB(58, 58, 58) // Gray background for selected
+	borderFg := goterm.ColorRGB(136, 136, 136)     // Gray border
+
+	// Draw border
+	// Top border
+	for i := 0; i < width; i++ {
+		char := '─'
+		switch i {
+		case 0:
+			char = '┌'
+		case width - 1:
+			char = '┐'
+		}
+		cell := goterm.NewCell(char, borderFg, bgColor, goterm.StyleNone)
+		scr.SetCell(x+i, y, cell)
+	}
+
+	// Title
+	title := "Node Palette"
+	if p.filterText != "" {
+		title = fmt.Sprintf("Node Palette [%s]", p.filterText)
+	}
+	titlePadding := (width - 2 - len(title)) / 2
+	for i, ch := range title {
+		if i+titlePadding+1 < width-1 {
+			cell := goterm.NewCell(ch, fgColor, bgColor, goterm.StyleBold)
+			scr.SetCell(x+1+titlePadding+i, y, cell)
+		}
+	}
+
+	// Middle rows
+	currentY := y + 1
+	for i, nodeType := range filtered {
+		if currentY >= y+height-1 {
+			break
+		}
+
+		// Left border
+		cell := goterm.NewCell('│', borderFg, bgColor, goterm.StyleNone)
+		scr.SetCell(x, currentY, cell)
+
+		// Determine background for this row
+		rowBg := bgColor
+		if i == p.selectedIndex {
+			rowBg = selectedBgColor
+		}
+
+		// Node type content: "icon TypeName - description"
+		content := fmt.Sprintf("%s %s - %s", nodeType.icon, nodeType.typeName, nodeType.description)
+		if len(content) > width-4 {
+			content = content[:width-7] + "..."
+		}
+
+		// Draw content
+		for j := 0; j < width-2; j++ {
+			var ch rune
+			if j < len(content) {
+				ch = rune(content[j])
+			} else {
+				ch = ' '
+			}
+			cell := goterm.NewCell(ch, fgColor, rowBg, goterm.StyleNone)
+			scr.SetCell(x+1+j, currentY, cell)
+		}
+
+		// Right border
+		cell = goterm.NewCell('│', borderFg, bgColor, goterm.StyleNone)
+		scr.SetCell(x+width-1, currentY, cell)
+
+		currentY++
+	}
+
+	// Fill remaining space
+	for currentY < y+height-1 {
+		// Left border
+		cell := goterm.NewCell('│', borderFg, bgColor, goterm.StyleNone)
+		scr.SetCell(x, currentY, cell)
+
+		// Fill with spaces
+		for j := 1; j < width-1; j++ {
+			cell := goterm.NewCell(' ', fgColor, bgColor, goterm.StyleNone)
+			scr.SetCell(x+j, currentY, cell)
+		}
+
+		// Right border
+		cell = goterm.NewCell('│', borderFg, bgColor, goterm.StyleNone)
+		scr.SetCell(x+width-1, currentY, cell)
+
+		currentY++
+	}
+
+	// Bottom border
+	for i := 0; i < width; i++ {
+		char := '─'
+		switch i {
+		case 0:
+			char = '└'
+		case width - 1:
+			char = '┘'
+		}
+		cell := goterm.NewCell(char, borderFg, bgColor, goterm.StyleNone)
+		scr.SetCell(x+i, y+height-1, cell)
+	}
+
+	return nil
 }

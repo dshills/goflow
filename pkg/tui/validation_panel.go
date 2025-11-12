@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/dshills/goterm"
 )
 
 // ValidationError represents a blocking error in the workflow
@@ -325,4 +327,233 @@ func (p *ValidationPanel) UpdateStatus(status *ValidationStatus) {
 // GetStatus returns the current validation status
 func (p *ValidationPanel) GetStatus() *ValidationStatus {
 	return p.status
+}
+
+// Render draws the validation panel to screen
+// x, y: top-left corner position
+// width, height: available space
+func (p *ValidationPanel) Render(screen interface{}, x, y, width, height int) error {
+	if !p.visible || p.status == nil {
+		return nil
+	}
+
+	// Type assert to screen interface
+	type Screen interface {
+		SetCell(cellX, cellY int, cell interface{})
+		Size() (int, int)
+	}
+
+	scr, ok := screen.(Screen)
+	if !ok {
+		return fmt.Errorf("invalid screen type")
+	}
+
+	// Colors
+	fgColor := goterm.ColorRGB(255, 255, 255)      // White text
+	bgColor := goterm.ColorRGB(30, 30, 30)         // Dark background
+	selectedBgColor := goterm.ColorRGB(58, 58, 58) // Gray background for selected
+	borderFg := goterm.ColorRGB(136, 136, 136)     // Gray border
+	errorFg := goterm.ColorRGB(255, 100, 100)      // Light red for errors
+	warningFg := goterm.ColorRGB(255, 200, 100)    // Orange for warnings
+	successFg := goterm.ColorRGB(100, 255, 100)    // Light green for success
+
+	// Draw border
+	// Top border
+	for i := 0; i < width; i++ {
+		char := '─'
+		switch i {
+		case 0:
+			char = '┌'
+		case width - 1:
+			char = '┐'
+		}
+		cell := goterm.NewCell(char, borderFg, bgColor, goterm.StyleNone)
+		scr.SetCell(x+i, y, cell)
+	}
+
+	// Title: "Validation Results"
+	title := "Validation Results"
+	titlePadding := (width - 2 - len(title)) / 2
+	for i, ch := range title {
+		if i+titlePadding+1 < width-1 {
+			cell := goterm.NewCell(ch, fgColor, bgColor, goterm.StyleBold)
+			scr.SetCell(x+1+titlePadding+i, y, cell)
+		}
+	}
+
+	// Get errors and warnings
+	errors := p.status.GetErrors()
+	warnings := p.status.GetWarnings()
+
+	// Status summary line
+	currentY := y + 1
+	if currentY < y+height-1 {
+		cell := goterm.NewCell('│', borderFg, bgColor, goterm.StyleNone)
+		scr.SetCell(x, currentY, cell)
+
+		summary := p.status.Summary()
+		summaryFg := successFg
+		if p.status.HasErrors() {
+			summaryFg = errorFg
+		} else if p.status.HasWarnings() {
+			summaryFg = warningFg
+		}
+
+		summaryContent := fmt.Sprintf("Status: %s", summary)
+		if len(summaryContent) > width-4 {
+			summaryContent = summaryContent[:width-7] + "..."
+		}
+
+		for j := 0; j < width-2; j++ {
+			var ch rune
+			if j < len(summaryContent) {
+				ch = rune(summaryContent[j])
+			} else {
+				ch = ' '
+			}
+			cell := goterm.NewCell(ch, summaryFg, bgColor, goterm.StyleBold)
+			scr.SetCell(x+1+j, currentY, cell)
+		}
+
+		cell = goterm.NewCell('│', borderFg, bgColor, goterm.StyleNone)
+		scr.SetCell(x+width-1, currentY, cell)
+
+		currentY++
+	}
+
+	// Separator line
+	if currentY < y+height-1 {
+		cell := goterm.NewCell('│', borderFg, bgColor, goterm.StyleNone)
+		scr.SetCell(x, currentY, cell)
+
+		for j := 1; j < width-1; j++ {
+			cell := goterm.NewCell('─', borderFg, bgColor, goterm.StyleNone)
+			scr.SetCell(x+j, currentY, cell)
+		}
+
+		cell = goterm.NewCell('│', borderFg, bgColor, goterm.StyleNone)
+		scr.SetCell(x+width-1, currentY, cell)
+
+		currentY++
+	}
+
+	// List all errors first
+	itemIndex := 0
+	for _, err := range errors {
+		if currentY >= y+height-1 {
+			break
+		}
+
+		cell := goterm.NewCell('│', borderFg, bgColor, goterm.StyleNone)
+		scr.SetCell(x, currentY, cell)
+
+		// Determine if this item is selected
+		rowBg := bgColor
+		if itemIndex == p.selectedIndex {
+			rowBg = selectedBgColor
+		}
+
+		// Format: "✗ [NodeID] message"
+		nodeID := err.NodeID
+		if nodeID == "" {
+			nodeID = "global"
+		}
+		content := fmt.Sprintf("✗ [%s] %s", nodeID, err.Message)
+		if len(content) > width-4 {
+			content = content[:width-7] + "..."
+		}
+
+		for j := 0; j < width-2; j++ {
+			var ch rune
+			if j < len(content) {
+				ch = rune(content[j])
+			} else {
+				ch = ' '
+			}
+			cell := goterm.NewCell(ch, errorFg, rowBg, goterm.StyleNone)
+			scr.SetCell(x+1+j, currentY, cell)
+		}
+
+		cell = goterm.NewCell('│', borderFg, bgColor, goterm.StyleNone)
+		scr.SetCell(x+width-1, currentY, cell)
+
+		currentY++
+		itemIndex++
+	}
+
+	// List all warnings
+	for _, warn := range warnings {
+		if currentY >= y+height-1 {
+			break
+		}
+
+		cell := goterm.NewCell('│', borderFg, bgColor, goterm.StyleNone)
+		scr.SetCell(x, currentY, cell)
+
+		// Determine if this item is selected
+		rowBg := bgColor
+		if itemIndex == p.selectedIndex {
+			rowBg = selectedBgColor
+		}
+
+		// Format: "⚠ [NodeID] message"
+		nodeID := warn.NodeID
+		if nodeID == "" {
+			nodeID = "global"
+		}
+		content := fmt.Sprintf("⚠ [%s] %s", nodeID, warn.Message)
+		if len(content) > width-4 {
+			content = content[:width-7] + "..."
+		}
+
+		for j := 0; j < width-2; j++ {
+			var ch rune
+			if j < len(content) {
+				ch = rune(content[j])
+			} else {
+				ch = ' '
+			}
+			cell := goterm.NewCell(ch, warningFg, rowBg, goterm.StyleNone)
+			scr.SetCell(x+1+j, currentY, cell)
+		}
+
+		cell = goterm.NewCell('│', borderFg, bgColor, goterm.StyleNone)
+		scr.SetCell(x+width-1, currentY, cell)
+
+		currentY++
+		itemIndex++
+	}
+
+	// Fill remaining space
+	for currentY < y+height-1 {
+		cell := goterm.NewCell('│', borderFg, bgColor, goterm.StyleNone)
+		scr.SetCell(x, currentY, cell)
+
+		for j := 1; j < width-1; j++ {
+			cell := goterm.NewCell(' ', fgColor, bgColor, goterm.StyleNone)
+			scr.SetCell(x+j, currentY, cell)
+		}
+
+		cell = goterm.NewCell('│', borderFg, bgColor, goterm.StyleNone)
+		scr.SetCell(x+width-1, currentY, cell)
+
+		currentY++
+	}
+
+	// Bottom border
+	if currentY < y+height {
+		for i := 0; i < width; i++ {
+			char := '─'
+			switch i {
+			case 0:
+				char = '└'
+			case width - 1:
+				char = '┘'
+			}
+			cell := goterm.NewCell(char, borderFg, bgColor, goterm.StyleNone)
+			scr.SetCell(x+i, currentY, cell)
+		}
+	}
+
+	return nil
 }

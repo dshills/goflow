@@ -1517,30 +1517,88 @@ func (p *PropertyPanel) RenderPropertyPanel() string {
 }
 
 // Render renders the workflow builder to screen
-// This implements T071 from Phase 8 integration tasks (stub implementation)
-func (b *WorkflowBuilder) Render() error {
-	// TODO: Implement full rendering in future phase
-	// For now, just validate all components exist
-	if b.canvas == nil {
-		return fmt.Errorf("canvas not initialized")
-	}
-	if b.palette == nil {
-		return fmt.Errorf("palette not initialized")
-	}
-	if b.propertyPanel == nil {
-		return fmt.Errorf("property panel not initialized")
-	}
-	if b.helpPanel == nil {
-		return fmt.Errorf("help panel not initialized")
-	}
-	if b.validationPanel == nil {
-		return fmt.Errorf("validation panel not initialized")
-	}
-	if b.undoStack == nil {
-		return fmt.Errorf("undo stack not initialized")
+// This orchestrates rendering of all components: canvas, panels, palette
+func (b *WorkflowBuilder) Render(screen interface{}, screenWidth, screenHeight int) error {
+	if b == nil {
+		return fmt.Errorf("workflow builder not initialized")
 	}
 
-	// All components initialized successfully
+	// Type assert to screen interface
+	type Screen interface {
+		SetCell(cellX, cellY int, cell interface{})
+		Size() (int, int)
+	}
+
+	_, ok := screen.(Screen)
+	if !ok {
+		return fmt.Errorf("invalid screen type")
+	}
+
+	// Layout configuration
+	// Main canvas takes most of the screen
+	// Panels appear on the right side or overlay the canvas
+
+	// Canvas area: full screen or left side if panels visible
+	canvasWidth := screenWidth
+	canvasHeight := screenHeight
+
+	// Check if any right-side panels are visible
+	rightPanelVisible := b.propertyPanel.IsVisible() || b.validationPanel.visible
+
+	if rightPanelVisible {
+		// Split screen: canvas on left, panels on right
+		canvasWidth = (screenWidth * 2) / 3 // 2/3 for canvas
+		// Remaining 1/3 for panels
+	}
+
+	// Render canvas (main workflow view)
+	if b.canvas != nil {
+		b.canvas.Width = canvasWidth
+		b.canvas.Height = canvasHeight
+		if err := b.canvas.RenderToScreen(screen); err != nil {
+			return fmt.Errorf("failed to render canvas: %w", err)
+		}
+	}
+
+	// Render right-side panels
+	panelX := canvasWidth
+	panelWidth := screenWidth - canvasWidth
+	panelY := 0
+
+	// Property panel takes top half of right side
+	if b.propertyPanel.IsVisible() {
+		panelHeight := screenHeight / 2
+		if err := b.propertyPanel.Render(screen, panelX, panelY, panelWidth, panelHeight); err != nil {
+			return fmt.Errorf("failed to render property panel: %w", err)
+		}
+		panelY += panelHeight
+	}
+
+	// Validation panel takes remaining space on right side
+	if b.validationPanel.visible {
+		panelHeight := screenHeight - panelY
+		if err := b.validationPanel.Render(screen, panelX, panelY, panelWidth, panelHeight); err != nil {
+			return fmt.Errorf("failed to render validation panel: %w", err)
+		}
+	}
+
+	// Overlay panels (centered on screen)
+	if b.mode == "palette" && b.palette.IsVisible() {
+		// Palette overlay: centered, 60% width, 70% height
+		overlayWidth := (screenWidth * 3) / 5
+		overlayHeight := (screenHeight * 7) / 10
+		overlayX := (screenWidth - overlayWidth) / 2
+		overlayY := (screenHeight - overlayHeight) / 2
+
+		if err := b.palette.Render(screen, overlayX, overlayY, overlayWidth, overlayHeight); err != nil {
+			return fmt.Errorf("failed to render palette: %w", err)
+		}
+	}
+
+	// Help panel overlay: full screen (if HelpPanel has Render method)
+	// TODO: Implement HelpPanel.Render() method when help panel is ready
+	_ = b.helpPanel // Prevent unused warning
+
 	return nil
 }
 

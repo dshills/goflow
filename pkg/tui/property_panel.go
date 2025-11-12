@@ -170,13 +170,202 @@ func (p *PropertyPanel) GetNodeType() string {
 }
 
 // Render draws the panel to screen
-func (p *PropertyPanel) Render(screen *goterm.Screen) error {
-	if !p.visible {
+// x, y: top-left corner position
+// width, height: available space
+func (p *PropertyPanel) Render(screen interface{}, x, y, width, height int) error {
+	if !p.visible || p.node == nil {
 		return nil
 	}
 
-	// TODO: Implement rendering when goterm Screen API is available
-	// For now, this is a placeholder
+	// Type assert to screen interface
+	type Screen interface {
+		SetCell(cellX, cellY int, cell interface{})
+		Size() (int, int)
+	}
+
+	scr, ok := screen.(Screen)
+	if !ok {
+		return fmt.Errorf("invalid screen type")
+	}
+
+	// Colors
+	fgColor := goterm.ColorRGB(255, 255, 255)      // White text
+	bgColor := goterm.ColorRGB(30, 30, 30)         // Dark background
+	selectedBgColor := goterm.ColorRGB(58, 58, 58) // Gray background for selected
+	borderFg := goterm.ColorRGB(136, 136, 136)     // Gray border
+	errorFg := goterm.ColorRGB(255, 100, 100)      // Light red for errors
+	successFg := goterm.ColorRGB(100, 255, 100)    // Light green for valid fields
+
+	// Draw border
+	// Top border
+	for i := 0; i < width; i++ {
+		char := '─'
+		switch i {
+		case 0:
+			char = '┌'
+		case width - 1:
+			char = '┐'
+		}
+		cell := goterm.NewCell(char, borderFg, bgColor, goterm.StyleNone)
+		scr.SetCell(x+i, y, cell)
+	}
+
+	// Title: "Properties: <NodeType>"
+	title := fmt.Sprintf("Properties: %s", p.node.Type())
+	titlePadding := (width - 2 - len(title)) / 2
+	for i, ch := range title {
+		if i+titlePadding+1 < width-1 {
+			cell := goterm.NewCell(ch, fgColor, bgColor, goterm.StyleBold)
+			scr.SetCell(x+1+titlePadding+i, y, cell)
+		}
+	}
+
+	// Middle rows - show property fields
+	currentY := y + 1
+	for i, field := range p.fields {
+		if currentY >= y+height-3 { // Leave room for validation message and bottom border
+			break
+		}
+
+		// Left border
+		cell := goterm.NewCell('│', borderFg, bgColor, goterm.StyleNone)
+		scr.SetCell(x, currentY, cell)
+
+		// Determine background for this row
+		rowBg := bgColor
+		if i == p.editIndex {
+			rowBg = selectedBgColor
+		}
+
+		// Field content: "Label: value" with validation indicator
+		validIndicator := " "
+		fieldFg := fgColor
+		if field.valid {
+			validIndicator = "✓"
+			fieldFg = successFg
+		} else if field.value != "" {
+			validIndicator = "✗"
+			fieldFg = errorFg
+		}
+
+		requiredMark := ""
+		if field.required {
+			requiredMark = "*"
+		}
+
+		content := fmt.Sprintf("%s %s%s: %s", validIndicator, field.label, requiredMark, field.value)
+		if len(content) > width-4 {
+			content = content[:width-7] + "..."
+		}
+
+		// Draw content
+		for j := 0; j < width-2; j++ {
+			var ch rune
+			if j < len(content) {
+				ch = rune(content[j])
+			} else {
+				ch = ' '
+			}
+			cell := goterm.NewCell(ch, fieldFg, rowBg, goterm.StyleNone)
+			scr.SetCell(x+1+j, currentY, cell)
+		}
+
+		// Right border
+		cell = goterm.NewCell('│', borderFg, bgColor, goterm.StyleNone)
+		scr.SetCell(x+width-1, currentY, cell)
+
+		currentY++
+
+		// Show help text for focused field
+		if i == p.editIndex && field.helpText != "" {
+			// Help text line
+			if currentY < y+height-2 {
+				cell := goterm.NewCell('│', borderFg, bgColor, goterm.StyleNone)
+				scr.SetCell(x, currentY, cell)
+
+				helpContent := fmt.Sprintf("  ℹ %s", field.helpText)
+				if len(helpContent) > width-4 {
+					helpContent = helpContent[:width-7] + "..."
+				}
+
+				helpFg := goterm.ColorRGB(150, 150, 150) // Gray
+				for j := 0; j < width-2; j++ {
+					var ch rune
+					if j < len(helpContent) {
+						ch = rune(helpContent[j])
+					} else {
+						ch = ' '
+					}
+					cell := goterm.NewCell(ch, helpFg, bgColor, goterm.StyleDim)
+					scr.SetCell(x+1+j, currentY, cell)
+				}
+
+				cell = goterm.NewCell('│', borderFg, bgColor, goterm.StyleNone)
+				scr.SetCell(x+width-1, currentY, cell)
+
+				currentY++
+			}
+		}
+	}
+
+	// Fill remaining space before validation message
+	for currentY < y+height-2 {
+		cell := goterm.NewCell('│', borderFg, bgColor, goterm.StyleNone)
+		scr.SetCell(x, currentY, cell)
+
+		for j := 1; j < width-1; j++ {
+			cell := goterm.NewCell(' ', fgColor, bgColor, goterm.StyleNone)
+			scr.SetCell(x+j, currentY, cell)
+		}
+
+		cell = goterm.NewCell('│', borderFg, bgColor, goterm.StyleNone)
+		scr.SetCell(x+width-1, currentY, cell)
+
+		currentY++
+	}
+
+	// Validation message line (if any)
+	if currentY < y+height-1 && p.validationMessage != "" {
+		cell := goterm.NewCell('│', borderFg, bgColor, goterm.StyleNone)
+		scr.SetCell(x, currentY, cell)
+
+		msgContent := fmt.Sprintf("! %s", p.validationMessage)
+		if len(msgContent) > width-4 {
+			msgContent = msgContent[:width-7] + "..."
+		}
+
+		for j := 0; j < width-2; j++ {
+			var ch rune
+			if j < len(msgContent) {
+				ch = rune(msgContent[j])
+			} else {
+				ch = ' '
+			}
+			cell := goterm.NewCell(ch, errorFg, bgColor, goterm.StyleNone)
+			scr.SetCell(x+1+j, currentY, cell)
+		}
+
+		cell = goterm.NewCell('│', borderFg, bgColor, goterm.StyleNone)
+		scr.SetCell(x+width-1, currentY, cell)
+
+		currentY++
+	}
+
+	// Bottom border
+	if currentY < y+height {
+		for i := 0; i < width; i++ {
+			char := '─'
+			switch i {
+			case 0:
+				char = '└'
+			case width - 1:
+				char = '┘'
+			}
+			cell := goterm.NewCell(char, borderFg, bgColor, goterm.StyleNone)
+			scr.SetCell(x+i, currentY, cell)
+		}
+	}
+
 	return nil
 }
 
