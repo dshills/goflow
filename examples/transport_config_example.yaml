@@ -1,0 +1,105 @@
+version: "1.0"
+name: transport-configuration-example
+description: Example workflow demonstrating different MCP transport types
+
+metadata:
+  author: GoFlow Team
+  tags:
+    - example
+    - transport
+    - configuration
+
+# This example shows three different transport configurations:
+# 1. stdio - for local MCP servers (traditional subprocess communication)
+# 2. sse - for Server-Sent Events transport (server pushes to client)
+# 3. http - for HTTP JSON-RPC transport (synchronous request/response)
+
+servers:
+  # Traditional stdio transport (default, backward compatible)
+  - id: local-server
+    name: Local MCP Server
+    command: python
+    args:
+      - -m
+      - my_mcp_server
+    transport: stdio
+    env:
+      PYTHONPATH: /opt/mcp-servers
+
+  # Stdio transport without explicit transport (uses default)
+  - id: legacy-server
+    name: Legacy Server (backward compatible)
+    command: node
+    args:
+      - /usr/local/bin/mcp-server.js
+
+  # Server-Sent Events transport
+  - id: sse-server
+    name: SSE MCP Server
+    transport: sse
+    url: https://api.example.com/mcp/sse
+    headers:
+      Authorization: Bearer ${env.MCP_TOKEN}
+      X-Client-ID: goflow-client
+
+  # HTTP JSON-RPC transport
+  - id: http-server
+    name: HTTP MCP Server
+    transport: http
+    url: https://api.example.com/mcp/rpc
+    headers:
+      Authorization: Bearer ${env.MCP_TOKEN}
+      Content-Type: application/json
+
+variables:
+  - name: input_data
+    type: string
+    default: "test data"
+
+nodes:
+  - id: start
+    type: start
+
+  # Call tool on stdio server
+  - id: call_local
+    type: mcp_tool
+    server: local-server
+    tool: process_data
+    parameters:
+      data: ${input_data}
+    output: local_result
+
+  # Call tool on SSE server
+  - id: call_sse
+    type: mcp_tool
+    server: sse-server
+    tool: fetch_remote
+    parameters:
+      query: ${local_result}
+    output: sse_result
+
+  # Call tool on HTTP server
+  - id: call_http
+    type: mcp_tool
+    server: http-server
+    tool: analyze
+    parameters:
+      input: ${sse_result}
+    output: http_result
+
+  - id: end
+    type: end
+    return: ${http_result}
+
+edges:
+  - from: start
+    to: call_local
+
+  - from: call_local
+    to: call_sse
+
+  - from: call_sse
+    to: call_http
+
+  - from: call_http
+    to: end

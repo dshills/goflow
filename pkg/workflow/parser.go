@@ -32,11 +32,13 @@ type yamlVariable struct {
 type yamlServerConfig struct {
 	ID            string            `yaml:"id"`
 	Name          string            `yaml:"name,omitempty"`
-	Command       string            `yaml:"command"`
+	Command       string            `yaml:"command,omitempty"`
 	Args          []string          `yaml:"args,omitempty"`
 	Transport     string            `yaml:"transport,omitempty"`
 	Env           map[string]string `yaml:"env,omitempty"`
 	CredentialRef string            `yaml:"credential_ref,omitempty"`
+	URL           string            `yaml:"url,omitempty"`
+	Headers       map[string]string `yaml:"headers,omitempty"`
 }
 
 // yamlNode represents a node in YAML with type-specific fields
@@ -138,6 +140,8 @@ func Parse(yamlBytes []byte) (*Workflow, error) {
 			Transport:     ys.Transport,
 			Env:           ys.Env,
 			CredentialRef: ys.CredentialRef,
+			URL:           ys.URL,
+			Headers:       ys.Headers,
 		}
 		// Validate server config
 		if err := serverConfig.Validate(); err != nil {
@@ -331,6 +335,8 @@ func ToYAML(workflow *Workflow) ([]byte, error) {
 			Transport:     s.Transport,
 			Env:           s.Env,
 			CredentialRef: s.CredentialRef,
+			URL:           s.URL,
+			Headers:       s.Headers,
 		})
 	}
 

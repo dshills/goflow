@@ -7,6 +7,35 @@ import (
 	"time"
 )
 
+// createClient creates a new MCP client based on the transport type
+func createClient(config ServerConfig) (Client, error) {
+	// Default to stdio if transport not specified
+	transport := config.Transport
+	if transport == "" {
+		transport = "stdio"
+	}
+
+	switch transport {
+	case "stdio":
+		return NewStdioClient(config)
+
+	case "sse":
+		return NewSSEClient(SSEConfig{
+			URL:     config.URL,
+			Headers: config.Headers,
+		})
+
+	case "http":
+		return NewHTTPClient(HTTPConfig{
+			BaseURL: config.URL,
+			Headers: config.Headers,
+		})
+
+	default:
+		return nil, fmt.Errorf("unsupported transport type: %s", transport)
+	}
+}
+
 const (
 	// MaxConnectionsPerServer limits connections per server
 	MaxConnectionsPerServer = 10
@@ -91,8 +120,8 @@ func (p *ConnectionPool) Get(ctx context.Context, serverID string) (Client, erro
 		return nil, fmt.Errorf("connection pool exhausted for server %s (max: %d)", serverID, p.maxPerServer)
 	}
 
-	// Create new connection
-	client, err := NewStdioClient(config)
+	// Create new connection based on transport type
+	client, err := createClient(config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client: %w", err)
 	}
@@ -264,8 +293,8 @@ func (p *ConnectionPool) Reconnect(ctx context.Context, serverID string, client 
 			// Close old connection
 			_ = conn.Client.Close()
 
-			// Create new connection
-			newClient, err := NewStdioClient(config)
+			// Create new connection based on transport type
+			newClient, err := createClient(config)
 			if err != nil {
 				conn.mu.Unlock()
 				return fmt.Errorf("failed to create new client: %w", err)

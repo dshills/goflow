@@ -50,6 +50,9 @@ func (c *StdioClient) Connect(ctx context.Context) error {
 	}
 
 	// Create command with context for timeout support
+	// #nosec G204 - Command and args come from user-configured MCP server settings in workflow YAML.
+	// This is intentional as users need to specify which MCP servers to run.
+	// Input validation should be performed at workflow validation time.
 	c.cmd = exec.CommandContext(ctx, c.config.Command, c.config.Args...)
 
 	// Set up environment variables if provided

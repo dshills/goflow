@@ -1,0 +1,1362 @@
+{
+	"Golang errors": {
+		"": [
+			{
+				"line": 0,
+				"column": 0,
+				"error": "# command-line-arguments\npkg/mcpserver/connection_pool.go:212:8: no new variables on left side of :="
+			}
+		],
+		"-": [
+			{
+				"line": 0,
+				"column": 0,
+				"error": "This application uses version go1.24 of the source-processing packages but runs version go1.25 of 'go list'. It may fail to process source files that rely on newer language features. If so, rebuild the application using a newer version of Go."
+			}
+		],
+		"/Users/dshills/Development/projects/goflow/pkg/mcpserver/connection_pool.go": [
+			{
+				"line": 212,
+				"column": 8,
+				"error": "no new variables on left side of :="
+			}
+		]
+	},
+	"Issues": [
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "190",
+				"url": "https://cwe.mitre.org/data/definitions/190.html"
+			},
+			"rule_id": "G115",
+			"details": "integer overflow conversion uint64 -\u003e int64",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/tui/profiler.go",
+			"code": "283: \tstats.NumGC = p.lastMemStats.NumGC - p.memStatsStart.NumGC\n284: \tstats.GCPauses = time.Duration(p.lastMemStats.PauseTotalNs - p.memStatsStart.PauseTotalNs)\n285: \n",
+			"line": "284",
+			"column": "32",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "190",
+				"url": "https://cwe.mitre.org/data/definitions/190.html"
+			},
+			"rule_id": "G115",
+			"details": "integer overflow conversion uint -\u003e int64",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/transform/type_conversion.go",
+			"code": "136: \tcase uint:\n137: \t\treturn int64(val), nil\n138: \tcase uint8:\n",
+			"line": "137",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "190",
+				"url": "https://cwe.mitre.org/data/definitions/190.html"
+			},
+			"rule_id": "G115",
+			"details": "integer overflow conversion int -\u003e uint",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/mcpserver/server.go",
+			"code": "206: \tif s.Connection.ErrorCount \u003e 0 {\n207: \t\tbackoff := time.Duration(1\u003c\u003cuint(s.Connection.ErrorCount)) * time.Second\n208: \t\tif backoff \u003e 60*time.Second {\n",
+			"line": "207",
+			"column": "35",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "190",
+				"url": "https://cwe.mitre.org/data/definitions/190.html"
+			},
+			"rule_id": "G115",
+			"details": "integer overflow conversion int -\u003e uint",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/mcpserver/server.go",
+			"code": "163: \t// Calculate exponential backoff\n164: \tbackoff := time.Duration(1\u003c\u003cuint(s.Connection.ErrorCount)) * time.Second\n165: \tif backoff \u003e 60*time.Second {\n",
+			"line": "164",
+			"column": "34",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "78",
+				"url": "https://cwe.mitre.org/data/definitions/78.html"
+			},
+			"rule_id": "G204",
+			"details": "Subprocess launched with a potential tainted input or cmd arguments",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/mcp/stdio_client.go",
+			"code": "52: \t// Create command with context for timeout support\n53: \tc.cmd = exec.CommandContext(ctx, c.config.Command, c.config.Args...)\n54: \n",
+			"line": "53",
+			"column": "10",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/workflow/parser.go",
+			"code": "183: func ParseFile(filePath string) (*Workflow, error) {\n184: \tdata, err := os.ReadFile(filePath)\n185: \tif err != nil {\n",
+			"line": "184",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/tui/profiler.go",
+			"code": "528: func (p *Profiler) WriteGoroutineProfile(filename string) error {\n529: \tfile, err := os.Create(filename)\n530: \tif err != nil {\n",
+			"line": "529",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/tui/profiler.go",
+			"code": "512: func (p *Profiler) WriteMemoryProfile(filename string) error {\n513: \tfile, err := os.Create(filename)\n514: \tif err != nil {\n",
+			"line": "513",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/tui/profiler.go",
+			"code": "476: \n477: \tfile, err := os.Create(filename)\n478: \tif err != nil {\n",
+			"line": "477",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/tui/profiler.go",
+			"code": "452: \n453: \tfile, err := os.Create(filename)\n454: \tif err != nil {\n",
+			"line": "453",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/storage/filesystem.go",
+			"code": "104: \t// Read file\n105: \tdata, err := os.ReadFile(filePath)\n106: \tif err != nil {\n",
+			"line": "105",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/workflow_loader.go",
+			"code": "26: \t// Read file\n27: \tdata, err := os.ReadFile(path)\n28: \tif err != nil {\n",
+			"line": "27",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/server.go",
+			"code": "484: \t// Read config file\n485: \tdata, err := os.ReadFile(configPath)\n486: \tif err != nil {\n",
+			"line": "485",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/run.go",
+			"code": "109: \t\t\tif inputFile != \"\" {\n110: \t\t\t\tinputData, err := os.ReadFile(inputFile)\n111: \t\t\t\tif err != nil {\n",
+			"line": "110",
+			"column": "23",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/import.go",
+			"code": "200: \t\t\t// Copy the file to workflows directory\n201: \t\t\tsourceData, err := os.ReadFile(workflowFile)\n202: \t\t\tif err != nil {\n",
+			"line": "201",
+			"column": "23",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/Users/dshills/Development/projects/goflow/internal/testutil/testserver/main.go",
+			"code": "231: \n232: \tcontent, err := os.ReadFile(path)\n233: \tif err != nil {\n",
+			"line": "232",
+			"column": "18",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G301",
+			"details": "Expect directory permissions to be 0750 or less",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/storage/sqlite.go",
+			"code": "60: \tdbDir := filepath.Dir(dbPath)\n61: \tif err := os.MkdirAll(dbDir, 0755); err != nil {\n62: \t\treturn nil, fmt.Errorf(\"failed to create database directory: %w\", err)\n",
+			"line": "61",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G301",
+			"details": "Expect directory permissions to be 0750 or less",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/storage/sqlite.go",
+			"code": "32: \t// Create directory if it doesn't exist\n33: \tif err := os.MkdirAll(baseDir, 0755); err != nil {\n34: \t\treturn nil, fmt.Errorf(\"failed to create .goflow directory: %w\", err)\n",
+			"line": "33",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G301",
+			"details": "Expect directory permissions to be 0750 or less",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/storage/filesystem.go",
+			"code": "45: \t// Create directories if they don't exist\n46: \tif err := os.MkdirAll(workflowsDir, 0755); err != nil {\n47: \t\treturn nil, fmt.Errorf(\"failed to create workflows directory: %w\", err)\n",
+			"line": "46",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G301",
+			"details": "Expect directory permissions to be 0750 or less",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/storage/filesystem.go",
+			"code": "30: \t// Create directories if they don't exist\n31: \tif err := os.MkdirAll(workflowsDir, 0755); err != nil {\n32: \t\treturn nil, fmt.Errorf(\"failed to create workflows directory: %w\", err)\n",
+			"line": "31",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G301",
+			"details": "Expect directory permissions to be 0750 or less",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/root.go",
+			"code": "98: \t\tdirPath := filepath.Join(GlobalConfig.ConfigDir, dir)\n99: \t\tif err := os.MkdirAll(dirPath, 0755); err != nil {\n100: \t\t\treturn fmt.Errorf(\"failed to create directory %s: %w\", dir, err)\n",
+			"line": "99",
+			"column": "13",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G301",
+			"details": "Expect directory permissions to be 0750 or less",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/root.go",
+			"code": "90: \t// Create config directory if it doesn't exist\n91: \tif err := os.MkdirAll(GlobalConfig.ConfigDir, 0755); err != nil {\n92: \t\treturn fmt.Errorf(\"failed to create config directory: %w\", err)\n",
+			"line": "91",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G306",
+			"details": "Expect WriteFile permissions to be 0600 or less",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/workflow/export.go",
+			"code": "412: \t// Write to file\n413: \tif err := os.WriteFile(path, yamlBytes, 0644); err != nil {\n414: \t\treturn fmt.Errorf(\"failed to write workflow file: %w\", err)\n",
+			"line": "413",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G306",
+			"details": "Expect WriteFile permissions to be 0600 or less",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/storage/filesystem.go",
+			"code": "76: \t// Write to temp file\n77: \tif err := os.WriteFile(tempPath, data, 0644); err != nil {\n78: \t\treturn fmt.Errorf(\"failed to write workflow file: %w\", err)\n",
+			"line": "77",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G306",
+			"details": "Expect WriteFile permissions to be 0600 or less",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/server.go",
+			"code": "515: \ttempPath := configPath + \".tmp\"\n516: \tif err := os.WriteFile(tempPath, data, 0644); err != nil {\n517: \t\treturn fmt.Errorf(\"failed to write config file: %w\", err)\n",
+			"line": "516",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G306",
+			"details": "Expect WriteFile permissions to be 0600 or less",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/root.go",
+			"code": "114: \t\t}\n115: \t\tif err := os.WriteFile(configFile, data, 0644); err != nil {\n116: \t\t\treturn fmt.Errorf(\"failed to write default config: %w\", err)\n",
+			"line": "115",
+			"column": "13",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G306",
+			"details": "Expect WriteFile permissions to be 0600 or less",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/init.go",
+			"code": "89: \t\t\t// Write to file\n90: \t\t\tif err := os.WriteFile(workflowPath, data, 0644); err != nil {\n91: \t\t\t\treturn fmt.Errorf(\"failed to write workflow file: %w\", err)\n",
+			"line": "90",
+			"column": "14",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G306",
+			"details": "Expect WriteFile permissions to be 0600 or less",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/import.go",
+			"code": "205: \n206: \t\t\tif err := os.WriteFile(workflowPath, sourceData, 0644); err != nil {\n207: \t\t\t\treturn fmt.Errorf(\"failed to write workflow file: %w\", err)\n",
+			"line": "206",
+			"column": "14",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G306",
+			"details": "Expect WriteFile permissions to be 0600 or less",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/export.go",
+			"code": "80: \t\t\t\t// Write to file\n81: \t\t\t\tif err := os.WriteFile(outputFile, yamlBytes, 0644); err != nil {\n82: \t\t\t\t\treturn fmt.Errorf(\"failed to write output file: %w\", err)\n",
+			"line": "81",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G306",
+			"details": "Expect WriteFile permissions to be 0600 or less",
+			"file": "/Users/dshills/Development/projects/goflow/internal/testutil/testserver/main.go",
+			"code": "261: \n262: \tif err := os.WriteFile(path, []byte(content), 0644); err != nil {\n263: \t\ts.writeError(id, -32603, \"Internal error\", err.Error())\n",
+			"line": "262",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/tui/workflow_explorer.go",
+			"code": "401: \t\t\t\tif err == nil {\n402: \t\t\t\t\te.loadWorkflows()\n403: \t\t\t\t}\n",
+			"line": "402",
+			"column": "6",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/tui/workflow_explorer.go",
+			"code": "370: \t\t\tif err == nil {\n371: \t\t\t\te.loadWorkflows()\n372: \t\t\t}\n",
+			"line": "371",
+			"column": "5",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/tui/workflow_explorer.go",
+			"code": "331: \t\t\t\t\tif err == nil {\n332: \t\t\t\t\t\te.loadWorkflows()\n333: \t\t\t\t\t}\n",
+			"line": "332",
+			"column": "7",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/tui/workflow_explorer.go",
+			"code": "319: \t\t\tif err == nil {\n320: \t\t\t\te.loadWorkflows()\n321: \t\t\t}\n",
+			"line": "320",
+			"column": "5",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/tui/workflow_explorer.go",
+			"code": "273: \t\t\t\t// Reload workflows and select the new one\n274: \t\t\t\te.loadWorkflows()\n275: \t\t\t\tfor i, wf := range e.filteredWorkflows {\n",
+			"line": "274",
+			"column": "5",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/tui/workflow_explorer.go",
+			"code": "42: \t// Load workflows from repository\n43: \texplorer.loadWorkflows()\n44: \n",
+			"line": "43",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/tui/profiler.go",
+			"code": "482: \tif err := pprof.StartCPUProfile(file); err != nil {\n483: \t\tfile.Close()\n484: \t\treturn fmt.Errorf(\"failed to start CPU profile: %w\", err)\n",
+			"line": "483",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/tui/examples/condition_example.go",
+			"code": "80: \tbuilder.CreateEdge(\"high_value_discount\", \"end\")\n81: \tbuilder.CreateEdge(\"regular_price\", \"end\")\n82: \n",
+			"line": "81",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/tui/examples/condition_example.go",
+			"code": "79: \n80: \tbuilder.CreateEdge(\"high_value_discount\", \"end\")\n81: \tbuilder.CreateEdge(\"regular_price\", \"end\")\n",
+			"line": "80",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/tui/examples/condition_example.go",
+			"code": "77: \tbuilder.CreateConditionalEdge(\"check_threshold\", \"high_value_discount\", \"true\")\n78: \tbuilder.CreateConditionalEdge(\"check_threshold\", \"regular_price\", \"false\")\n79: \n",
+			"line": "78",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/tui/examples/condition_example.go",
+			"code": "76: \t// Create conditional edges with labels\n77: \tbuilder.CreateConditionalEdge(\"check_threshold\", \"high_value_discount\", \"true\")\n78: \tbuilder.CreateConditionalEdge(\"check_threshold\", \"regular_price\", \"false\")\n",
+			"line": "77",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/tui/examples/condition_example.go",
+			"code": "73: \t// Create edges\n74: \tbuilder.CreateEdge(\"start\", \"check_threshold\")\n75: \n",
+			"line": "74",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/tui/examples/condition_example.go",
+			"code": "70: \t}\n71: \tbuilder.AddNodeToCanvas(endNode)\n72: \n",
+			"line": "71",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/tui/examples/condition_example.go",
+			"code": "63: \t}\n64: \tbuilder.AddNodeToCanvas(lowValueNode)\n65: \n",
+			"line": "64",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/tui/examples/condition_example.go",
+			"code": "55: \t}\n56: \tbuilder.AddNodeToCanvas(highValueNode)\n57: \n",
+			"line": "56",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/tui/examples/condition_example.go",
+			"code": "46: \t}\n47: \tbuilder.AddNodeToCanvas(condNode)\n48: \n",
+			"line": "47",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/tui/examples/condition_example.go",
+			"code": "39: \tstartNode := \u0026workflow.StartNode{ID: \"start\"}\n40: \tbuilder.AddNodeToCanvas(startNode)\n41: \n",
+			"line": "40",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/tui/examples/condition_example.go",
+			"code": "26: \t})\n27: \twf.AddVariable(\u0026workflow.Variable{\n28: \t\tName: \"inStock\",\n29: \t\tType: \"boolean\",\n30: \t})\n31: \n",
+			"line": "27-30",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/tui/examples/condition_example.go",
+			"code": "22: \t})\n23: \twf.AddVariable(\u0026workflow.Variable{\n24: \t\tName: \"quantity\",\n25: \t\tType: \"number\",\n26: \t})\n27: \twf.AddVariable(\u0026workflow.Variable{\n",
+			"line": "23-26",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/tui/examples/condition_example.go",
+			"code": "18: \t// Add variables that will be used in conditions\n19: \twf.AddVariable(\u0026workflow.Variable{\n20: \t\tName: \"price\",\n21: \t\tType: \"number\",\n22: \t})\n23: \twf.AddVariable(\u0026workflow.Variable{\n",
+			"line": "19-22",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/tui/app.go",
+			"code": "278: \t\t\t// Set read deadline to avoid blocking indefinitely\n279: \t\t\tos.Stdin.SetReadDeadline(time.Now().Add(100 * time.Millisecond))\n280: \n",
+			"line": "279",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/tui/app.go",
+			"code": "68: \tif err := viewManager.Initialize(\"explorer\"); err != nil {\n69: \t\tscreen.Close()\n70: \t\treturn nil, fmt.Errorf(\"failed to initialize view manager: %w\", err)\n",
+			"line": "69",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/tui/app.go",
+			"code": "62: \tif err := app.registerGlobalKeybindings(); err != nil {\n63: \t\tscreen.Close()\n64: \t\treturn nil, fmt.Errorf(\"failed to register keybindings: %w\", err)\n",
+			"line": "63",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/tui/app.go",
+			"code": "56: \tif err := app.registerViews(); err != nil {\n57: \t\tscreen.Close()\n58: \t\treturn nil, fmt.Errorf(\"failed to register views: %w\", err)\n",
+			"line": "57",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/execution/error.go",
+			"code": "353: \t\t\t\t\t\t// Parse line number\n354: \t\t\t\t\t\tfmt.Sscanf(fileInfo[idx+1:], \"%d\", \u0026frame.Line)\n355: \t\t\t\t\t}\n",
+			"line": "354",
+			"column": "7",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/run.go",
+			"code": "282: \t\t\t// Periodic refresh\n283: \t\t\tmonitorView.Render()\n284: \t\t}\n",
+			"line": "283",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/run.go",
+			"code": "269: \t\t\t// Execution finished, show final state for a moment then exit\n270: \t\t\tmonitorView.Render()\n271: \t\t\ttime.Sleep(2 * time.Second)\n",
+			"line": "270",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/run.go",
+			"code": "263: \t// Initial render\n264: \tmonitorView.Render()\n265: \n",
+			"line": "264",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/init.go",
+			"code": "317: \twf.AddEdge(\u0026workflow.Edge{FromNodeID: \"start\", ToNodeID: \"process_batch\"})\n318: \twf.AddEdge(\u0026workflow.Edge{FromNodeID: \"process_batch\", ToNodeID: \"end\"})\n319: \n",
+			"line": "318",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/init.go",
+			"code": "316: \t// Add edges\n317: \twf.AddEdge(\u0026workflow.Edge{FromNodeID: \"start\", ToNodeID: \"process_batch\"})\n318: \twf.AddEdge(\u0026workflow.Edge{FromNodeID: \"process_batch\", ToNodeID: \"end\"})\n",
+			"line": "317",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/init.go",
+			"code": "313: \twf.AddNode(processNode)\n314: \twf.AddNode(endNode)\n315: \n",
+			"line": "314",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/init.go",
+			"code": "312: \twf.AddNode(startNode)\n313: \twf.AddNode(processNode)\n314: \twf.AddNode(endNode)\n",
+			"line": "313",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/init.go",
+			"code": "311: \n312: \twf.AddNode(startNode)\n313: \twf.AddNode(processNode)\n",
+			"line": "312",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/init.go",
+			"code": "282: \twf.AddEdge(\u0026workflow.Edge{FromNodeID: \"fetch_api\", ToNodeID: \"process_response\"})\n283: \twf.AddEdge(\u0026workflow.Edge{FromNodeID: \"process_response\", ToNodeID: \"end\"})\n284: \n",
+			"line": "283",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/init.go",
+			"code": "281: \twf.AddEdge(\u0026workflow.Edge{FromNodeID: \"start\", ToNodeID: \"fetch_api\"})\n282: \twf.AddEdge(\u0026workflow.Edge{FromNodeID: \"fetch_api\", ToNodeID: \"process_response\"})\n283: \twf.AddEdge(\u0026workflow.Edge{FromNodeID: \"process_response\", ToNodeID: \"end\"})\n",
+			"line": "282",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/init.go",
+			"code": "280: \t// Add edges\n281: \twf.AddEdge(\u0026workflow.Edge{FromNodeID: \"start\", ToNodeID: \"fetch_api\"})\n282: \twf.AddEdge(\u0026workflow.Edge{FromNodeID: \"fetch_api\", ToNodeID: \"process_response\"})\n",
+			"line": "281",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/init.go",
+			"code": "277: \twf.AddNode(processNode)\n278: \twf.AddNode(endNode)\n279: \n",
+			"line": "278",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/init.go",
+			"code": "276: \twf.AddNode(fetchNode)\n277: \twf.AddNode(processNode)\n278: \twf.AddNode(endNode)\n",
+			"line": "277",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/init.go",
+			"code": "275: \twf.AddNode(startNode)\n276: \twf.AddNode(fetchNode)\n277: \twf.AddNode(processNode)\n",
+			"line": "276",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/init.go",
+			"code": "274: \n275: \twf.AddNode(startNode)\n276: \twf.AddNode(fetchNode)\n",
+			"line": "275",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/init.go",
+			"code": "257: \t})\n258: \twf.AddVariable(\u0026workflow.Variable{\n259: \t\tName:        \"result\",\n260: \t\tType:        \"string\",\n261: \t\tDescription: \"Processed result\",\n262: \t})\n263: \n",
+			"line": "258-262",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/init.go",
+			"code": "252: \t// Add workflow variables\n253: \twf.AddVariable(\u0026workflow.Variable{\n254: \t\tName:        \"api_response\",\n255: \t\tType:        \"string\",\n256: \t\tDescription: \"API response data\",\n257: \t})\n258: \twf.AddVariable(\u0026workflow.Variable{\n",
+			"line": "253-257",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/init.go",
+			"code": "227: \twf.AddEdge(\u0026workflow.Edge{FromNodeID: \"transform\", ToNodeID: \"load\"})\n228: \twf.AddEdge(\u0026workflow.Edge{FromNodeID: \"load\", ToNodeID: \"end\"})\n229: \n",
+			"line": "228",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/init.go",
+			"code": "226: \twf.AddEdge(\u0026workflow.Edge{FromNodeID: \"extract\", ToNodeID: \"transform\"})\n227: \twf.AddEdge(\u0026workflow.Edge{FromNodeID: \"transform\", ToNodeID: \"load\"})\n228: \twf.AddEdge(\u0026workflow.Edge{FromNodeID: \"load\", ToNodeID: \"end\"})\n",
+			"line": "227",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/init.go",
+			"code": "225: \twf.AddEdge(\u0026workflow.Edge{FromNodeID: \"start\", ToNodeID: \"extract\"})\n226: \twf.AddEdge(\u0026workflow.Edge{FromNodeID: \"extract\", ToNodeID: \"transform\"})\n227: \twf.AddEdge(\u0026workflow.Edge{FromNodeID: \"transform\", ToNodeID: \"load\"})\n",
+			"line": "226",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/init.go",
+			"code": "224: \t// Add edges\n225: \twf.AddEdge(\u0026workflow.Edge{FromNodeID: \"start\", ToNodeID: \"extract\"})\n226: \twf.AddEdge(\u0026workflow.Edge{FromNodeID: \"extract\", ToNodeID: \"transform\"})\n",
+			"line": "225",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/init.go",
+			"code": "221: \twf.AddNode(loadNode)\n222: \twf.AddNode(endNode)\n223: \n",
+			"line": "222",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/init.go",
+			"code": "220: \twf.AddNode(transformNode)\n221: \twf.AddNode(loadNode)\n222: \twf.AddNode(endNode)\n",
+			"line": "221",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/init.go",
+			"code": "219: \twf.AddNode(extractNode)\n220: \twf.AddNode(transformNode)\n221: \twf.AddNode(loadNode)\n",
+			"line": "220",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/init.go",
+			"code": "218: \twf.AddNode(startNode)\n219: \twf.AddNode(extractNode)\n220: \twf.AddNode(transformNode)\n",
+			"line": "219",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/init.go",
+			"code": "217: \n218: \twf.AddNode(startNode)\n219: \twf.AddNode(extractNode)\n",
+			"line": "218",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/init.go",
+			"code": "199: \t})\n200: \twf.AddVariable(\u0026workflow.Variable{\n201: \t\tName:        \"processed_data\",\n202: \t\tType:        \"string\",\n203: \t\tDescription: \"Processed/transformed data\",\n204: \t})\n205: \n",
+			"line": "200-204",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/dshills/Development/projects/goflow/pkg/cli/init.go",
+			"code": "194: \t// Add workflow variables\n195: \twf.AddVariable(\u0026workflow.Variable{\n196: \t\tName:        \"raw_data\",\n197: \t\tType:        \"string\",\n198: \t\tDescription: \"Raw extracted data\",\n199: \t})\n200: \twf.AddVariable(\u0026workflow.Variable{\n",
+			"line": "195-199",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		}
+	],
+	"Stats": {
+		"files": 98,
+		"lines": 31833,
+		"nosec": 0,
+		"found": 83
+	},
+	"GosecVersion": "dev"
+}

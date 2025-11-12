@@ -4,7 +4,64 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 )
+
+// RetryPolicy defines the retry behavior for a node
+type RetryPolicy struct {
+	// MaxAttempts is the maximum number of retry attempts (0 = no retry, default)
+	MaxAttempts int `json:"max_attempts" yaml:"max_attempts"`
+	// InitialDelay is the delay before the first retry (default: 1s)
+	InitialDelay time.Duration `json:"initial_delay" yaml:"initial_delay"`
+	// MaxDelay is the maximum delay between retries (default: 30s)
+	MaxDelay time.Duration `json:"max_delay" yaml:"max_delay"`
+	// BackoffMultiplier is the exponential backoff multiplier (default: 2.0)
+	BackoffMultiplier float64 `json:"backoff_multiplier" yaml:"backoff_multiplier"`
+	// RetryableErrors is a list of error patterns/types that should trigger retry
+	// Supports regex patterns or error type names (connection, timeout, rate_limit)
+	RetryableErrors []string `json:"retryable_errors,omitempty" yaml:"retryable_errors,omitempty"`
+	// NonRetryableErrors is a list of error patterns/types that should NOT trigger retry
+	// Takes precedence over RetryableErrors
+	NonRetryableErrors []string `json:"non_retryable_errors,omitempty" yaml:"non_retryable_errors,omitempty"`
+}
+
+// Validate checks if the retry policy configuration is valid
+func (rp *RetryPolicy) Validate() error {
+	if rp.MaxAttempts < 0 {
+		return errors.New("retry policy: max_attempts cannot be negative")
+	}
+	if rp.InitialDelay < 0 {
+		return errors.New("retry policy: initial_delay cannot be negative")
+	}
+	if rp.MaxDelay < 0 {
+		return errors.New("retry policy: max_delay cannot be negative")
+	}
+	if rp.MaxDelay > 0 && rp.InitialDelay > rp.MaxDelay {
+		return errors.New("retry policy: initial_delay cannot be greater than max_delay")
+	}
+	if rp.BackoffMultiplier < 1.0 {
+		return errors.New("retry policy: backoff_multiplier must be >= 1.0")
+	}
+	return nil
+}
+
+// SetDefaults sets default values for unspecified retry policy fields
+func (rp *RetryPolicy) SetDefaults() {
+	if rp.InitialDelay == 0 && rp.MaxAttempts > 0 {
+		rp.InitialDelay = 1 * time.Second
+	}
+	if rp.MaxDelay == 0 && rp.MaxAttempts > 0 {
+		rp.MaxDelay = 30 * time.Second
+	}
+	if rp.BackoffMultiplier == 0 && rp.MaxAttempts > 0 {
+		rp.BackoffMultiplier = 2.0
+	}
+}
+
+// IsEnabled returns true if retry is enabled (MaxAttempts > 0)
+func (rp *RetryPolicy) IsEnabled() bool {
+	return rp.MaxAttempts > 0
+}
 
 // Node is the interface that all node types must implement
 type Node interface {
@@ -13,6 +70,7 @@ type Node interface {
 	Validate() error
 	MarshalJSON() ([]byte, error)
 	GetConfiguration() map[string]interface{}
+	GetRetryPolicy() *RetryPolicy
 }
 
 // StartNode represents the entry point of a workflow
@@ -52,6 +110,11 @@ func (n *StartNode) MarshalJSON() ([]byte, error) {
 // GetConfiguration returns the node configuration
 func (n *StartNode) GetConfiguration() map[string]interface{} {
 	return make(map[string]interface{})
+}
+
+// GetRetryPolicy returns nil (start nodes don't need retry)
+func (n *StartNode) GetRetryPolicy() *RetryPolicy {
+	return nil
 }
 
 // EndNode represents an exit point of a workflow
@@ -100,6 +163,11 @@ func (n *EndNode) GetConfiguration() map[string]interface{} {
 	return config
 }
 
+// GetRetryPolicy returns nil (end nodes don't need retry)
+func (n *EndNode) GetRetryPolicy() *RetryPolicy {
+	return nil
+}
+
 // MCPToolNode represents a node that executes an MCP tool
 type MCPToolNode struct {
 	ID             string            `json:"id" yaml:"id"`
@@ -107,6 +175,7 @@ type MCPToolNode struct {
 	ToolName       string            `json:"tool_name" yaml:"tool_name"`
 	Parameters     map[string]string `json:"parameters,omitempty" yaml:"parameters,omitempty"`
 	OutputVariable string            `json:"output_variable" yaml:"output_variable"`
+	Retry          *RetryPolicy      `json:"retry,omitempty" yaml:"retry,omitempty"`
 }
 
 // GetID returns the node ID
@@ -133,6 +202,11 @@ func (n *MCPToolNode) Validate() error {
 	if n.OutputVariable == "" {
 		return errors.New("mcp_tool node: empty output variable")
 	}
+	if n.Retry != nil {
+		if err := n.Retry.Validate(); err != nil {
+			return fmt.Errorf("mcp_tool node: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -145,6 +219,7 @@ func (n *MCPToolNode) MarshalJSON() ([]byte, error) {
 		ToolName       string            `json:"tool_name"`
 		Parameters     map[string]string `json:"parameters,omitempty"`
 		OutputVariable string            `json:"output_variable"`
+		Retry          *RetryPolicy      `json:"retry,omitempty"`
 	}{
 		ID:             n.ID,
 		Type:           "mcp_tool",
@@ -152,6 +227,7 @@ func (n *MCPToolNode) MarshalJSON() ([]byte, error) {
 		ToolName:       n.ToolName,
 		Parameters:     n.Parameters,
 		OutputVariable: n.OutputVariable,
+		Retry:          n.Retry,
 	})
 }
 
@@ -168,15 +244,24 @@ func (n *MCPToolNode) GetConfiguration() map[string]interface{} {
 		}
 		config["parameters"] = params
 	}
+	if n.Retry != nil {
+		config["retry"] = n.Retry
+	}
 	return config
+}
+
+// GetRetryPolicy returns the retry policy for this node
+func (n *MCPToolNode) GetRetryPolicy() *RetryPolicy {
+	return n.Retry
 }
 
 // TransformNode represents a node that transforms data
 type TransformNode struct {
-	ID             string `json:"id" yaml:"id"`
-	InputVariable  string `json:"input_variable" yaml:"input_variable"`
-	Expression     string `json:"expression" yaml:"expression"`
-	OutputVariable string `json:"output_variable" yaml:"output_variable"`
+	ID             string       `json:"id" yaml:"id"`
+	InputVariable  string       `json:"input_variable" yaml:"input_variable"`
+	Expression     string       `json:"expression" yaml:"expression"`
+	OutputVariable string       `json:"output_variable" yaml:"output_variable"`
+	Retry          *RetryPolicy `json:"retry,omitempty" yaml:"retry,omitempty"`
 }
 
 // GetID returns the node ID
@@ -203,23 +288,30 @@ func (n *TransformNode) Validate() error {
 	if n.OutputVariable == "" {
 		return errors.New("transform node: empty output variable")
 	}
+	if n.Retry != nil {
+		if err := n.Retry.Validate(); err != nil {
+			return fmt.Errorf("transform node: %w", err)
+		}
+	}
 	return nil
 }
 
 // MarshalJSON implements custom JSON marshaling
 func (n *TransformNode) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&struct {
-		ID             string `json:"id"`
-		Type           string `json:"type"`
-		InputVariable  string `json:"input_variable"`
-		Expression     string `json:"expression"`
-		OutputVariable string `json:"output_variable"`
+		ID             string       `json:"id"`
+		Type           string       `json:"type"`
+		InputVariable  string       `json:"input_variable"`
+		Expression     string       `json:"expression"`
+		OutputVariable string       `json:"output_variable"`
+		Retry          *RetryPolicy `json:"retry,omitempty"`
 	}{
 		ID:             n.ID,
 		Type:           "transform",
 		InputVariable:  n.InputVariable,
 		Expression:     n.Expression,
 		OutputVariable: n.OutputVariable,
+		Retry:          n.Retry,
 	})
 }
 
@@ -237,7 +329,15 @@ func (n *TransformNode) GetConfiguration() map[string]interface{} {
 	config["message"] = n.Expression
 	config["name"] = n.Expression
 	config["id"] = n.Expression
+	if n.Retry != nil {
+		config["retry"] = n.Retry
+	}
 	return config
+}
+
+// GetRetryPolicy returns the retry policy for this node
+func (n *TransformNode) GetRetryPolicy() *RetryPolicy {
+	return n.Retry
 }
 
 // PassthroughNode represents a simple no-op node that passes execution through without doing anything.
@@ -278,6 +378,11 @@ func (n *PassthroughNode) MarshalJSON() ([]byte, error) {
 // GetConfiguration returns the node configuration
 func (n *PassthroughNode) GetConfiguration() map[string]interface{} {
 	return make(map[string]interface{})
+}
+
+// GetRetryPolicy returns nil (passthrough nodes don't need retry)
+func (n *PassthroughNode) GetRetryPolicy() *RetryPolicy {
+	return nil
 }
 
 // ConditionNode represents a branching node based on a condition
@@ -325,6 +430,11 @@ func (n *ConditionNode) GetConfiguration() map[string]interface{} {
 	config := make(map[string]interface{})
 	config["condition"] = n.Condition
 	return config
+}
+
+// GetRetryPolicy returns nil (condition nodes don't need retry)
+func (n *ConditionNode) GetRetryPolicy() *RetryPolicy {
+	return nil
 }
 
 // ParallelNode represents a node that executes multiple branches concurrently
@@ -382,6 +492,11 @@ func (n *ParallelNode) GetConfiguration() map[string]interface{} {
 	config["branches"] = n.Branches
 	config["merge_strategy"] = n.MergeStrategy
 	return config
+}
+
+// GetRetryPolicy returns nil (parallel nodes don't need retry)
+func (n *ParallelNode) GetRetryPolicy() *RetryPolicy {
+	return nil
 }
 
 // LoopNode represents a node that iterates over a collection
@@ -449,6 +564,11 @@ func (n *LoopNode) GetConfiguration() map[string]interface{} {
 		config["break_condition"] = n.BreakCondition
 	}
 	return config
+}
+
+// GetRetryPolicy returns nil (loop nodes don't need retry)
+func (n *LoopNode) GetRetryPolicy() *RetryPolicy {
+	return nil
 }
 
 // UnmarshalNode unmarshals a JSON node into the appropriate concrete type

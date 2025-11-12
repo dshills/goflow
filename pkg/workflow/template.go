@@ -733,6 +733,11 @@ func (n *GenericTransformNode) GetConfiguration() map[string]interface{} {
 	return n.Config
 }
 
+func (n *GenericTransformNode) GetRetryPolicy() *RetryPolicy {
+	// Generic nodes don't support retry (use concrete nodes for retry)
+	return nil
+}
+
 // GenericConditionNode wraps a condition node with generic config support
 type GenericConditionNode struct {
 	BaseCondition ConditionNode
@@ -770,6 +775,11 @@ func (n *GenericConditionNode) GetConfiguration() map[string]interface{} {
 	return n.Config
 }
 
+func (n *GenericConditionNode) GetRetryPolicy() *RetryPolicy {
+	// Generic nodes don't support retry (use concrete nodes for retry)
+	return nil
+}
+
 // GenericMCPToolNode wraps an MCP tool node with generic config support
 type GenericMCPToolNode struct {
 	ID     string
@@ -794,6 +804,11 @@ func (n *GenericMCPToolNode) Validate() error {
 	if _, ok := n.Config["tool"].(string); !ok {
 		return errors.New("mcp_tool node: empty tool name")
 	}
+	return nil
+}
+
+func (n *GenericMCPToolNode) GetRetryPolicy() *RetryPolicy {
+	// Generic nodes don't support retry (use concrete nodes for retry)
 	return nil
 }
 
