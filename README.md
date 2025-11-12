@@ -4,7 +4,7 @@
 
 [![Go Version](https://img.shields.io/badge/go-1.21+-blue.svg)](https://golang.org)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-in_development-yellow.svg)](https://github.com/dshills/goflow)
+[![Status](https://img.shields.io/badge/status-pre--release-orange.svg)](https://github.com/dshills/goflow)
 
 GoFlow enables developers to chain multiple MCP tools into sophisticated, reusable workflows with conditional logic, data transformation, and parallel execution - all without writing code.
 
@@ -22,33 +22,18 @@ GoFlow enables developers to chain multiple MCP tools into sophisticated, reusab
 
 ### Installation
 
-**Option 1: Download Binary** (Recommended)
-
-```bash
-# macOS (Apple Silicon)
-curl -L https://github.com/dshills/goflow/releases/latest/download/goflow-darwin-arm64 -o goflow
-chmod +x goflow
-sudo mv goflow /usr/local/bin/
-
-# macOS (Intel)
-curl -L https://github.com/dshills/goflow/releases/latest/download/goflow-darwin-amd64 -o goflow
-chmod +x goflow
-sudo mv goflow /usr/local/bin/
-
-# Linux
-curl -L https://github.com/dshills/goflow/releases/latest/download/goflow-linux-amd64 -o goflow
-chmod +x goflow
-sudo mv goflow /usr/local/bin/
-```
-
-**Option 2: Build from Source**
+**Build from Source** (Pre-release - no binaries available yet)
 
 ```bash
 git clone https://github.com/dshills/goflow.git
 cd goflow
 go build -o goflow ./cmd/goflow
+
+# Optional: Install to system path
 sudo mv goflow /usr/local/bin/
 ```
+
+**Requirements**: Go 1.21 or higher
 
 ### Your First Workflow
 
@@ -259,14 +244,16 @@ nodes:
 Process multiple items concurrently:
 
 ```yaml
-# See: examples/parallel-batch.yaml (Phase 8 feature)
+# See: examples/parallel-batch.yaml
 nodes:
   - id: "process_batch"
-    type: "loop"
-    collection: "${files}"
-    parallel: true
+    type: "parallel"
+    branches:
+      - ["read_file1", "transform1", "write1"]
+      - ["read_file2", "transform2", "write2"]
+      - ["read_file3", "transform3", "write3"]
+    merge_strategy: "wait_all"
     max_parallel: 10
-    body: ["read", "transform", "write"]
 ```
 
 More examples in [`examples/`](examples/) directory.
@@ -338,11 +325,11 @@ goflow edit <workflow-name>
 ```
 
 **Features**:
-- Visual workflow canvas with node positioning
-- Drag-and-drop edge creation
+- Visual workflow canvas with node management
+- Interactive edge creation and editing
 - Real-time validation feedback
 - Live execution monitoring
-- Vim-style keyboard navigation
+- Vim-style keyboard navigation (hjkl)
 
 **Navigation**:
 - `hjkl` or arrow keys: Navigate
@@ -381,32 +368,48 @@ Full architecture: [CLAUDE.md](CLAUDE.md)
 
 ## Development Status
 
-**Current Status**: Active Development (Phase 1-3 Complete)
+**Current Status**: Pre-release (Core features complete, testing & documentation in progress)
+
+**Recent Update** (2025-11-12): Comprehensive security remediation completed, addressing 8 critical vulnerabilities including directory traversal protection, expression sandboxing, and connection pool improvements. See [CHANGELOG.md](CHANGELOG.md) for details.
 
 | Phase | Status | Features |
 |-------|--------|----------|
 | **Phase 1: Foundation** | ✅ Complete | Domain model, YAML parser, MCP client, storage |
-| **Phase 2: Execution** | ✅ Complete | Runtime engine, node executors, error handling |
-| **Phase 3: CLI** | 🚧 In Progress | Basic commands (run, validate, server management) |
-| **Phase 4: TUI** | 📋 Planned | Visual workflow builder, execution monitor |
-| **Phase 5: Advanced** | 📋 Planned | Loops, parallel execution, templates |
+| **Phase 2: Execution** | ✅ Complete | Runtime engine, all node types, error handling, retry logic |
+| **Phase 3: CLI** | ✅ Complete | All commands (run, validate, init, edit, server, credential, executions, logs) |
+| **Phase 4: TUI** | ✅ Complete | Workflow builder, execution monitor, server registry, explorer views |
+| **Phase 5: Advanced** | ✅ Complete | Loop nodes, parallel execution, templates, data transformations |
 
-### What Works Now
+### Implemented Features
 
+**Core Engine**:
 - ✅ Workflow parsing and validation
 - ✅ MCP client (stdio transport)
-- ✅ Basic execution engine
-- ✅ Transform nodes (JSONPath, templates)
-- ✅ Condition nodes
-- ✅ Storage (SQLite, filesystem)
+- ✅ Complete execution engine with timeout support
+- ✅ All node types: MCP tool, transform, condition, loop, parallel
+- ✅ Data transformation (JSONPath, jq-style, templates, boolean expressions)
+- ✅ Loop and parallel execution with configurable merge strategies
+- ✅ Error handling with retry policies and timeout protection
 
-### Coming Soon
+**User Interface**:
+- ✅ Full CLI with all workflow management commands
+- ✅ TUI workflow builder and execution monitor
+- ✅ Interactive workflow editor with real-time validation
+- ✅ Execution history browser with detailed logs
 
-- 🚧 Full CLI implementation (T082-T083)
-- 🚧 TUI workflow builder (Phase 4)
-- 📋 Loop nodes (Phase 5)
-- 📋 Parallel execution (Phase 5)
-- 📋 SSE/HTTP MCP transports (Phase 5)
+**Storage & Security**:
+- ✅ SQLite for execution history, filesystem for workflows
+- ✅ 6-layer path validation (100% malicious path detection)
+- ✅ Sandboxed expression evaluation (expr-lang with timeout protection)
+- ✅ Credential management with system keyring integration
+- ✅ Comprehensive error context for debugging
+
+### In Progress
+
+- 🚧 SSE/HTTP MCP transports (currently stdio only)
+- 🚧 Documentation and tutorials
+- 🚧 Integration testing with real MCP servers
+- 🚧 Performance optimization and benchmarking
 
 ## Testing
 
@@ -427,10 +430,12 @@ go test ./tests/integration/...
 ```
 
 Test suite includes:
-- Unit tests for domain logic (>85% coverage)
-- Integration tests for MCP protocol
-- CLI command tests
-- Mock MCP server for testing
+- Unit tests for all packages (comprehensive coverage)
+- Integration tests for MCP protocol, loops, and parallel execution
+- CLI command tests with mocked dependencies
+- Security tests with 20+ malicious path attack vectors
+- Mock MCP server for testing (internal/testutil/testserver)
+- Performance benchmarks for critical paths
 
 ## Documentation
 
@@ -483,27 +488,32 @@ go build -o goflow ./cmd/goflow
 
 ## Roadmap
 
-### 2025 Q1 - MVP Release
+### 2025 Q1 - Initial Release (In Progress)
 
 - ✅ Core workflow engine
 - ✅ MCP client (stdio)
-- 🚧 CLI commands
-- 📋 TUI builder
-- 📋 Documentation
+- ✅ CLI commands
+- ✅ TUI builder
+- ✅ Advanced node types (loops, parallel)
+- 🚧 Documentation and tutorials
+- 🚧 Real-world workflow examples
+- 📋 First stable release (v1.0.0)
 
 ### 2025 Q2 - Enhanced Features
 
-- Advanced node types (loops, parallel)
 - Additional MCP transports (SSE, HTTP)
 - Workflow templates library
 - Performance optimizations
+- Enhanced TUI features (drag-and-drop visual builder)
+- Workflow debugging tools
 
 ### 2025 Q3 - Enterprise Features
 
-- Workflow scheduling
-- Team collaboration
-- Credential management UI
-- Monitoring and alerting
+- Workflow scheduling and triggers
+- Team collaboration features
+- Enhanced credential management UI
+- Monitoring, metrics, and alerting
+- Workflow versioning and rollback
 
 ## License
 
@@ -529,6 +539,8 @@ Inspired by workflow orchestration tools like Temporal, Airflow, and n8n, but de
 
 ---
 
-**Status**: 🚧 Active Development | **Version**: 1.0.0-alpha | **Go**: 1.21+
+**Status**: Pre-release (Core Complete) | **Version**: 0.9.0-rc | **Go**: 1.21+
 
 Made with ❤️ for the MCP community
+
+**Note**: GoFlow is feature-complete but currently undergoing testing and documentation before the 1.0.0 stable release. The core functionality is fully implemented and operational.
