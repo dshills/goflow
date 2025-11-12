@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -26,7 +25,6 @@ type PathValidator struct {
 	maxPathLen   int
 	validations  uint64
 	rejections   uint64
-	mu           sync.RWMutex
 }
 
 // ValidationError represents a path validation failure with context for logging.

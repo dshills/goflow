@@ -352,11 +352,6 @@ func (p *ConnectionPool) LeakStats() uint64 {
 	return p.leaksDetected.Load()
 }
 
-// cleanupIdleConnections periodically closes idle connections
-func (p *ConnectionPool) cleanupIdleConnections() {
-	p.cleanupIdleConnectionsWithInterval(1 * time.Minute)
-}
-
 // cleanupIdleConnectionsWithInterval periodically closes idle connections at the specified interval
 func (p *ConnectionPool) cleanupIdleConnectionsWithInterval(interval time.Duration) {
 	ticker := time.NewTicker(interval)

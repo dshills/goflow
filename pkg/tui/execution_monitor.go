@@ -485,7 +485,6 @@ type WorkflowGraphPanel struct {
 	workflow            *workflow.Workflow
 	nodeStatuses        map[types.NodeID]interface{} // execution.NodeStatus or execution.Status
 	currentNode         types.NodeID
-	scrollOffset        int
 }
 
 func NewWorkflowGraphPanel(x, y, width, height int, wf *workflow.Workflow) *WorkflowGraphPanel {

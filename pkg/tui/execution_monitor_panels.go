@@ -17,7 +17,6 @@ type LogViewerPanel struct {
 	entries             []LogEntry
 	scrollOffset        int
 	autoScroll          bool
-	filterLevel         string // "", "error", "info", "debug"
 }
 
 type LogEntry struct {
@@ -246,7 +245,6 @@ func (p *LogViewerPanel) getLevelIcon(level string) string {
 type ErrorDetailPanel struct {
 	x, y, width, height int
 	error               *execution.ExecutionError
-	enhancedError       *execpkg.EnhancedExecutionError
 	scrollOffset        int
 }
 
@@ -610,27 +608,4 @@ func (p *ExecutionHelpPanel) Render(screen *goterm.Screen) {
 
 	// Bottom border
 	screen.DrawText(p.x, p.y+p.height-1, "└"+strings.Repeat("─", p.width-2)+"┘", fg, bg, goterm.StyleNone)
-}
-
-// Helper functions for tests
-
-func screenContainsText(screen *goterm.Screen, text string) bool {
-	width, height := screen.Size()
-
-	// Scan all cells in the screen for the text
-	for y := 0; y < height; y++ {
-		var lineText strings.Builder
-		for x := 0; x < width; x++ {
-			cell := screen.GetCell(x, y)
-			lineText.WriteRune(cell.Ch)
-		}
-		if strings.Contains(lineText.String(), text) {
-			return true
-		}
-	}
-	return false
-}
-
-func containsSubstring(s, substr string) bool {
-	return strings.Contains(s, substr)
 }

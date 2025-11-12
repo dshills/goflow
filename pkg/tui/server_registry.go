@@ -45,7 +45,6 @@ type addServerDialogState struct {
 	command       string // For stdio
 	args          string // For stdio (comma-separated)
 	url           string // For SSE/HTTP
-	headers       string // For SSE/HTTP (key:value pairs, comma-separated)
 	currentField  string // Current field being edited
 }
 

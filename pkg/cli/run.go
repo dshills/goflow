@@ -380,7 +380,6 @@ type watchState struct {
 	nodeCount      int
 	lastNodeID     string
 	lastUpdateTime time.Time
-	recentLogs     []string
 	variables      map[string]interface{}
 	mu             sync.Mutex
 }

@@ -45,8 +45,6 @@ type Canvas struct {
 	Height     int
 	nodes      map[string]canvasNode
 	edges      []canvasEdge
-	offsetX    int
-	offsetY    int
 	selectedID string
 }
 
@@ -77,7 +75,6 @@ type PropertyPanel struct {
 	node              workflow.Node
 	fields            []propertyField
 	editIndex         int
-	editMode          bool
 	visible           bool
 	validationMessage string
 }
@@ -94,8 +91,7 @@ type propertyField struct {
 
 // HelpPanel represents the help display
 type HelpPanel struct {
-	visible     bool
-	keyBindings []HelpKeyBinding
+	visible bool
 }
 
 // HelpKeyBinding represents a keyboard shortcut for help display

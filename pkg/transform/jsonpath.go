@@ -986,33 +986,6 @@ func convertContainsToExprLang(expression string) string {
 	return fmt.Sprintf("contains(%s, %s)", fieldExpr, searchValue)
 }
 
-// parseFilterValue parses a filter value string into the appropriate type
-func parseFilterValue(s string) interface{} {
-	s = strings.TrimSpace(s)
-
-	// Boolean
-	if s == "true" {
-		return true
-	}
-	if s == "false" {
-		return false
-	}
-
-	// String (quoted)
-	if (strings.HasPrefix(s, "'") && strings.HasSuffix(s, "'")) ||
-		(strings.HasPrefix(s, "\"") && strings.HasSuffix(s, "\"")) {
-		return s[1 : len(s)-1]
-	}
-
-	// Number
-	if num, err := strconv.ParseFloat(s, 64); err == nil {
-		return num
-	}
-
-	// Default to string
-	return s
-}
-
 // compareValues compares two values for equality
 func compareValues(a, b interface{}) bool {
 	// Handle nil
@@ -1032,29 +1005,6 @@ func compareValues(a, b interface{}) bool {
 
 	// Use reflect.DeepEqual to safely compare any types (including maps, slices)
 	return reflect.DeepEqual(a, b)
-}
-
-// compareNumeric compares two values numerically
-func compareNumeric(a, b interface{}, op string) bool {
-	aNum, aOk := toFloat64(a)
-	bNum, bOk := toFloat64(b)
-
-	if !aOk || !bOk {
-		return false
-	}
-
-	switch op {
-	case ">":
-		return aNum > bNum
-	case "<":
-		return aNum < bNum
-	case ">=":
-		return aNum >= bNum
-	case "<=":
-		return aNum <= bNum
-	default:
-		return false
-	}
 }
 
 // toFloat64 converts a value to float64 if possible

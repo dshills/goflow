@@ -97,7 +97,6 @@ type Profiler struct {
 
 	// Profile capture
 	cpuProfileFile *os.File
-	memProfileFile *os.File
 	capturing      bool
 }
 

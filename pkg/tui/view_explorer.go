@@ -11,7 +11,6 @@ type WorkflowExplorerView struct {
 	active      bool
 	workflows   []string // List of workflow names
 	selectedIdx int      // Currently selected workflow index
-	searchQuery string   // Current search filter
 	statusMsg   string   // Status message to display
 	initialized bool
 	width       int // View width
