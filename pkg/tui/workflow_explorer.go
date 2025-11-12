@@ -647,3 +647,17 @@ func isValidWorkflowName(name string) bool {
 
 	return true
 }
+
+// sortWorkflowsByName sorts workflows alphabetically by name (in-place)
+func sortWorkflowsByName(workflows []*workflow.Workflow) {
+	// Simple insertion sort for small lists
+	for i := 1; i < len(workflows); i++ {
+		key := workflows[i]
+		j := i - 1
+		for j >= 0 && workflows[j].Name > key.Name {
+			workflows[j+1] = workflows[j]
+			j--
+		}
+		workflows[j+1] = key
+	}
+}

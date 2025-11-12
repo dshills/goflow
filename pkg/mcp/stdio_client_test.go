@@ -12,7 +12,7 @@ func TestStdioClient_BasicConnection(t *testing.T) {
 	defer cancel()
 
 	// Get path to test server
-	mockServerPath, err := filepath.Abs("../../internal/testutil/testserver/main.go")
+	mockServerPath, err := filepath.Abs("../../cmd/testserver/main.go")
 	if err != nil {
 		t.Fatalf("Failed to get test server path: %v", err)
 	}
@@ -50,7 +50,7 @@ func TestStdioClient_ToolDiscovery(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	mockServerPath, err := filepath.Abs("../../internal/testutil/testserver/main.go")
+	mockServerPath, err := filepath.Abs("../../cmd/testserver/main.go")
 	if err != nil {
 		t.Fatalf("Failed to get test server path: %v", err)
 	}
@@ -102,7 +102,7 @@ func TestStdioClient_ToolInvocation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	mockServerPath, err := filepath.Abs("../../internal/testutil/testserver/main.go")
+	mockServerPath, err := filepath.Abs("../../cmd/testserver/main.go")
 	if err != nil {
 		t.Fatalf("Failed to get test server path: %v", err)
 	}

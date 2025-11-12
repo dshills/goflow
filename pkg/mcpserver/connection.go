@@ -2,11 +2,13 @@ package mcpserver
 
 import (
 	"fmt"
+	"sync"
 	"time"
 )
 
 // Connection represents the connection state to an MCP server
 type Connection struct {
+	mu           sync.RWMutex // Protects concurrent access to connection state
 	State        ConnectionState
 	ConnectedAt  time.Time
 	LastActivity time.Time
@@ -22,6 +24,69 @@ func NewConnection() *Connection {
 		ErrorCount:   0,
 		RetryBackoff: 0,
 	}
+}
+
+// UpdateLastActivity sets the LastActivity timestamp to now (thread-safe)
+func (c *Connection) UpdateLastActivity() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.LastActivity = time.Now()
+}
+
+// GetLastActivity returns the LastActivity timestamp (thread-safe)
+func (c *Connection) GetLastActivity() time.Time {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.LastActivity
+}
+
+// GetState returns the current connection state (thread-safe)
+func (c *Connection) GetState() ConnectionState {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.State
+}
+
+// SetState updates the connection state (thread-safe)
+func (c *Connection) SetState(state ConnectionState) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.State = state
+}
+
+// IncrementErrorCount increments the error counter (thread-safe)
+func (c *Connection) IncrementErrorCount() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.ErrorCount++
+}
+
+// ResetErrorCount resets the error counter to zero (thread-safe)
+func (c *Connection) ResetErrorCount() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.ErrorCount = 0
+}
+
+// GetErrorCount returns the current error count (thread-safe)
+func (c *Connection) GetErrorCount() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.ErrorCount
+}
+
+// SetLastError records the last error message (thread-safe)
+func (c *Connection) SetLastError(err string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.LastError = err
+}
+
+// GetLastError returns the last error message (thread-safe)
+func (c *Connection) GetLastError() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.LastError
 }
 
 // Transport represents the communication transport configuration for an MCP server

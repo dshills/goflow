@@ -176,8 +176,8 @@ func (m *monitor) Subscribe() <-chan ExecutionEvent {
 	}
 
 	// Create buffered channel to prevent blocking event emission
-	// Buffer size of 100 should handle bursts of events
-	ch := make(chan ExecutionEvent, 100)
+	// Buffer size of 200 should handle bursts of events in high-throughput scenarios
+	ch := make(chan ExecutionEvent, 200)
 	sub := &subscription{
 		ch:     ch,
 		filter: nil,
@@ -200,7 +200,7 @@ func (m *monitor) SubscribeFiltered(filter EventFilter) <-chan ExecutionEvent {
 	}
 
 	// Create buffered channel to prevent blocking event emission
-	ch := make(chan ExecutionEvent, 100)
+	ch := make(chan ExecutionEvent, 200)
 	sub := &subscription{
 		ch:     ch,
 		filter: &filter,

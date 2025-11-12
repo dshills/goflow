@@ -221,7 +221,7 @@ servers:
   - id: "test"
     name: "test"
     command: "go"
-    args: ["run", "../../internal/testutil/testserver/main.go"]
+    args: ["run", "../../cmd/testserver/main.go"]
     transport: "stdio"
 nodes:
   - id: "start"

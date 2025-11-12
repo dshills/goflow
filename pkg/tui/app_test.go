@@ -103,7 +103,6 @@ func TestReadKeyboardInput_StdinReading(t *testing.T) {
 			t.Fatalf("failed to create pipe: %v", err)
 		}
 		defer r.Close()
-		defer w.Close()
 
 		// Save original stdin and restore later
 		oldStdin := os.Stdin
@@ -119,8 +118,12 @@ func TestReadKeyboardInput_StdinReading(t *testing.T) {
 			inputChan: make(chan KeyEvent, 100),
 		}
 
-		// Start goroutine
-		go app.readKeyboardInput()
+		// Start goroutine with completion tracking
+		done := make(chan struct{})
+		go func() {
+			app.readKeyboardInput()
+			close(done)
+		}()
 
 		// Write test input
 		testInput := []byte{'a'}
@@ -138,6 +141,15 @@ func TestReadKeyboardInput_StdinReading(t *testing.T) {
 		case <-time.After(100 * time.Millisecond):
 			t.Fatal("did not receive input event")
 		}
+
+		// Close write pipe to trigger EOF and wait for goroutine to finish
+		w.Close()
+		select {
+		case <-done:
+			// Success - goroutine exited
+		case <-time.After(100 * time.Millisecond):
+			t.Fatal("goroutine did not exit after pipe close")
+		}
 	})
 
 	t.Run("reads multiple characters", func(t *testing.T) {
@@ -147,7 +159,6 @@ func TestReadKeyboardInput_StdinReading(t *testing.T) {
 			t.Fatalf("failed to create pipe: %v", err)
 		}
 		defer r.Close()
-		defer w.Close()
 
 		// Save original stdin and restore later
 		oldStdin := os.Stdin
@@ -163,8 +174,12 @@ func TestReadKeyboardInput_StdinReading(t *testing.T) {
 			inputChan: make(chan KeyEvent, 100),
 		}
 
-		// Start goroutine
-		go app.readKeyboardInput()
+		// Start goroutine with completion tracking
+		done := make(chan struct{})
+		go func() {
+			app.readKeyboardInput()
+			close(done)
+		}()
 
 		// Write multiple inputs
 		testInputs := []byte{'h', 'e', 'l', 'l', 'o'}
@@ -183,6 +198,15 @@ func TestReadKeyboardInput_StdinReading(t *testing.T) {
 			case <-time.After(100 * time.Millisecond):
 				t.Fatalf("did not receive input event for '%c'", b)
 			}
+		}
+
+		// Close write pipe to trigger EOF and wait for goroutine to finish
+		w.Close()
+		select {
+		case <-done:
+			// Success - goroutine exited
+		case <-time.After(100 * time.Millisecond):
+			t.Fatal("goroutine did not exit after pipe close")
 		}
 	})
 }
@@ -297,7 +321,6 @@ func TestReadKeyboardInput_EventDelivery(t *testing.T) {
 			t.Fatalf("failed to create pipe: %v", err)
 		}
 		defer r.Close()
-		defer w.Close()
 
 		// Save original stdin and restore later
 		oldStdin := os.Stdin
@@ -313,8 +336,12 @@ func TestReadKeyboardInput_EventDelivery(t *testing.T) {
 			inputChan: make(chan KeyEvent, 5),
 		}
 
-		// Start goroutine
-		go app.readKeyboardInput()
+		// Start goroutine with completion tracking
+		done := make(chan struct{})
+		go func() {
+			app.readKeyboardInput()
+			close(done)
+		}()
 
 		// Write inputs with small delays to ensure separate reads
 		inputs := []byte{'a', 'b', 'c'}
@@ -334,6 +361,15 @@ func TestReadKeyboardInput_EventDelivery(t *testing.T) {
 				t.Fatalf("did not receive event %d (expected '%c')", i, expected)
 			}
 		}
+
+		// Close write pipe to trigger EOF and wait for goroutine to finish
+		w.Close()
+		select {
+		case <-done:
+			// Success - goroutine exited
+		case <-time.After(100 * time.Millisecond):
+			t.Fatal("goroutine did not exit after pipe close")
+		}
 	})
 
 	t.Run("handles escape sequences", func(t *testing.T) {
@@ -343,7 +379,6 @@ func TestReadKeyboardInput_EventDelivery(t *testing.T) {
 			t.Fatalf("failed to create pipe: %v", err)
 		}
 		defer r.Close()
-		defer w.Close()
 
 		// Save original stdin and restore later
 		oldStdin := os.Stdin
@@ -359,8 +394,12 @@ func TestReadKeyboardInput_EventDelivery(t *testing.T) {
 			inputChan: make(chan KeyEvent, 100),
 		}
 
-		// Start goroutine
-		go app.readKeyboardInput()
+		// Start goroutine with completion tracking
+		done := make(chan struct{})
+		go func() {
+			app.readKeyboardInput()
+			close(done)
+		}()
 
 		// Write arrow up escape sequence
 		arrowUp := []byte{27, '[', 'A'}
@@ -380,6 +419,15 @@ func TestReadKeyboardInput_EventDelivery(t *testing.T) {
 			}
 		case <-time.After(100 * time.Millisecond):
 			t.Fatal("did not receive escape sequence event")
+		}
+
+		// Close write pipe to trigger EOF and wait for goroutine to finish
+		w.Close()
+		select {
+		case <-done:
+			// Success - goroutine exited
+		case <-time.After(100 * time.Millisecond):
+			t.Fatal("goroutine did not exit after pipe close")
 		}
 	})
 }
@@ -451,7 +499,6 @@ func TestReadKeyboardInput_ConcurrentEvents(t *testing.T) {
 			t.Fatalf("failed to create pipe: %v", err)
 		}
 		defer r.Close()
-		defer w.Close()
 
 		// Save original stdin and restore later
 		oldStdin := os.Stdin
@@ -467,8 +514,12 @@ func TestReadKeyboardInput_ConcurrentEvents(t *testing.T) {
 			inputChan: make(chan KeyEvent, 100),
 		}
 
-		// Start goroutine
-		go app.readKeyboardInput()
+		// Start goroutine with completion tracking
+		done := make(chan struct{})
+		go func() {
+			app.readKeyboardInput()
+			close(done)
+		}()
 
 		// Send characters with small delays
 		const count = 10
@@ -499,6 +550,15 @@ func TestReadKeyboardInput_ConcurrentEvents(t *testing.T) {
 			if receivedKeys[i] != expected {
 				t.Errorf("key %d: expected '%c', got '%c'", i, expected, receivedKeys[i])
 			}
+		}
+
+		// Close write pipe to trigger EOF and wait for goroutine to finish
+		w.Close()
+		select {
+		case <-done:
+			// Success - goroutine exited
+		case <-time.After(100 * time.Millisecond):
+			t.Fatal("goroutine did not exit after pipe close")
 		}
 	})
 }

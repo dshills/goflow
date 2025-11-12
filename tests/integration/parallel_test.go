@@ -326,7 +326,7 @@ servers:
   - id: "test-server"
     name: "test"
     command: "go"
-    args: ["run", "../../internal/testutil/testserver/main.go"]
+    args: ["run", "../../cmd/testserver/main.go"]
     transport: "stdio"
 variables:
   - name: "result"
@@ -413,7 +413,7 @@ servers:
   - id: "test-server"
     name: "test"
     command: "go"
-    args: ["run", "../../internal/testutil/testserver/main.go", "--delay=100ms"]
+    args: ["run", "../../cmd/testserver/main.go", "--delay=100ms"]
     transport: "stdio"
 nodes:
   - id: "start"

@@ -531,7 +531,7 @@ func (v *ServerRegistryView) deleteSelectedServer() {
 	server := v.servers[v.selectedIdx]
 
 	// Disconnect if connected
-	if server.Connection.State == mcpserver.StateConnected {
+	if server.Connection.GetState() == mcpserver.StateConnected {
 		server.Disconnect()
 	}
 
@@ -556,7 +556,7 @@ func (v *ServerRegistryView) testServerConnection() {
 	v.statusMsg = fmt.Sprintf("Testing connection to '%s'...", server.Name)
 
 	// Connect if not connected
-	if server.Connection.State != mcpserver.StateConnected {
+	if server.Connection.GetState() != mcpserver.StateConnected {
 		if err := server.Connect(); err != nil {
 			v.statusMsg = fmt.Sprintf("Connection failed: %v", err)
 			v.errorMsg = err.Error()
@@ -601,7 +601,7 @@ func (v *ServerRegistryView) refreshServerStatus() {
 
 	for _, server := range v.servers {
 		// Only check health for connected servers
-		if server.Connection.State == mcpserver.StateConnected {
+		if server.Connection.GetState() == mcpserver.StateConnected {
 			if err := server.HealthCheck(); err != nil {
 				errorCount++
 			} else {
@@ -627,7 +627,7 @@ func (v *ServerRegistryView) connectServer() {
 
 	server := v.servers[v.selectedIdx]
 
-	if server.Connection.State == mcpserver.StateConnected {
+	if server.Connection.GetState() == mcpserver.StateConnected {
 		v.statusMsg = "Server already connected"
 		return
 	}
@@ -657,7 +657,7 @@ func (v *ServerRegistryView) disconnectServer() {
 
 	server := v.servers[v.selectedIdx]
 
-	if server.Connection.State != mcpserver.StateConnected {
+	if server.Connection.GetState() != mcpserver.StateConnected {
 		v.statusMsg = "Server not connected"
 		return
 	}
@@ -724,7 +724,7 @@ func (v *ServerRegistryView) Render(screen *goterm.Screen) error {
 	if v.autoRefresh && time.Since(v.lastRefresh) > 10*time.Second {
 		// Perform background health check for connected servers
 		for _, server := range v.servers {
-			if server.Connection.State == mcpserver.StateConnected {
+			if server.Connection.GetState() == mcpserver.StateConnected {
 				// Non-blocking health check
 				go func(s *mcpserver.MCPServer) {
 					ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -967,18 +967,23 @@ func (v *ServerRegistryView) renderServerDetailsView(screen *goterm.Screen, star
 		y++
 	}
 
-	if !server.Connection.LastActivity.IsZero() && y < v.height-2 {
-		screen.DrawText(0, y, fmt.Sprintf("  Last Activity: %s", server.Connection.LastActivity.Format("2006-01-02 15:04:05")), fg, bg, goterm.StyleNone)
+	lastActivity := server.Connection.GetLastActivity()
+	if !lastActivity.IsZero() && y < v.height-2 {
+		screen.DrawText(0, y, fmt.Sprintf("  Last Activity: %s", lastActivity.Format("2006-01-02 15:04:05")), fg, bg, goterm.StyleNone)
 		y++
 	}
 
-	if server.Connection.ErrorCount > 0 && y < v.height-2 {
-		screen.DrawText(0, y, fmt.Sprintf("  Error Count:  %d", server.Connection.ErrorCount), fg, bg, goterm.StyleNone)
+	// Get error info using thread-safe getters
+	errorCount := server.Connection.GetErrorCount()
+	lastError := server.Connection.GetLastError()
+
+	if errorCount > 0 && y < v.height-2 {
+		screen.DrawText(0, y, fmt.Sprintf("  Error Count:  %d", errorCount), fg, bg, goterm.StyleNone)
 		y++
 	}
 
-	if server.Connection.LastError != "" && y < v.height-2 {
-		screen.DrawText(0, y, fmt.Sprintf("  Last Error:   %s", server.Connection.LastError), goterm.ColorRGB(255, 100, 100), bg, goterm.StyleNone)
+	if lastError != "" && y < v.height-2 {
+		screen.DrawText(0, y, fmt.Sprintf("  Last Error:   %s", lastError), goterm.ColorRGB(255, 100, 100), bg, goterm.StyleNone)
 		y++
 	}
 

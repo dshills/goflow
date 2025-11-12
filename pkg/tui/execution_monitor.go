@@ -308,15 +308,15 @@ func (em *ExecutionMonitor) renderStatusBar() {
 func (em *ExecutionMonitor) formatStatus(status execution.Status) string {
 	switch status {
 	case execution.StatusPending:
-		return "⏸ Pending"
+		return "pending"
 	case execution.StatusRunning:
-		return "▶ Running"
+		return "running"
 	case execution.StatusCompleted:
-		return "✓ Completed"
+		return "completed"
 	case execution.StatusFailed:
-		return "✗ Failed"
+		return "failed"
 	case execution.StatusCancelled:
-		return "⊗ Cancelled"
+		return "cancelled"
 	default:
 		return string(status)
 	}

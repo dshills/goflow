@@ -119,13 +119,14 @@ func NewMCPServer(id, command string, args []string, transportType TransportType
 // Connect initiates a connection to the MCP server
 func (s *MCPServer) Connect() error {
 	// Validate state transition
-	if s.Connection.State != StateDisconnected && s.Connection.State != StateFailed {
-		return NewConnectionError(fmt.Sprintf("invalid state transition: cannot connect from %s", s.Connection.State))
+	state := s.Connection.GetState()
+	if state != StateDisconnected && state != StateFailed {
+		return NewConnectionError(fmt.Sprintf("invalid state transition: cannot connect from %s", state))
 	}
 
 	// Update state
-	s.Connection.State = StateConnecting
-	s.Connection.LastActivity = time.Now()
+	s.Connection.SetState(StateConnecting)
+	s.Connection.UpdateLastActivity()
 
 	return nil
 }
@@ -133,16 +134,18 @@ func (s *MCPServer) Connect() error {
 // CompleteConnection marks the connection as successfully established
 func (s *MCPServer) CompleteConnection() error {
 	// Validate state transition
-	if s.Connection.State != StateConnecting {
-		return NewConnectionError(fmt.Sprintf("invalid state transition: cannot complete connection from %s", s.Connection.State))
+	if s.Connection.GetState() != StateConnecting {
+		return NewConnectionError(fmt.Sprintf("invalid state transition: cannot complete connection from %s", s.Connection.GetState()))
 	}
 
-	// Update state
+	// Update state (lock for multiple field updates)
+	s.Connection.mu.Lock()
 	s.Connection.State = StateConnected
 	s.Connection.ConnectedAt = time.Now()
 	s.Connection.LastActivity = time.Now()
 	s.Connection.ErrorCount = 0
 	s.Connection.RetryBackoff = 0
+	s.Connection.mu.Unlock()
 
 	return nil
 }
@@ -150,18 +153,20 @@ func (s *MCPServer) CompleteConnection() error {
 // FailConnection marks the connection as failed
 func (s *MCPServer) FailConnection(errorMsg string) error {
 	// Validate state transition
-	if s.Connection.State != StateConnecting {
-		return NewConnectionError(fmt.Sprintf("invalid state transition: cannot fail connection from %s", s.Connection.State))
+	if s.Connection.GetState() != StateConnecting {
+		return NewConnectionError(fmt.Sprintf("invalid state transition: cannot fail connection from %s", s.Connection.GetState()))
 	}
 
-	// Update state
+	// Update state (lock for multiple field updates)
+	s.Connection.mu.Lock()
 	s.Connection.State = StateFailed
 	s.Connection.LastActivity = time.Now()
 	s.Connection.ErrorCount++
 	s.Connection.LastError = errorMsg
+	errorCount := s.Connection.ErrorCount
+	s.Connection.mu.Unlock()
 
 	// Calculate exponential backoff with safe conversion
-	errorCount := s.Connection.ErrorCount
 	if errorCount < 0 {
 		errorCount = 0
 	}
@@ -173,7 +178,11 @@ func (s *MCPServer) FailConnection(errorMsg string) error {
 	if backoff > 60*time.Second {
 		backoff = 60 * time.Second // Cap at 60 seconds
 	}
+
+	// Update retry backoff (lock for field access)
+	s.Connection.mu.Lock()
 	s.Connection.RetryBackoff = backoff
+	s.Connection.mu.Unlock()
 
 	// Update health status
 	s.HealthStatus = HealthUnhealthy
@@ -185,13 +194,13 @@ func (s *MCPServer) FailConnection(errorMsg string) error {
 // Disconnect closes the connection to the MCP server
 func (s *MCPServer) Disconnect() error {
 	// For state machine validation, only error if coming from connecting state
-	if s.Connection.State == StateConnecting {
-		return NewConnectionError(fmt.Sprintf("invalid state transition: cannot disconnect from %s", s.Connection.State))
+	if s.Connection.GetState() == StateConnecting {
+		return NewConnectionError(fmt.Sprintf("invalid state transition: cannot disconnect from %s", s.Connection.GetState()))
 	}
 
 	// Update state
-	s.Connection.State = StateDisconnected
-	s.Connection.LastActivity = time.Now()
+	s.Connection.SetState(StateDisconnected)
+	s.Connection.UpdateLastActivity()
 
 	// Clear tools cache
 	s.Tools = []Tool{}
@@ -329,12 +338,12 @@ func (s *MCPServer) InvokeTool(toolName string, params map[string]interface{}) (
 			return nil, NewExecutionError(fmt.Sprintf("failed to invoke tool %s: %v", toolName, err))
 		}
 
-		s.Connection.LastActivity = time.Now()
+		s.Connection.UpdateLastActivity()
 		return result, nil
 	}
 
 	// For mock/testing scenarios without a client, return a mock result
-	s.Connection.LastActivity = time.Now()
+	s.Connection.UpdateLastActivity()
 
 	return map[string]interface{}{
 		"success": true,

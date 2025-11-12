@@ -153,20 +153,28 @@ func (v *PathValidator) Validate(userPath string) (string, error) {
 		}
 	}
 
-	// Layer 2: Lexical validation using filepath.IsLocal() (Go 1.20+)
-	// Rejects absolute paths, paths starting with "..", Windows reserved names
-	if !filepath.IsLocal(userPath) {
-		atomic.AddUint64(&v.rejections, 1)
-		return "", &ValidationError{
-			UserPath:  userPath,
-			Reason:    "path escapes allowed directory",
-			Timestamp: time.Now(),
+	// Layer 2: Handle absolute vs relative paths
+	var fullPath string
+	if filepath.IsAbs(userPath) {
+		// For absolute paths, clean and will verify containment later
+		// This allows callers to pass absolute paths that are within base directory
+		fullPath = filepath.Clean(userPath)
+	} else {
+		// Layer 2a: Lexical validation for relative paths using filepath.IsLocal() (Go 1.20+)
+		// Rejects paths starting with "..", Windows reserved names
+		if !filepath.IsLocal(userPath) {
+			atomic.AddUint64(&v.rejections, 1)
+			return "", &ValidationError{
+				UserPath:  userPath,
+				Reason:    "path escapes allowed directory",
+				Timestamp: time.Now(),
+			}
 		}
-	}
 
-	// Layer 3: Clean and join paths
-	cleanPath := filepath.Clean(userPath)
-	fullPath := filepath.Join(v.basePath, cleanPath)
+		// Layer 3: Clean and join paths for relative paths
+		cleanPath := filepath.Clean(userPath)
+		fullPath = filepath.Join(v.basePath, cleanPath)
+	}
 
 	// Layer 4: Resolve symbolic links (CRITICAL for security)
 	resolvedPath, err := filepath.EvalSymlinks(fullPath)
@@ -221,7 +229,7 @@ func (v *PathValidator) Validate(userPath string) (string, error) {
 
 	// Layer 6: Windows reserved name checking
 	if runtime.GOOS == "windows" {
-		if err := v.checkWindowsReservedNames(cleanPath); err != nil {
+		if err := v.checkWindowsReservedNames(userPath); err != nil {
 			atomic.AddUint64(&v.rejections, 1)
 			return "", err
 		}

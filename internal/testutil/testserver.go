@@ -23,7 +23,13 @@ func getTestServerPath() (string, error) {
 		return "", fmt.Errorf("failed to determine source file location")
 	}
 
-	testServerPath := filepath.Join(filepath.Dir(filename), "testserver", "main.go")
+	// The test server executable is in cmd/testserver/main.go
+	// This file is in internal/testutil/testserver.go
+	// So we need to go up to the project root and then into cmd/testserver
+	testutilDir := filepath.Dir(filename)
+	internalDir := filepath.Dir(testutilDir)
+	projectRoot := filepath.Dir(internalDir)
+	testServerPath := filepath.Join(projectRoot, "cmd", "testserver", "main.go")
 
 	// Validate the path exists
 	if _, err := os.Stat(testServerPath); err == nil {
@@ -31,7 +37,7 @@ func getTestServerPath() (string, error) {
 	}
 
 	// If not found, provide helpful error message
-	return "", fmt.Errorf("test server not found at %s (expected at internal/testutil/testserver/main.go)", testServerPath)
+	return "", fmt.Errorf("test server not found at %s (expected at cmd/testserver/main.go)", testServerPath)
 }
 
 // TestServerConfig returns the configuration for the test MCP server.

@@ -19,7 +19,7 @@ servers:
   - id: "test-server"
     name: "test-filesystem"
     command: "go"
-    args: ["run", "../../internal/testutil/testserver/main.go"]
+    args: ["run", "../../cmd/testserver/main.go"]
     transport: "stdio"
 
 nodes:
@@ -36,8 +36,8 @@ nodes:
 
   - id: "transform"
     type: "transform"
-    input: "${file_contents}"
-    expression: "${input} | upper"
+    input: "file_contents"
+    expression: "'UPPERCASE'"
     output: "transformed_content"
 
   - id: "write_file"

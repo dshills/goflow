@@ -22,6 +22,7 @@ type MockTUI struct {
 	helpVisible      bool
 	commandBuffer    string
 	lastError        error
+	lastKey          rune // Track last key for sequences like 'gg'
 }
 
 // KeyEvent represents a keyboard input event
@@ -103,10 +104,17 @@ func TestNavigationKeys_HJKL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Create buffer large enough for the test positions
+			buffer := make([][]rune, 20)
+			for i := range buffer {
+				buffer[i] = []rune("test line content")
+			}
+
 			tui := &MockTUI{
 				mode:    "normal",
 				cursorX: tt.initialX,
 				cursorY: tt.initialY,
+				buffer:  buffer,
 			}
 
 			err := tui.HandleKeyEvent(tt.key)
@@ -1315,16 +1323,31 @@ func (m *MockTUI) handleSpecialKey(key KeyEvent) error {
 }
 
 func (m *MockTUI) handleNormalModeKey(key KeyEvent) error {
+	// Get buffer bounds
+	maxY := len(m.buffer) - 1
+	if maxY < 0 {
+		maxY = 0
+	}
+	maxX := 0
+	if len(m.buffer) > 0 && m.cursorY < len(m.buffer) {
+		maxX = len(m.buffer[m.cursorY]) - 1
+		if maxX < 0 {
+			maxX = 0
+		}
+	}
+
 	// Handle Ctrl combinations
 	if key.Ctrl {
 		switch key.Key {
 		case 'd': // Ctrl-d: page down
-			m.cursorY += 10 // Half page
-			if m.cursorY > 100 {
-				m.cursorY = 100
+			pageSize := 20 // Standard half-page
+			m.cursorY += pageSize
+			if m.cursorY > maxY {
+				m.cursorY = maxY
 			}
 		case 'u': // Ctrl-u: page up
-			m.cursorY -= 10 // Half page
+			pageSize := 20 // Standard half-page
+			m.cursorY -= pageSize
 			if m.cursorY < 0 {
 				m.cursorY = 0
 			}
@@ -1344,22 +1367,33 @@ func (m *MockTUI) handleNormalModeKey(key KeyEvent) error {
 			m.cursorX--
 		}
 	case 'j': // Move down
-		m.cursorY++
+		if m.cursorY < maxY {
+			m.cursorY++
+		}
 	case 'k': // Move up
 		if m.cursorY > 0 {
 			m.cursorY--
 		}
 	case 'l': // Move right
-		m.cursorX++
+		if m.cursorX < maxX {
+			m.cursorX++
+		}
 	case 'w': // Next word
 		m.cursorX = m.findNextWordStart(m.cursorX)
 	case 'b': // Previous word
 		m.cursorX = m.findPrevWordStart(m.cursorX)
 	case 'g': // Handle 'gg' sequence
-		// For simplicity, move to top
-		m.cursorY = 0
+		if m.lastKey == 'g' {
+			// Second 'g' in sequence - move to top
+			m.cursorY = 0
+			m.lastKey = 0 // Reset sequence
+			return nil
+		}
+		// First 'g' - wait for second 'g'
+		m.lastKey = 'g'
+		return nil
 	case 'G': // Move to bottom
-		m.cursorY = 100 // Mock bottom
+		m.cursorY = maxY
 	case 'i': // Enter insert mode
 		m.mode = "insert"
 	case 'v': // Enter visual mode
@@ -1399,6 +1433,16 @@ func (m *MockTUI) handleNormalModeKey(key KeyEvent) error {
 		}
 	case '?': // Toggle help
 		m.helpVisible = !m.helpVisible
+	default:
+		// Reset key sequence tracking for non-sequence keys
+		if key.Key != 'g' {
+			m.lastKey = 0
+		}
+	}
+
+	// Reset key sequence tracking for keys that don't participate in sequences
+	if key.Key != 'g' && m.lastKey == 'g' {
+		m.lastKey = 0
 	}
 
 	return nil

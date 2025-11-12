@@ -20,33 +20,39 @@ type Edge struct {
 }
 
 // MockWorkflowRepository implements workflow.WorkflowRepository for testing
-// This is a combined version that supports both map-based and slice-based storage
+// Uses a slice to maintain insertion order for predictable test behavior
 type MockWorkflowRepository struct {
-	workflows  map[string]*workflow.Workflow
+	workflows  []*workflow.Workflow
 	saveFunc   func(*workflow.Workflow) error
 	deleteFunc func(string) error
 }
 
 func NewMockWorkflowRepository() *MockWorkflowRepository {
 	return &MockWorkflowRepository{
-		workflows: make(map[string]*workflow.Workflow),
+		workflows: make([]*workflow.Workflow, 0),
 	}
 }
 
 // NewMockWorkflowRepositoryWithWorkflows creates a repository pre-populated with workflows
 func NewMockWorkflowRepositoryWithWorkflows(wfs []*workflow.Workflow) *MockWorkflowRepository {
-	repo := NewMockWorkflowRepository()
-	for _, wf := range wfs {
-		repo.workflows[wf.Name] = wf
+	return &MockWorkflowRepository{
+		workflows: append([]*workflow.Workflow{}, wfs...), // Copy slice
 	}
-	return repo
 }
 
 func (m *MockWorkflowRepository) Save(wf *workflow.Workflow) error {
 	if m.saveFunc != nil {
 		return m.saveFunc(wf)
 	}
-	m.workflows[wf.Name] = wf
+
+	// Update existing or append new
+	for i, existing := range m.workflows {
+		if existing.ID == wf.ID {
+			m.workflows[i] = wf
+			return nil
+		}
+	}
+	m.workflows = append(m.workflows, wf)
 	return nil
 }
 
@@ -60,17 +66,18 @@ func (m *MockWorkflowRepository) FindByID(id string) (*workflow.Workflow, error)
 }
 
 func (m *MockWorkflowRepository) FindByName(name string) (*workflow.Workflow, error) {
-	if wf, ok := m.workflows[name]; ok {
-		return wf, nil
+	for _, wf := range m.workflows {
+		if wf.Name == name {
+			return wf, nil
+		}
 	}
 	return nil, fmt.Errorf("workflow not found: %s", name)
 }
 
 func (m *MockWorkflowRepository) FindAll() ([]*workflow.Workflow, error) {
-	result := make([]*workflow.Workflow, 0, len(m.workflows))
-	for _, wf := range m.workflows {
-		result = append(result, wf)
-	}
+	// Return a copy to prevent modifications
+	result := make([]*workflow.Workflow, len(m.workflows))
+	copy(result, m.workflows)
 	return result, nil
 }
 
@@ -78,12 +85,19 @@ func (m *MockWorkflowRepository) List() ([]*workflow.Workflow, error) {
 	return m.FindAll()
 }
 
-func (m *MockWorkflowRepository) Delete(name string) error {
+func (m *MockWorkflowRepository) Delete(id string) error {
 	if m.deleteFunc != nil {
-		return m.deleteFunc(name)
+		return m.deleteFunc(id)
 	}
-	delete(m.workflows, name)
-	return nil
+
+	// Find and remove by ID
+	for i, wf := range m.workflows {
+		if wf.ID == id {
+			m.workflows = append(m.workflows[:i], m.workflows[i+1:]...)
+			return nil
+		}
+	}
+	return fmt.Errorf("workflow not found: %s", id)
 }
 
 // screenContainsText checks if the screen buffer contains the given text

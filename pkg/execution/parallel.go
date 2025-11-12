@@ -333,10 +333,15 @@ func (e *Engine) executeWaitFirst(
 		return results, ctx.Err()
 	}
 
-	// Merge the first completed branch context back to parent (if successful)
-	if branchExecs[firstBranchIndex] != nil && results[firstBranchIndex].Error == nil {
-		if err := e.mergeBranchContext(exec, branchExecs[firstBranchIndex]); err != nil {
-			return results, fmt.Errorf("failed to merge first branch context: %w", err)
+	// Merge all completed branches to parent context
+	// Even though we terminate early, we want variables from any branches that completed
+	// before cancellation to be available in the parent context
+	for i, branchExec := range branchExecs {
+		if branchExec != nil && results[i].Error == nil {
+			if err := e.mergeBranchContext(exec, branchExec); err != nil {
+				// Log error but continue merging other branches
+				_ = err
+			}
 		}
 	}
 

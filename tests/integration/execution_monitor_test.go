@@ -775,7 +775,8 @@ edges:
 	}
 
 	// Verify all executions received events
-	for i, count := range eventCounts {
+	for i := range eventCounts {
+		count := atomic.LoadInt32(&eventCounts[i])
 		assert.Greater(t, count, int32(0), "Execution %d should have received events", i)
 	}
 
@@ -892,12 +893,13 @@ edges:
 	// With 52 nodes (start + 50 steps + end), expect at least 104 events (2 per node)
 	// Times 10 subscribers = 1040+ total events
 	expectedMinEvents := int32((nodeCount + 2) * 2 * subscriberCount)
-	assert.GreaterOrEqual(t, totalEvents, expectedMinEvents,
+	actualTotalEvents := atomic.LoadInt32(&totalEvents)
+	assert.GreaterOrEqual(t, actualTotalEvents, expectedMinEvents,
 		"Should receive events for all subscribers")
 
 	// Memory check - this is basic, real tests would use runtime.MemStats
 	// For now, just verify execution completed without panic
-	t.Logf("Processed %d total events across %d subscribers", totalEvents, subscriberCount)
+	t.Logf("Processed %d total events across %d subscribers", actualTotalEvents, subscriberCount)
 }
 
 // TestExecutionMonitor_EventTimestampOrdering tests that events maintain correct timestamp ordering

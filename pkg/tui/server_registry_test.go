@@ -233,15 +233,15 @@ func TestServerRegistryView_ConnectServer(t *testing.T) {
 	view := setupTestView(t, 1)
 	server := view.servers[0]
 
-	if server.Connection.State != mcpserver.StateDisconnected {
-		t.Errorf("expected initial state disconnected, got %s", server.Connection.State)
+	if server.Connection.GetState() != mcpserver.StateDisconnected {
+		t.Errorf("expected initial state disconnected, got %s", server.Connection.GetState())
 	}
 
 	// Connect server
 	view.connectServer()
 
-	if server.Connection.State != mcpserver.StateConnected {
-		t.Errorf("expected state connected, got %s", server.Connection.State)
+	if server.Connection.GetState() != mcpserver.StateConnected {
+		t.Errorf("expected state connected, got %s", server.Connection.GetState())
 	}
 
 	// Try to connect again (should show already connected)
@@ -266,15 +266,15 @@ func TestServerRegistryView_DisconnectServer(t *testing.T) {
 	// Connect first
 	view.connectServer()
 
-	if server.Connection.State != mcpserver.StateConnected {
-		t.Fatalf("server should be connected, got %s", server.Connection.State)
+	if server.Connection.GetState() != mcpserver.StateConnected {
+		t.Fatalf("server should be connected, got %s", server.Connection.GetState())
 	}
 
 	// Disconnect
 	view.disconnectServer()
 
-	if server.Connection.State != mcpserver.StateDisconnected {
-		t.Errorf("expected state disconnected after disconnect, got %s", server.Connection.State)
+	if server.Connection.GetState() != mcpserver.StateDisconnected {
+		t.Errorf("expected state disconnected after disconnect, got %s", server.Connection.GetState())
 	}
 
 	// Try to disconnect again (should show not connected)
@@ -293,8 +293,8 @@ func TestServerRegistryView_TestConnection(t *testing.T) {
 	// Test connection (connects, health checks, discovers tools)
 	view.testServerConnection()
 
-	if server.Connection.State != mcpserver.StateConnected {
-		t.Errorf("expected connected state after test, got %s", server.Connection.State)
+	if server.Connection.GetState() != mcpserver.StateConnected {
+		t.Errorf("expected connected state after test, got %s", server.Connection.GetState())
 	}
 
 	if server.HealthStatus == mcpserver.HealthUnknown {
