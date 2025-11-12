@@ -299,23 +299,3 @@ func (c *Canvas) calculateNodeSize(node workflow.Node) (width int, height int) {
 
 	return width, height
 }
-
-// isNodeInViewport checks if a node is visible in the current viewport
-func (c *Canvas) isNodeInViewport(cNode *canvasNode) bool {
-	// Convert node position to terminal coordinates
-	termPos := LogicalToTerminal(
-		cNode.position,
-		c.ViewportX,
-		c.ViewportY,
-		c.ZoomLevel,
-	)
-
-	// Check if any part of the node is visible
-	nodeRight := termPos.X + int(float64(cNode.width)*c.ZoomLevel)
-	nodeBottom := termPos.Y + int(float64(cNode.height)*c.ZoomLevel)
-
-	return termPos.X < c.Width &&
-		nodeRight >= 0 &&
-		termPos.Y < c.Height &&
-		nodeBottom >= 0
-}

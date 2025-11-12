@@ -83,6 +83,8 @@ func (c *Canvas) routeEdge(edge *canvasEdge) {
 
 // getEdgeDirection returns the arrow direction character for an edge segment
 // based on the direction from 'from' to 'to'
+//
+//nolint:unused // Used in tests
 func getEdgeDirection(from, to Position) string {
 	if to.Y > from.Y {
 		return "▼" // Down
@@ -97,49 +99,11 @@ func getEdgeDirection(from, to Position) string {
 }
 
 // getEdgeLineChar returns the Unicode box drawing character for a line segment
+//
+//nolint:unused // Used in tests
 func getEdgeLineChar(from, to Position, isVertical bool) string {
 	if isVertical {
 		return "│"
 	}
 	return "─"
-}
-
-// getEdgeCornerChar returns the Unicode box drawing character for a corner
-func getEdgeCornerChar(from, mid, to Position) string {
-	// Determine the corner type based on directions
-	fromToMid := Position{X: mid.X - from.X, Y: mid.Y - from.Y}
-	midToTo := Position{X: to.X - mid.X, Y: to.Y - mid.Y}
-
-	// Horizontal to vertical down
-	if fromToMid.Y == 0 && midToTo.Y > 0 {
-		if fromToMid.X > 0 {
-			return "┐" // Right then down
-		}
-		return "┌" // Left then down
-	}
-
-	// Horizontal to vertical up
-	if fromToMid.Y == 0 && midToTo.Y < 0 {
-		if fromToMid.X > 0 {
-			return "┘" // Right then up
-		}
-		return "└" // Left then up
-	}
-
-	// Vertical to horizontal
-	if fromToMid.X == 0 && midToTo.X != 0 {
-		if fromToMid.Y > 0 {
-			if midToTo.X > 0 {
-				return "└" // Down then right
-			}
-			return "┘" // Down then left
-		} else {
-			if midToTo.X > 0 {
-				return "┌" // Up then right
-			}
-			return "┐" // Up then left
-		}
-	}
-
-	return "┼" // Default cross
 }

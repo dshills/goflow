@@ -45,19 +45,19 @@ func CreateBasicTemplate() *workflow.Workflow {
 	}
 
 	// Add nodes to workflow
-	wf.AddNode(start)
-	wf.AddNode(tool)
-	wf.AddNode(end)
+	_ = wf.AddNode(start) // Template construction, errors should not occur
+	_ = wf.AddNode(tool)  // Template construction, errors should not occur
+	_ = wf.AddNode(end)   // Template construction, errors should not occur
 
 	// Add edges
-	wf.AddEdge(&workflow.Edge{
+	_ = wf.AddEdge(&workflow.Edge{
 		FromNodeID: "start",
 		ToNodeID:   "mcp-tool-1",
-	})
-	wf.AddEdge(&workflow.Edge{
+	}) // Template construction, errors should not occur
+	_ = wf.AddEdge(&workflow.Edge{
 		FromNodeID: "mcp-tool-1",
 		ToNodeID:   "end",
-	})
+	}) // Template construction, errors should not occur
 
 	return wf
 }
@@ -102,29 +102,29 @@ func CreateETLTemplate() *workflow.Workflow {
 	}
 
 	// Add nodes to workflow
-	wf.AddNode(start)
-	wf.AddNode(extract)
-	wf.AddNode(transform)
-	wf.AddNode(load)
-	wf.AddNode(end)
+	_ = wf.AddNode(start)     // Template construction, errors should not occur
+	_ = wf.AddNode(extract)   // Template construction, errors should not occur
+	_ = wf.AddNode(transform) // Template construction, errors should not occur
+	_ = wf.AddNode(load)      // Template construction, errors should not occur
+	_ = wf.AddNode(end)       // Template construction, errors should not occur
 
 	// Add edges
-	wf.AddEdge(&workflow.Edge{
+	_ = wf.AddEdge(&workflow.Edge{
 		FromNodeID: "start",
 		ToNodeID:   "extract",
-	})
-	wf.AddEdge(&workflow.Edge{
+	}) // Template construction, errors should not occur
+	_ = wf.AddEdge(&workflow.Edge{
 		FromNodeID: "extract",
 		ToNodeID:   "transform",
-	})
-	wf.AddEdge(&workflow.Edge{
+	}) // Template construction, errors should not occur
+	_ = wf.AddEdge(&workflow.Edge{
 		FromNodeID: "transform",
 		ToNodeID:   "load",
-	})
-	wf.AddEdge(&workflow.Edge{
+	}) // Template construction, errors should not occur
+	_ = wf.AddEdge(&workflow.Edge{
 		FromNodeID: "load",
 		ToNodeID:   "end",
-	})
+	}) // Template construction, errors should not occur
 
 	return wf
 }
@@ -179,36 +179,36 @@ func CreateAPIIntegrationTemplate() *workflow.Workflow {
 	}
 
 	// Add nodes to workflow
-	wf.AddNode(start)
-	wf.AddNode(apiCall)
-	wf.AddNode(checkStatus)
-	wf.AddNode(retryLoop)
-	wf.AddNode(success)
-	wf.AddNode(failure)
+	_ = wf.AddNode(start)       // Template construction, errors should not occur
+	_ = wf.AddNode(apiCall)     // Template construction, errors should not occur
+	_ = wf.AddNode(checkStatus) // Template construction, errors should not occur
+	_ = wf.AddNode(retryLoop)   // Template construction, errors should not occur
+	_ = wf.AddNode(success)     // Template construction, errors should not occur
+	_ = wf.AddNode(failure)     // Template construction, errors should not occur
 
 	// Add edges
-	wf.AddEdge(&workflow.Edge{
+	_ = wf.AddEdge(&workflow.Edge{
 		FromNodeID: "start",
 		ToNodeID:   "api-call",
-	})
-	wf.AddEdge(&workflow.Edge{
+	}) // Template construction, errors should not occur
+	_ = wf.AddEdge(&workflow.Edge{
 		FromNodeID: "api-call",
 		ToNodeID:   "check-status",
-	})
-	wf.AddEdge(&workflow.Edge{
+	}) // Template construction, errors should not occur
+	_ = wf.AddEdge(&workflow.Edge{
 		FromNodeID: "check-status",
 		ToNodeID:   "success",
 		Condition:  "true",
-	})
-	wf.AddEdge(&workflow.Edge{
+	}) // Template construction, errors should not occur
+	_ = wf.AddEdge(&workflow.Edge{
 		FromNodeID: "check-status",
 		ToNodeID:   "retry-loop",
 		Condition:  "false",
-	})
-	wf.AddEdge(&workflow.Edge{
+	}) // Template construction, errors should not occur
+	_ = wf.AddEdge(&workflow.Edge{
 		FromNodeID: "retry-loop",
 		ToNodeID:   "failure",
-	})
+	}) // Template construction, errors should not occur
 
 	return wf
 }

@@ -339,7 +339,7 @@ func (b *WorkflowBuilder) AddNodeWithType(nodeType string) error {
 	// Step 4: Add to workflow domain model
 	if err := b.workflow.AddNode(node); err != nil {
 		// Rollback canvas if workflow add fails
-		b.canvas.RemoveNode(node.GetID())
+		_ = b.canvas.RemoveNode(node.GetID()) // Ignore error during rollback
 		return fmt.Errorf("failed to add node to workflow: %w", err)
 	}
 
@@ -692,7 +692,7 @@ func (b *WorkflowBuilder) DeleteEdge(fromID, toID string) error {
 	// Step 4: Remove from workflow
 	newEdges := make([]*workflow.Edge, 0)
 	for _, edge := range b.workflow.Edges {
-		if !(edge.FromNodeID == fromID && edge.ToNodeID == toID) {
+		if edge.FromNodeID != fromID || edge.ToNodeID != toID {
 			newEdges = append(newEdges, edge)
 		}
 	}
@@ -1004,7 +1004,7 @@ func (b *WorkflowBuilder) restoreCanvasPositions(positions map[string]Position) 
 	// Rebuild edges
 	b.canvas.edges = make([]*canvasEdge, 0)
 	for _, edge := range b.workflow.Edges {
-		b.canvas.AddEdge(edge) // Ignore error in restore
+		_ = b.canvas.AddEdge(edge) // Ignore error in restore - best effort
 	}
 }
 
@@ -1021,28 +1021,15 @@ func (b *WorkflowBuilder) getNextAutoPosition() Position {
 }
 
 func (b *WorkflowBuilder) updateKeyStates() {
-	if b.mode == "normal" {
+	switch b.mode {
+	case "normal":
 		b.keyEnabled = map[string]bool{
 			"a": true,
 			"d": true,
 			"e": true,
 			"c": true,
 		}
-	} else if b.mode == "edit" {
-		b.keyEnabled = map[string]bool{
-			"a": false,
-			"d": false,
-			"e": false,
-			"c": false,
-		}
-	} else if b.mode == "palette" {
-		b.keyEnabled = map[string]bool{
-			"a": false,
-			"d": false,
-			"e": false,
-			"c": false,
-		}
-	} else {
+	default: // edit, palette, or other modes
 		b.keyEnabled = map[string]bool{
 			"a": false,
 			"d": false,
@@ -1567,10 +1554,8 @@ func (b *WorkflowBuilder) ApplyTemplate(templateName string) error {
 	}
 
 	// Step 2: Confirm if current workflow has unsaved changes
-	if b.modified {
-		// In real TUI, would show confirmation dialog
-		// For now, proceed without confirmation (tests handle this)
-	}
+	// Note: In real TUI, would show confirmation dialog if b.modified == true
+	// For now, proceed without confirmation (tests handle this)
 
 	// Step 3: Call template function to generate workflow
 	templateWf := createFn()

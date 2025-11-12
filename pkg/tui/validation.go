@@ -20,14 +20,10 @@ func ValidateWorkflow(wf *workflow.Workflow) *ValidationStatus {
 	}
 
 	// Check for circular dependencies (O(V + E))
-	if err := checkCircularDependencies(wf, status); err != nil {
-		// Error already added to status
-	}
+	_ = checkCircularDependencies(wf, status) // Errors added to status
 
 	// Check all nodes reachable from start (O(V + E))
-	if err := checkReachability(wf, status); err != nil {
-		// Error already added to status
-	}
+	_ = checkReachability(wf, status) // Errors added to status
 
 	// Validate each node (O(V))
 	for _, node := range wf.Nodes {

@@ -123,22 +123,12 @@ func validateConditionField(value string) error {
 		return err
 	}
 
-	// Compile and check if it returns boolean
+	// Compile and check syntax
 	// Note: We can't fully validate boolean return without runtime data
-	// But we can check for obvious non-boolean expressions
-	program, err := expr.Compile(value)
+	// Runtime validation will catch non-boolean expressions
+	_, err := expr.Compile(value)
 	if err != nil {
 		return fmt.Errorf("invalid condition syntax: %w", err)
-	}
-
-	// Check if the expression contains comparison or logical operators
-	// This is a heuristic check - true validation happens at runtime
-	hasComparisonOrLogical := strings.ContainsAny(value, "<>=!&|")
-	isBooleanLiteral := value == "true" || value == "false"
-
-	if !hasComparisonOrLogical && !isBooleanLiteral && program != nil {
-		// Warn but don't fail - expression might still return boolean
-		// Let runtime validation catch issues
 	}
 
 	return nil
@@ -163,10 +153,7 @@ func validateJSONPathField(value string) error {
 
 	// Validate using gjson
 	// gjson.Parse doesn't validate the path itself, so we check syntax manually
-	// Check for common syntax errors
-	if strings.Contains(value, "..") && !strings.Contains(value, "...") {
-		// Double dot is valid for recursive descent
-	}
+	// Note: ".." is valid for recursive descent in JSONPath
 
 	// Check for invalid characters (basic validation)
 	// gjson is very permissive, so we just check for obviously broken paths
@@ -226,9 +213,10 @@ func validateTemplateField(value string) error {
 func hasBalancedBrackets(s string) bool {
 	stack := 0
 	for _, ch := range s {
-		if ch == '[' {
+		switch ch {
+		case '[':
 			stack++
-		} else if ch == ']' {
+		case ']':
 			stack--
 			if stack < 0 {
 				return false
