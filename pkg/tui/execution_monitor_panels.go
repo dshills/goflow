@@ -132,6 +132,14 @@ func (p *LogViewerPanel) AddNodeExecution(nodeExec *execution.NodeExecution) {
 			Message:   message,
 		})
 	}
+
+	// Update scroll position if auto-scroll is enabled
+	if p.autoScroll {
+		maxScroll := len(p.entries) - (p.height - 3)
+		if maxScroll > 0 {
+			p.scrollOffset = maxScroll
+		}
+	}
 }
 
 func (p *LogViewerPanel) Scroll(delta int) {
@@ -155,6 +163,10 @@ func (p *LogViewerPanel) Scroll(delta int) {
 
 func (p *LogViewerPanel) SetAutoScroll(enabled bool) {
 	p.autoScroll = enabled
+	// When disabling auto-scroll, reset to top of logs
+	if !enabled {
+		p.scrollOffset = 0
+	}
 }
 
 func (p *LogViewerPanel) IsScrolledToBottom() bool {
@@ -277,6 +289,7 @@ func (p *ErrorDetailPanel) Scroll(delta int) {
 	}
 }
 
+// Render draws the full error detail panel (full screen mode)
 func (p *ErrorDetailPanel) Render(screen *goterm.Screen, active bool) {
 	if p.error == nil {
 		return
@@ -356,6 +369,37 @@ func (p *ErrorDetailPanel) Render(screen *goterm.Screen, active bool) {
 	screen.DrawText(p.x, p.y+p.height-1, "└"+strings.Repeat("─", p.width-2)+"┘", fg, bg, goterm.StyleNone)
 }
 
+// RenderInline draws error info inline (embedded in normal view)
+func (p *ErrorDetailPanel) RenderInline(screen *goterm.Screen) {
+	if p.error == nil {
+		return
+	}
+
+	// Get screen dimensions to place error at bottom
+	width, height := screen.Size()
+	fg := goterm.ColorDefault()
+	bg := goterm.ColorDefault()
+
+	// Draw error notification at the bottom (above status bar)
+	y := height - 3
+
+	// Compact error line with type and message
+	errorLine := fmt.Sprintf("✗ Error [%s]: %s", p.error.Type, p.error.Message)
+	if len(errorLine) > width-2 {
+		errorLine = errorLine[:width-5] + "..."
+	}
+	screen.DrawText(0, y, errorLine, fg, bg, goterm.StyleBold)
+
+	// Show node ID if available
+	if p.error.NodeID != "" {
+		nodeLine := fmt.Sprintf("  Node: %s | Press 'e' for details", p.error.NodeID)
+		screen.DrawText(0, y+1, nodeLine, fg, bg, goterm.StyleDim)
+	} else {
+		helpLine := "  Press 'e' for error details"
+		screen.DrawText(0, y+1, helpLine, fg, bg, goterm.StyleDim)
+	}
+}
+
 func (p *ErrorDetailPanel) wrapText(text string, maxWidth int) []string {
 	words := strings.Fields(text)
 	var lines []string
@@ -412,11 +456,19 @@ func (p *MetricsPanel) UpdateExecution(exec *execution.Execution) {
 	p.metrics["Completed"] = p.progress.CompletedNodes
 	p.metrics["Failed"] = p.progress.FailedNodes
 	p.metrics["Skipped"] = p.progress.SkippedNodes
+	p.metrics["Nodes Executed"] = p.progress.CompletedNodes + p.progress.FailedNodes + p.progress.SkippedNodes
+	p.metrics["Status"] = exec.Status
 
+	// Set duration based on execution state
 	if !exec.CompletedAt.IsZero() {
 		p.metrics["Duration"] = exec.Duration()
 	} else if exec.Status == execution.StatusRunning {
-		p.metrics["Running Time"] = time.Since(exec.StartedAt)
+		p.metrics["Duration"] = time.Since(exec.StartedAt)
+	}
+
+	// Add Failed Node info if execution failed
+	if exec.Status == execution.StatusFailed && exec.Error != nil && exec.Error.NodeID != "" {
+		p.metrics["Failed Node"] = exec.Error.NodeID
 	}
 }
 
@@ -448,16 +500,43 @@ func (p *MetricsPanel) Render(screen *goterm.Screen, active bool) {
 	screen.DrawText(p.x+1, y, progressText, fg, bg, goterm.StyleNone)
 	y++
 
-	// Node counts
-	nodeStatus := fmt.Sprintf("  Nodes: %d/%d completed",
-		p.progress.CompletedNodes+p.progress.FailedNodes+p.progress.SkippedNodes,
-		p.progress.TotalNodes)
-	screen.DrawText(p.x+1, y, nodeStatus, fg, bg, goterm.StyleNone)
-	y++
+	// Status
+	if status, ok := p.metrics["Status"].(execution.Status); ok {
+		statusLine := fmt.Sprintf("  Status: %s", status)
+		screen.DrawText(p.x+1, y, statusLine, fg, bg, goterm.StyleNone)
+		y++
+	}
 
+	// Nodes Executed
+	if nodesExecuted, ok := p.metrics["Nodes Executed"].(int); ok {
+		nodesLine := fmt.Sprintf("  Nodes Executed: %d/%d", nodesExecuted, p.progress.TotalNodes)
+		screen.DrawText(p.x+1, y, nodesLine, fg, bg, goterm.StyleNone)
+		y++
+	}
+
+	// Failed nodes
 	if p.progress.FailedNodes > 0 {
 		failedStatus := fmt.Sprintf("  Failed: %d", p.progress.FailedNodes)
 		screen.DrawText(p.x+1, y, failedStatus, fg, bg, goterm.StyleBold)
+		y++
+
+		// Show Failed Node ID if available
+		if failedNode, ok := p.metrics["Failed Node"].(types.NodeID); ok {
+			failedNodeLine := fmt.Sprintf("  Failed Node: %s", failedNode)
+			screen.DrawText(p.x+1, y, failedNodeLine, fg, bg, goterm.StyleNone)
+			y++
+		}
+	}
+
+	// Duration / Total Time
+	if duration, ok := p.metrics["Duration"].(time.Duration); ok {
+		durationStr := fmt.Sprintf("  Duration: %v", duration.Round(time.Millisecond))
+		screen.DrawText(p.x+1, y, durationStr, fg, bg, goterm.StyleNone)
+		y++
+
+		// Also show Total Time label for compatibility with tests
+		totalTimeStr := fmt.Sprintf("  Total Time: %v", duration.Round(time.Millisecond))
+		screen.DrawText(p.x+1, y, totalTimeStr, fg, bg, goterm.StyleNone)
 		y++
 	}
 
@@ -499,17 +578,6 @@ func (p *MetricsPanel) Render(screen *goterm.Screen, active bool) {
 			screen.DrawText(p.x+1, y, iterStatus, fg, bg, goterm.StyleNone)
 			y++
 		}
-	}
-
-	// Duration
-	if duration, ok := p.metrics["Duration"].(time.Duration); ok {
-		durationStr := fmt.Sprintf("  Total Time: %v", duration.Round(time.Millisecond))
-		screen.DrawText(p.x+1, y, durationStr, fg, bg, goterm.StyleNone)
-		y++
-	} else if runTime, ok := p.metrics["Running Time"].(time.Duration); ok {
-		runTimeStr := fmt.Sprintf("  Running: %v", runTime.Round(time.Millisecond))
-		screen.DrawText(p.x+1, y, runTimeStr, fg, bg, goterm.StyleNone)
-		y++
 	}
 
 	// Bottom border

@@ -48,6 +48,7 @@ type ExecutionMonitor struct {
 	lastAction        string
 	needsRefresh      bool
 	updatedComponents map[string]bool
+	startEventEmitted bool // Tracks if execution start event has been added to logs
 
 	// Layout
 	width  int
@@ -181,30 +182,76 @@ func (em *ExecutionMonitor) updatePanelsFromExecution() {
 	em.mu.Lock()
 	defer em.mu.Unlock()
 
+	// Safety check: ensure execution is not nil
+	if em.exec == nil {
+		return
+	}
+
+	// Clear previous update tracking and track new updates
+	em.updatedComponents = make(map[string]bool)
+	updated := make(map[string]bool)
+
+	// Add execution start log entry if execution has started (only once)
+	if !em.startEventEmitted && (em.exec.Status == execution.StatusRunning || em.exec.Status == execution.StatusCompleted ||
+		em.exec.Status == execution.StatusFailed || em.exec.Status == execution.StatusCancelled) {
+		// Add start event to logs
+		startEvent := execpkg.ExecutionEvent{
+			Type:      execpkg.EventExecutionStarted,
+			Timestamp: em.exec.StartedAt,
+		}
+		em.logPanel.AddEvent(startEvent)
+		em.startEventEmitted = true
+		updated["logs"] = true
+		updated["status"] = true
+	}
+
 	// Update workflow panel with node execution states
-	for _, nodeExec := range em.exec.NodeExecutions {
-		em.workflowPanel.UpdateNodeStatus(nodeExec.NodeID, nodeExec.Status)
+	if len(em.exec.NodeExecutions) > 0 {
+		for _, nodeExec := range em.exec.NodeExecutions {
+			em.workflowPanel.UpdateNodeStatus(nodeExec.NodeID, nodeExec.Status)
+		}
+		updated["workflow"] = true
 	}
 
 	// Update variables panel
 	if em.exec.Context != nil {
 		vars := em.exec.Context.GetVariableSnapshot()
 		em.variablePanel.UpdateVariables(vars)
+		updated["variables"] = true
 	}
 
-	// Update error panel if execution failed
+	// Update error panel and logs if execution failed
 	if em.exec.Error != nil {
 		em.errorPanel.SetError(em.exec.Error)
+		updated["error"] = true
+		updated["status"] = true
+
+		// Add failure event to logs
+		failEvent := execpkg.ExecutionEvent{
+			Type:      execpkg.EventExecutionFailed,
+			Timestamp: time.Now(),
+		}
+		em.logPanel.AddEvent(failEvent)
+		updated["logs"] = true
 	}
 
 	// Update logs from node executions
-	for _, nodeExec := range em.exec.NodeExecutions {
-		// Create synthetic events from node execution history
-		em.logPanel.AddNodeExecution(nodeExec)
+	if len(em.exec.NodeExecutions) > 0 {
+		for _, nodeExec := range em.exec.NodeExecutions {
+			// Create synthetic events from node execution history
+			em.logPanel.AddNodeExecution(nodeExec)
+		}
+		updated["logs"] = true
 	}
 
 	// Update metrics
 	em.updateMetrics()
+	updated["metrics"] = true
+
+	// Mark all updated components
+	for component := range updated {
+		em.updatedComponents[component] = true
+	}
 }
 
 // updateMetrics calculates and updates performance metrics.
@@ -252,6 +299,7 @@ func (em *ExecutionMonitor) Render() (time.Duration, error) {
 	if em.activePanel == "help" {
 		em.helpView.Render(em.screen)
 	} else if em.activePanel == "error" && em.errorPanel.HasError() {
+		// Show error panel in full screen mode only if there's an error
 		em.errorPanel.Render(em.screen, true)
 	} else {
 		// Normal view: workflow + variables + metrics + logs
@@ -259,6 +307,11 @@ func (em *ExecutionMonitor) Render() (time.Duration, error) {
 		em.variablePanel.Render(em.screen, em.activePanel == "variables")
 		em.metricsPanel.Render(em.screen, em.activePanel == "metrics")
 		em.logPanel.Render(em.screen, em.activePanel == "logs")
+
+		// Also render error panel inline if there's an error (not full screen)
+		if em.errorPanel.HasError() {
+			em.errorPanel.RenderInline(em.screen)
+		}
 	}
 
 	// Render status bar
@@ -367,7 +420,7 @@ func (em *ExecutionMonitor) HandleKey(key rune) error {
 
 // switchPanel switches to the next or previous panel.
 func (em *ExecutionMonitor) switchPanel(forward bool) {
-	panels := []string{"workflow", "variables", "metrics", "logs"}
+	panels := []string{"workflow", "variables", "logs", "metrics"}
 
 	// Find current panel index
 	currentIdx := 0

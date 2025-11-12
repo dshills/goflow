@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"fmt"
 	"strings"
 
 	tui "github.com/dshills/goflow/pkg/tui"
@@ -62,7 +61,7 @@ func (m *MockWorkflowRepository) FindByID(id string) (*workflow.Workflow, error)
 			return wf, nil
 		}
 	}
-	return nil, fmt.Errorf("workflow not found: %s", id)
+	return nil, workflow.ErrWorkflowNotFound
 }
 
 func (m *MockWorkflowRepository) FindByName(name string) (*workflow.Workflow, error) {
@@ -71,7 +70,7 @@ func (m *MockWorkflowRepository) FindByName(name string) (*workflow.Workflow, er
 			return wf, nil
 		}
 	}
-	return nil, fmt.Errorf("workflow not found: %s", name)
+	return nil, workflow.ErrWorkflowNotFound
 }
 
 func (m *MockWorkflowRepository) FindAll() ([]*workflow.Workflow, error) {
@@ -97,7 +96,7 @@ func (m *MockWorkflowRepository) Delete(id string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("workflow not found: %s", id)
+	return workflow.ErrWorkflowNotFound
 }
 
 // screenContainsText checks if the screen buffer contains the given text

@@ -296,50 +296,34 @@ func (e *WorkflowExplorer) showDeleteConfirmation() {
 		return
 	}
 
-	confirmed := false
+	// If callback is registered, use it to get confirmation
 	if e.onDeleteConfirmCallback != nil {
-		confirmed = e.onDeleteConfirmCallback(selected)
-	} else {
-		// Default confirmation behavior
-		message := fmt.Sprintf("Delete workflow '%s'? (y/n)", selected.Name)
-		modal := components.NewConfirmModal(
-			"Delete Workflow",
-			message,
-			func(result bool) {
-				confirmed = result
-				e.currentModal = nil
-			},
-		)
-		e.currentModal = modal
-		modal.Show()
-	}
-
-	// If we have a callback, it handles the confirmation logic
-	if e.onDeleteConfirmCallback != nil {
+		confirmed := e.onDeleteConfirmCallback(selected)
 		if confirmed {
 			err := e.repo.Delete(selected.ID)
 			if err == nil {
 				_ = e.loadWorkflows()
 			}
 		}
-	} else {
-		// For modal-based confirmation, deletion happens in callback
-		modal := components.NewConfirmModal(
-			"Delete Workflow",
-			fmt.Sprintf("Delete workflow '%s'?", selected.Name),
-			func(result bool) {
-				if result {
-					err := e.repo.Delete(selected.ID)
-					if err == nil {
-						_ = e.loadWorkflows()
-					}
-				}
-				e.currentModal = nil
-			},
-		)
-		e.currentModal = modal
-		modal.Show()
+		return
 	}
+
+	// Default modal-based confirmation
+	modal := components.NewConfirmModal(
+		"Delete Workflow",
+		fmt.Sprintf("Delete workflow '%s'?", selected.Name),
+		func(result bool) {
+			if result {
+				err := e.repo.Delete(selected.ID)
+				if err == nil {
+					_ = e.loadWorkflows()
+				}
+			}
+			e.currentModal = nil
+		},
+	)
+	e.currentModal = modal
+	modal.Show()
 }
 
 // showRenameDialog shows the rename workflow dialog
@@ -351,7 +335,6 @@ func (e *WorkflowExplorer) showRenameDialog() {
 
 	// If callback is registered, use it
 	if e.onRenameDialogCallback != nil {
-		e.onRenameDialogCallback(selected)
 		newName := e.onRenameDialogCallback(selected)
 		if newName != "" && newName != selected.Name {
 			// Validate name
