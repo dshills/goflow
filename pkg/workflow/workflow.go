@@ -445,15 +445,11 @@ func (w *Workflow) checkForOrphanedNodes() error {
 		case *ParallelNode:
 			// Parallel nodes connect to all branch nodes
 			for _, branch := range n.Branches {
-				for _, branchNodeID := range branch {
-					adjacency[n.ID] = append(adjacency[n.ID], branchNodeID)
-				}
+				adjacency[n.ID] = append(adjacency[n.ID], branch...)
 			}
 		case *LoopNode:
 			// Loop nodes connect to all body nodes
-			for _, bodyNodeID := range n.Body {
-				adjacency[n.ID] = append(adjacency[n.ID], bodyNodeID)
-			}
+			adjacency[n.ID] = append(adjacency[n.ID], n.Body...)
 		}
 	}
 

@@ -196,9 +196,10 @@ func validateJSONPathSyntax(path string) error {
 	// Check for balanced brackets
 	bracketCount := 0
 	for _, ch := range path {
-		if ch == '[' {
+		switch ch {
+		case '[':
 			bracketCount++
-		} else if ch == ']' {
+		case ']':
 			bracketCount--
 			if bracketCount < 0 {
 				return fmt.Errorf("unmatched closing bracket in JSONPath")
@@ -212,9 +213,10 @@ func validateJSONPathSyntax(path string) error {
 	// Check for balanced braces in filter expressions
 	braceCount := 0
 	for _, ch := range path {
-		if ch == '(' {
+		switch ch {
+		case '(':
 			braceCount++
-		} else if ch == ')' {
+		case ')':
 			braceCount--
 			if braceCount < 0 {
 				return fmt.Errorf("unmatched closing parenthesis in JSONPath")
@@ -260,9 +262,10 @@ func validateTemplateSyntax(template string) error {
 			j := i + 2
 			depth := 1
 			for j < len(template) && depth > 0 {
-				if template[j] == '{' {
+				switch template[j] {
+				case '{':
 					depth++
-				} else if template[j] == '}' {
+				case '}':
 					depth--
 				}
 				j++

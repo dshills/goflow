@@ -59,7 +59,11 @@ Examples:
 			if err != nil {
 				return fmt.Errorf("failed to initialize TUI: %w", err)
 			}
-			defer app.Close()
+			defer func() {
+				if err := app.Close(); err != nil {
+					fmt.Fprintf(os.Stderr, "Failed to close TUI application: %v\n", err)
+				}
+			}()
 
 			// If a workflow was specified, configure the builder view
 			if workflowName != "" {
@@ -76,10 +80,8 @@ Examples:
 				if err := app.GetViewManager().SwitchTo("builder"); err != nil {
 					return fmt.Errorf("failed to switch to builder view: %w", err)
 				}
-			} else {
-				// Start in explorer view (already initialized by NewApp)
-				// No additional configuration needed
 			}
+			// else: Start in explorer view (already initialized by NewApp)
 
 			// Run the TUI application
 			if err := app.Run(); err != nil {

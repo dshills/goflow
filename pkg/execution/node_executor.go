@@ -282,7 +282,7 @@ func (e *Engine) substituteVariables(input string, ctx *execution.ExecutionConte
 		}
 
 		// Replace placeholder with value
-		result = strings.Replace(result, placeholder, strValue, -1)
+		result = strings.ReplaceAll(result, placeholder, strValue)
 	}
 
 	return result, nil

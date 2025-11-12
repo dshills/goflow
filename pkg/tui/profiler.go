@@ -460,7 +460,7 @@ func (p *Profiler) ExportJSON(filename string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create profile file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	encoder := json.NewEncoder(file)
 	encoder.SetIndent("", "  ")
@@ -486,7 +486,7 @@ func (p *Profiler) StartCPUProfile(filename string) error {
 	}
 
 	if err := pprof.StartCPUProfile(file); err != nil {
-		file.Close()
+		_ = file.Close()
 		return fmt.Errorf("failed to start CPU profile: %w", err)
 	}
 
@@ -520,7 +520,7 @@ func (p *Profiler) WriteMemoryProfile(filename string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create memory profile: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	runtime.GC() // Get up-to-date statistics
 	if err := pprof.WriteHeapProfile(file); err != nil {
@@ -536,7 +536,7 @@ func (p *Profiler) WriteGoroutineProfile(filename string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create goroutine profile: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	profile := pprof.Lookup("goroutine")
 	if profile == nil {

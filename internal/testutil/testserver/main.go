@@ -412,10 +412,9 @@ func (s *Server) logSecurityViolation(operation, path string, err error) {
 
 	// Log to stderr by default (or configured log file)
 	logOutput := s.stderr
-	if s.config.LogFilePath != "" {
-		// TODO: Write to log file if configured
-		// For now, always use stderr
-	}
+	// TODO(Phase 4): Implement log file output when config.LogFilePath is set
+	// For now, always use stderr for simplicity
+	_ = s.config.LogFilePath // Explicitly acknowledge unused config field
 
 	logMsg := fmt.Sprintf("SECURITY [testserver] Rejected %s: input=%s error=%v\n",
 		operation, path, err)

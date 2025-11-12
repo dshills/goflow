@@ -122,7 +122,12 @@ func (c *HTTPClient) initialize(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to send initialized notification: %w", err)
 	}
-	defer httpResp.Body.Close()
+	defer func() {
+		if err := httpResp.Body.Close(); err != nil {
+			// Log error but don't fail - notification was already sent
+			_ = err
+		}
+	}()
 
 	// For notifications, we accept both 200 OK and 204 No Content
 	if httpResp.StatusCode != http.StatusOK && httpResp.StatusCode != http.StatusNoContent && httpResp.StatusCode != http.StatusAccepted {
@@ -169,7 +174,12 @@ func (c *HTTPClient) sendRequest(ctx context.Context, method string, params inte
 	if err != nil {
 		return nil, fmt.Errorf("failed to send HTTP request: %w", err)
 	}
-	defer httpResp.Body.Close()
+	defer func() {
+		if err := httpResp.Body.Close(); err != nil {
+			// Log error but don't fail - response was already received
+			_ = err
+		}
+	}()
 
 	// Read response body
 	body, err := io.ReadAll(httpResp.Body)

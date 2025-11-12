@@ -379,9 +379,10 @@ func convertFilters(path string) string {
 			depth := 1
 			j := i + 3
 			for j < len(path) && depth > 0 {
-				if path[j] == '(' {
+				switch path[j] {
+				case '(':
 					depth++
-				} else if path[j] == ')' {
+				case ')':
 					depth--
 				}
 				j++
@@ -500,12 +501,15 @@ func isSimpleNumber(s string) bool {
 func hasSliceNotation(path string) bool {
 	inBracket := false
 	for i := 0; i < len(path); i++ {
-		if path[i] == '[' {
+		switch path[i] {
+		case '[':
 			inBracket = true
-		} else if path[i] == ']' {
+		case ']':
 			inBracket = false
-		} else if path[i] == ':' && inBracket {
-			return true
+		case ':':
+			if inBracket {
+				return true
+			}
 		}
 	}
 	return false
@@ -611,7 +615,7 @@ func handleNestedWildcards(jsonStr, queryPath string) (interface{}, error) {
 
 	// Navigate through each level
 	var flattened []interface{}
-	var current []gjson.Result = result.Array()
+	current := result.Array()
 
 	for i := 1; i < len(parts); i++ {
 		var next []gjson.Result
@@ -1196,7 +1200,8 @@ func handleWildcardQuery(ctx context.Context, jsonStr, path string, data interfa
 func validateBrackets(path string) error {
 	stack := 0
 	for i, ch := range path {
-		if ch == '[' {
+		switch ch {
+		case '[':
 			stack++
 			// Check for invalid characters after opening bracket
 			if i+1 < len(path) {
@@ -1210,7 +1215,7 @@ func validateBrackets(path string) error {
 					}
 				}
 			}
-		} else if ch == ']' {
+		case ']':
 			stack--
 			if stack < 0 {
 				return ErrInvalidJSONPath
@@ -1227,14 +1232,17 @@ func validateBrackets(path string) error {
 func hasNegativeIndex(path string) bool {
 	inBracket := false
 	for i := 0; i < len(path); i++ {
-		if path[i] == '[' {
+		switch path[i] {
+		case '[':
 			inBracket = true
-		} else if path[i] == ']' {
+		case ']':
 			inBracket = false
-		} else if path[i] == '-' && inBracket {
-			// Check if it's followed by a digit (negative number)
-			if i+1 < len(path) && path[i+1] >= '0' && path[i+1] <= '9' {
-				return true
+		case '-':
+			if inBracket {
+				// Check if it's followed by a digit (negative number)
+				if i+1 < len(path) && path[i+1] >= '0' && path[i+1] <= '9' {
+					return true
+				}
 			}
 		}
 	}
@@ -1353,9 +1361,10 @@ func hasFilterFollowedByWildcard(path string) bool {
 	depth := 1
 	j := filterStart + 3
 	for j < len(path) && depth > 0 {
-		if path[j] == '(' {
+		switch path[j] {
+		case '(':
 			depth++
-		} else if path[j] == ')' {
+		case ')':
 			depth--
 		}
 		j++
@@ -1383,9 +1392,10 @@ func handleFilteredWildcardPath(jsonStr, path string) (interface{}, error) {
 	depth := 1
 	j := filterStart + 3
 	for j < len(path) && depth > 0 {
-		if path[j] == '(' {
+		switch path[j] {
+		case '(':
 			depth++
-		} else if path[j] == ')' {
+		case ')':
 			depth--
 		}
 		j++
@@ -1499,9 +1509,10 @@ func handleContainsFilter(jsonStr, path string) (interface{}, error) {
 	depth := 1
 	j := filterStart + 3
 	for j < len(path) && depth > 0 {
-		if path[j] == '(' {
+		switch path[j] {
+		case '(':
 			depth++
-		} else if path[j] == ')' {
+		case ')':
 			depth--
 		}
 		j++
@@ -1607,9 +1618,10 @@ func handleORFilter(jsonStr, path string) (interface{}, error) {
 	depth := 1
 	j := filterStart + 3
 	for j < len(path) && depth > 0 {
-		if path[j] == '(' {
+		switch path[j] {
+		case '(':
 			depth++
-		} else if path[j] == ')' {
+		case ')':
 			depth--
 		}
 		j++
