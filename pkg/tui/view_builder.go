@@ -37,7 +37,7 @@ func (v *WorkflowBuilderView) Name() string {
 	return v.name
 }
 
-// SetViewSwitcher implements the View interface
+// SetViewSwitcher stores the ViewSwitcher for requesting view changes
 func (v *WorkflowBuilderView) SetViewSwitcher(switcher ViewSwitcher) {
 	v.viewSwitcher = switcher
 }

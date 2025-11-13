@@ -46,7 +46,7 @@ func NewWorkflowExplorerView() *WorkflowExplorerView {
 	}
 }
 
-// SetViewSwitcher implements the View interface
+// SetViewSwitcher stores the ViewSwitcher for requesting view changes
 func (v *WorkflowExplorerView) SetViewSwitcher(switcher ViewSwitcher) {
 	v.viewSwitcher = switcher
 }

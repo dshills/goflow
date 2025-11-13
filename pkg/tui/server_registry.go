@@ -34,6 +34,7 @@ type ServerRegistryView struct {
 	errorMsg       string    // Error message display
 	width          int
 	height         int
+	viewSwitcher   ViewSwitcher // For switching to other views
 }
 
 // addServerDialogState tracks the state of the add server dialog (T197)
@@ -72,6 +73,11 @@ func (v *ServerRegistryView) SetRegistry(registry mcpserver.ServerRepository) {
 // Name returns the unique identifier for this view
 func (v *ServerRegistryView) Name() string {
 	return v.name
+}
+
+// SetViewSwitcher stores the ViewSwitcher for requesting view changes
+func (v *ServerRegistryView) SetViewSwitcher(switcher ViewSwitcher) {
+	v.viewSwitcher = switcher
 }
 
 // Init initializes the server registry view

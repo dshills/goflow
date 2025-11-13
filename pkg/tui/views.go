@@ -7,6 +7,19 @@ import (
 	"github.com/dshills/goterm"
 )
 
+// ViewSwitcher allows views to request view switches
+type ViewSwitcher interface {
+	// SwitchToView requests a switch to the named view
+	SwitchToView(viewName string) error
+}
+
+// ViewSwitcherAware is an optional interface for views that need to switch views
+// Views implementing this interface will have SetViewSwitcher called during registration
+type ViewSwitcherAware interface {
+	// SetViewSwitcher provides the view with a way to switch views
+	SetViewSwitcher(switcher ViewSwitcher)
+}
+
 // View defines the interface that all TUI views must implement
 type View interface {
 	// Name returns the unique identifier for this view
@@ -50,11 +63,13 @@ func NewViewManager() *ViewManager {
 	}
 }
 
+// SwitchToView implements ViewSwitcher interface
+func (vm *ViewManager) SwitchToView(viewName string) error {
+	return vm.SwitchTo(viewName)
+}
+
 // RegisterView adds a view to the manager's registry
 func (vm *ViewManager) RegisterView(view View) error {
-	vm.mu.Lock()
-	defer vm.mu.Unlock()
-
 	if view == nil {
 		return fmt.Errorf("cannot register nil view")
 	}
@@ -64,11 +79,21 @@ func (vm *ViewManager) RegisterView(view View) error {
 		return fmt.Errorf("view name cannot be empty")
 	}
 
+	vm.mu.Lock()
+	defer vm.mu.Unlock()
+
 	if _, exists := vm.views[name]; exists {
 		return fmt.Errorf("view %q already registered", name)
 	}
 
 	vm.views[name] = view
+
+	// Inject view switcher if the view supports it (optional interface pattern)
+	// This is safe to call while holding the lock since SetViewSwitcher is a simple setter
+	if aware, ok := view.(ViewSwitcherAware); ok {
+		aware.SetViewSwitcher(vm)
+	}
+
 	return nil
 }
 
