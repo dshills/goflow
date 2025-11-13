@@ -7,18 +7,19 @@ import (
 // ExecutionMonitorView displays real-time workflow execution status
 // Shows node execution progress, logs, and error information
 type ExecutionMonitorView struct {
-	name        string
-	active      bool
-	executionID string   // Current execution being monitored
-	nodes       []string // Execution nodes with status
-	logs        []string // Execution log entries
-	selectedIdx int      // Currently selected item
-	autoScroll  bool     // Auto-scroll to latest log entry
-	statusMsg   string   // Status message to display
-	initialized bool
-	showLogs    bool // Toggle between node view and log view
-	width       int  // View width
-	height      int  // View height
+	name         string
+	active       bool
+	executionID  string   // Current execution being monitored
+	nodes        []string // Execution nodes with status
+	logs         []string // Execution log entries
+	selectedIdx  int      // Currently selected item
+	autoScroll   bool     // Auto-scroll to latest log entry
+	statusMsg    string   // Status message to display
+	initialized  bool
+	showLogs     bool         // Toggle between node view and log view
+	width        int          // View width
+	height       int          // View height
+	viewSwitcher ViewSwitcher // For switching to other views
 }
 
 // NewExecutionMonitorView creates a new execution monitor view
@@ -37,6 +38,11 @@ func NewExecutionMonitorView() *ExecutionMonitorView {
 // Name returns the unique identifier for this view
 func (v *ExecutionMonitorView) Name() string {
 	return v.name
+}
+
+// SetViewSwitcher stores the ViewSwitcher for requesting view changes
+func (v *ExecutionMonitorView) SetViewSwitcher(switcher ViewSwitcher) {
+	v.viewSwitcher = switcher
 }
 
 // Init initializes the execution monitor view

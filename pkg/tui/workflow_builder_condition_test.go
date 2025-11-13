@@ -19,11 +19,13 @@ func TestConditionNodeInPalette(t *testing.T) {
 	}
 
 	palette := builder.GetNodePalette()
-	nodeTypes := palette.GetNodeTypes()
+
+	// Filter for "Condition" node type
+	filtered := palette.Filter("condition")
 
 	found := false
-	for _, nodeType := range nodeTypes {
-		if nodeType == "Condition" {
+	for _, nodeType := range filtered {
+		if nodeType.typeName == "Condition" {
 			found = true
 			break
 		}

@@ -321,25 +321,305 @@ Full CLI reference: [Quickstart Guide](specs/001-goflow-spec-review/quickstart.m
 Launch the interactive terminal UI:
 
 ```bash
+# Create or edit an existing workflow
 goflow edit <workflow-name>
+
+# Start from a template
+goflow edit <workflow-name> --template etl
 ```
 
-**Features**:
-- Visual workflow canvas with node management
-- Interactive edge creation and editing
-- Real-time validation feedback
-- Live execution monitoring
-- Vim-style keyboard navigation (hjkl)
+### Overview
 
-**Navigation**:
-- `hjkl` or arrow keys: Navigate
-- `a`: Add node
-- `e`: Edit node
-- `d`: Delete node
-- `c`: Connect nodes
+The visual workflow editor is a full-featured terminal UI for building, editing, and validating workflows without writing YAML. It provides:
+
+- **Visual Canvas**: Node placement with automatic layout and manual positioning
+- **Node Palette**: 6 node types with search filtering (MCP Tool, Transform, Condition, Loop, Parallel, End)
+- **Property Editor**: Real-time validation with field-level error messages
+- **Validation Panel**: Live error detection with navigation to problematic nodes
+- **Undo/Redo**: 100-level undo stack for all operations
+- **Canvas Navigation**: Pan, zoom (0.5x to 2.0x), fit-all, reset view
+- **Keyboard-First**: 30+ shortcuts with vim-style navigation (hjkl)
+- **Help System**: Context-sensitive help with `?` key
+
+### Building a Workflow
+
+**1. Add Nodes**
+
+Press `a` to open the node palette:
+
+```
+┌─── Add Node ────────────────────┐
+│                                  │
+│ Search: [_________________]      │
+│                                  │
+│ ► 🔧 MCP Tool                    │
+│     Execute MCP server tool      │
+│                                  │
+│   🔄 Transform                   │
+│     Transform data using         │
+│     JSONPath, template, or jq    │
+│                                  │
+│   ❓ Condition                   │
+│     Conditional branching        │
+│                                  │
+│ [Enter: Select] [Esc: Cancel]    │
+└──────────────────────────────────┘
+```
+
+- Navigate with `↓↑` or `jk`
+- Type to filter: `"trans"` → shows Transform
+- Press `Enter` to add node to canvas
+
+**2. Edit Node Properties**
+
+Select a node and press `e` to edit:
+
+```
+┌─── Edit Node: tool-1 ───────────┐
+│                                  │
+│ ► Name: [tool-1______________]   │
+│   Server ID: [filesystem_____]   │
+│   Tool Name: [read_file______]   │
+│   Path: [/tmp/data.json______]   │
+│                                  │
+│ [Tab: Next] [Enter: Save]        │
+│ [Esc: Cancel]                    │
+└──────────────────────────────────┘
+```
+
+- `Tab`/`Shift+Tab` to navigate fields
+- Type to edit current field
+- Real-time validation with error highlighting
+- `Enter` to save, `Esc` to cancel
+
+**3. Connect Nodes**
+
+Press `c` to start edge creation mode:
+
+1. Select source node (highlight with arrow keys)
+2. Press `Enter` to confirm source
+3. Select target node
+4. Press `Enter` to create edge
+
+The canvas automatically routes edges with orthogonal (Manhattan) layout.
+
+**4. Validate Workflow**
+
+Press `v` to run validation:
+
+```
+┌─── Validation Errors (2) ───────┐
+│                                  │
+│ ► ❌ Node 'tool-1': Required     │
+│      field 'tool name' missing   │
+│                                  │
+│   ⚠️  Node 'transform-2':        │
+│      Disconnected node           │
+│                                  │
+│ [Enter: Navigate] [Esc: Close]   │
+└──────────────────────────────────┘
+```
+
+- Press `Enter` on an error to navigate to the problematic node
+- Errors (❌) block execution, warnings (⚠️) are informational
+
+**5. Save Workflow**
+
+Press `s` to save changes to disk. Modified workflows show `*` in status bar.
+
+### Keyboard Shortcuts Reference
+
+#### Normal Mode (default)
+
+**Node Operations**:
+- `a`: Add node (opens palette)
+- `e`: Edit selected node properties
+- `d`: Delete selected node
+- `c`: Create edge (connect nodes)
+- `x`: Delete selected edge
+
+**Canvas Navigation**:
+- `hjkl` or `↑↓←→`: Pan canvas (scroll)
+- `+`/`=`: Zoom in
+- `-`: Zoom out
+- `0`: Reset zoom to 1.0x
+- `f`: Fit all nodes in view
+- `r`: Reset view (center on start node)
+
+**Workflow Actions**:
+- `s`: Save workflow
 - `v`: Validate workflow
-- `x`: Execute workflow
-- `?`: Help
+- `u`: Undo last operation
+- `Ctrl+r`: Redo operation
+
+**View Toggles**:
+- `?`: Toggle help panel
+- `V`: Toggle validation panel (capital V)
+
+**Application**:
+- `q`: Quit (prompts if modified)
+- `Esc`: Cancel current operation
+
+#### Edit Mode (property panel)
+
+- `Tab`: Next field
+- `Shift+Tab`: Previous field
+- `Enter`: Save changes
+- `Esc`: Cancel editing
+
+#### Palette Mode (node selection)
+
+- `↓↑` or `jk`: Navigate node types
+- `/`: Focus search field
+- Type: Filter node types
+- `Enter`: Select node type
+- `Esc`: Cancel
+
+#### Help Mode (help panel)
+
+- `↓↑` or `jk`: Scroll help text
+- `Esc` or `?`: Close help
+
+### Node Types and Configuration
+
+#### 🔧 MCP Tool
+Execute a tool from a registered MCP server.
+
+**Required Fields**:
+- `Name`: Node identifier
+- `Server ID`: Registered MCP server
+- `Tool Name`: Tool to execute
+- Tool-specific parameters
+
+**Example**: Read file from filesystem server
+
+#### 🔄 Transform
+Transform data using JSONPath, jq-style, or template expressions.
+
+**Required Fields**:
+- `Name`: Node identifier
+- `Type`: `jsonpath`, `jq`, or `template`
+- `Expression`: Transformation expression
+- `Input`: Source variable
+- `Output`: Destination variable
+
+**Example**: Extract email from JSON: `$.user.email`
+
+#### ❓ Condition
+Branch execution based on boolean expression.
+
+**Required Fields**:
+- `Name`: Node identifier
+- `Expression`: Boolean condition (e.g., `${count > 10}`)
+
+**Note**: Condition nodes must have exactly 2 outgoing edges (true/false paths)
+
+#### 🔁 Loop
+Iterate over a collection.
+
+**Required Fields**:
+- `Name`: Node identifier
+- `Collection`: Variable containing array (e.g., `${items}`)
+- `Variable`: Loop variable name (e.g., `item`)
+
+**Note**: Loop body nodes connect in a subgraph
+
+#### ⚡ Parallel
+Execute multiple branches concurrently.
+
+**Required Fields**:
+- `Name`: Node identifier
+- `Branches`: Number of parallel branches
+- `Merge Strategy`: `wait_all`, `wait_any`, or `race`
+
+#### 🏁 End
+Exit point with optional return value.
+
+**Required Fields**:
+- `Name`: Node identifier
+- `Output`: Variable to return (optional)
+
+### Canvas Layout
+
+The canvas uses a hierarchical auto-layout algorithm (Sugiyama framework) that automatically positions nodes when loading workflows without position metadata.
+
+**Manual Positioning**:
+- Nodes remember their positions when saved
+- Pan to reposition viewport
+- Zoom to see more or focus on details
+
+**Visual Feedback**:
+- **Selected node**: Highlighted border
+- **Validation errors**: Red border with ❌ icon
+- **Validation warnings**: Yellow border with ⚠️ icon
+- **Edges**: Orthogonal routing (horizontal → vertical → horizontal)
+
+### Validation Rules
+
+The editor validates workflows in real-time:
+
+1. **Structural**:
+   - No circular dependencies (cycles blocked)
+   - All nodes reachable from start node
+   - All edges point to valid nodes
+
+2. **Node-Specific**:
+   - Required fields populated
+   - Valid expression syntax
+   - Valid JSONPath syntax
+   - Valid template placeholders
+
+3. **Domain Rules**:
+   - Condition nodes have exactly 2 outgoing edges
+   - Loop collection is an array type
+   - MCP tool references existing server
+
+### Workflow Templates
+
+Press `t` in normal mode to load a template:
+
+| Template | Description | Nodes |
+|----------|-------------|-------|
+| **basic** | Simple 3-node workflow | Start → MCP Tool → End |
+| **etl** | Extract-Transform-Load pipeline | 5 nodes with transformation |
+| **api-integration** | API call with retry and error handling | 6 nodes with condition and loop |
+| **batch-processing** | Process multiple files in parallel | 7 nodes with parallel execution |
+
+Templates provide starting points that you can customize for your use case.
+
+### Undo/Redo
+
+All operations are tracked in a 100-level undo stack:
+
+- **Undo** (`u`): Revert last operation
+- **Redo** (`Ctrl+r`): Reapply undone operation
+
+**Undoable operations**:
+- Add/delete nodes
+- Create/delete edges
+- Move nodes
+- Edit node properties (on save)
+- Load templates
+
+### Performance
+
+The editor is optimized for large workflows:
+
+- **Canvas rendering**: < 16ms per frame (60 FPS)
+- **Auto-layout**: 16.77ms for 50 nodes
+- **Validation**: 37μs for 100 nodes
+- **Undo/redo**: < 50ms per operation
+
+Supports workflows up to 200 nodes without degradation.
+
+### Tips & Tricks
+
+1. **Quick navigation**: Press `r` to reset view to start node
+2. **Find errors fast**: Press `V` to open validation panel, then `Enter` on errors to navigate
+3. **Template workflow**: Start with `goflow edit myflow --template etl` for common patterns
+4. **Search nodes**: In palette, type partial names (e.g., "cond" for Condition)
+5. **Keyboard-only editing**: All operations accessible without mouse
+6. **Zoom levels**: Use `+`/`-` to zoom, `0` to reset to 1.0x, `f` to fit all nodes
 
 Built with [goterm](https://github.com/dshills/goterm) for efficient terminal rendering.
 
